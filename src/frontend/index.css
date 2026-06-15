@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Fonts ── */
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/assets/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("/assets/fonts/Satoshi-Variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* ── Crossing Design Tokens — Light Mode ── */
+    /* Deep Navy Blue primary, Warm Gold accent, Clean whites */
+
+    --background: 0.97 0.005 240;
+    --foreground: 0.18 0.04 245;
+
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.04 245;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.04 245;
+
+    /* Navy blue primary */
+    --primary: 0.28 0.085 248;
+    --primary-foreground: 0.99 0 0;
+
+    /* Light navy secondary */
+    --secondary: 0.94 0.015 240;
+    --secondary-foreground: 0.28 0.085 248;
+
+    --muted: 0.94 0.01 240;
+    --muted-foreground: 0.52 0.03 245;
+
+    /* Warm gold accent */
+    --accent: 0.78 0.14 72;
+    --accent-foreground: 0.15 0.04 245;
+
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.99 0 0;
+
+    --border: 0.88 0.02 240;
+    --input: 0.88 0.02 240;
+    --ring: 0.28 0.085 248;
+
+    --chart-1: 0.28 0.085 248;
+    --chart-2: 0.78 0.14 72;
+    --chart-3: 0.55 0.18 142;
+    --chart-4: 0.65 0.2 30;
+    --chart-5: 0.45 0.12 280;
+
+    --sidebar: 0.22 0.07 248;
+    --sidebar-foreground: 0.97 0.01 240;
+    --sidebar-primary: 0.78 0.14 72;
+    --sidebar-primary-foreground: 0.15 0.04 245;
+    --sidebar-accent: 0.3 0.09 248;
+    --sidebar-accent-foreground: 0.97 0.01 240;
+    --sidebar-border: 0.35 0.07 248;
+    --sidebar-ring: 0.78 0.14 72;
+
+    /* Custom tokens */
+    --gold: 0.78 0.14 72;
+    --gold-light: 0.88 0.1 72;
+    --gold-dark: 0.62 0.16 68;
+    --navy: 0.22 0.09 248;
+    --navy-light: 0.32 0.08 248;
+    --navy-dark: 0.16 0.07 248;
+    --success: 0.55 0.18 142;
+    --success-foreground: 0.99 0 0;
+    --warning: 0.72 0.18 52;
+    --warning-foreground: 0.15 0 0;
+  }
+
+  .dark {
+    --background: 0.13 0.04 248;
+    --foreground: 0.95 0.01 240;
+
+    --card: 0.18 0.05 248;
+    --card-foreground: 0.95 0.01 240;
+
+    --popover: 0.2 0.06 248;
+    --popover-foreground: 0.95 0.01 240;
+
+    --primary: 0.78 0.14 72;
+    --primary-foreground: 0.15 0.04 245;
+
+    --secondary: 0.24 0.07 248;
+    --secondary-foreground: 0.95 0.01 240;
+
+    --muted: 0.22 0.06 248;
+    --muted-foreground: 0.6 0.04 245;
+
+    --accent: 0.78 0.14 72;
+    --accent-foreground: 0.15 0.04 245;
+
+    --destructive: 0.65 0.22 22;
+    --destructive-foreground: 0.95 0 0;
+
+    --border: 1 0 0 / 12%;
+    --input: 1 0 0 / 12%;
+    --ring: 0.78 0.14 72;
+
+    --chart-1: 0.78 0.14 72;
+    --chart-2: 0.6 0.15 142;
+    --chart-3: 0.65 0.18 30;
+    --chart-4: 0.55 0.2 280;
+    --chart-5: 0.45 0.22 200;
+
+    --sidebar: 0.15 0.05 248;
+    --sidebar-foreground: 0.95 0.01 240;
+    --sidebar-primary: 0.78 0.14 72;
+    --sidebar-primary-foreground: 0.15 0.04 245;
+    --sidebar-accent: 0.22 0.07 248;
+    --sidebar-accent-foreground: 0.95 0.01 240;
+    --sidebar-border: 1 0 0 / 10%;
+    --sidebar-ring: 0.78 0.14 72;
+
+    --gold: 0.78 0.14 72;
+    --gold-light: 0.88 0.1 72;
+    --gold-dark: 0.62 0.16 68;
+    --navy: 0.22 0.09 248;
+    --navy-light: 0.32 0.08 248;
+    --navy-dark: 0.16 0.07 248;
+    --success: 0.55 0.18 142;
+    --warning: 0.72 0.18 52;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .font-body {
+    font-family: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .text-gold {
+    color: oklch(var(--gold));
+  }
+
+  .bg-gold {
+    background-color: oklch(var(--gold));
+  }
+
+  .bg-navy {
+    background-color: oklch(var(--navy));
+  }
+
+  .text-navy {
+    color: oklch(var(--navy));
+  }
+
+  .border-gold {
+    border-color: oklch(var(--gold));
+  }
+
+  .gradient-hero {
+    background: linear-gradient(
+      135deg,
+      oklch(0.22 0.09 248) 0%,
+      oklch(0.28 0.085 248) 40%,
+      oklch(0.32 0.08 248) 100%
+    );
+  }
+
+  .gradient-card-hover {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.005 240) 0%,
+      oklch(0.94 0.015 240) 100%
+    );
+  }
+
+  .badge-gold {
+    background-color: oklch(var(--gold) / 0.15);
+    color: oklch(var(--gold-dark));
+    border: 1px solid oklch(var(--gold) / 0.3);
+  }
+
+  .badge-navy {
+    background-color: oklch(var(--navy) / 0.1);
+    color: oklch(var(--navy));
+    border: 1px solid oklch(var(--navy) / 0.2);
+  }
+
+  .badge-success {
+    background-color: oklch(var(--success) / 0.12);
+    color: oklch(0.4 0.18 142);
+    border: 1px solid oklch(var(--success) / 0.3);
+  }
+
+  .nav-link {
+    @apply text-sm font-medium transition-colors hover:text-primary;
+  }
+
+  .status-initiated {
+    @apply bg-blue-50 text-blue-700 border border-blue-200;
+  }
+  .status-escrowed {
+    @apply bg-amber-50 text-amber-700 border border-amber-200;
+  }
+  .status-completed {
+    @apply bg-green-50 text-green-700 border border-green-200;
+  }
+  .status-disputed {
+    @apply bg-red-50 text-red-700 border border-red-200;
+  }
+  .status-refunded {
+    @apply bg-purple-50 text-purple-700 border border-purple-200;
+  }
+}
