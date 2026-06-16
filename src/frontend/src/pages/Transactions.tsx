@@ -1,6 +1,14 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Shield } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
+
+// Seeker کے pre-verified documents جو KYC میں پہلے سے upload ہوئے
+const SEEKER_DOCS = [
+  { name: "Passport", uploadedAt: "June 5, 2026", verified: true },
+  { name: "IELTS Result", uploadedAt: "June 5, 2026", verified: true },
+  { name: "Educational Certificate", uploadedAt: "June 6, 2026", verified: true },
+  { name: "Police Clearance", uploadedAt: "June 6, 2026", verified: false },
+];
 
 const TRANSACTIONS = [
   {
@@ -13,6 +21,7 @@ const TRANSACTIONS = [
     status: "in_progress",
     currentStep: 2,
     date: "June 10, 2026",
+    docsAutoSubmitted: true,
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "June 10" },
       { title: "Documents submitted by buyer", done: true, date: "June 12" },
@@ -31,6 +40,7 @@ const TRANSACTIONS = [
     status: "completed",
     currentStep: 5,
     date: "May 20, 2026",
+    docsAutoSubmitted: true,
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "May 20" },
       { title: "Documents submitted by buyer", done: true, date: "May 21" },
@@ -49,6 +59,7 @@ const TRANSACTIONS = [
     status: "disputed",
     currentStep: 3,
     date: "May 5, 2026",
+    docsAutoSubmitted: true,
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "May 5" },
       { title: "Documents submitted by buyer", done: true, date: "May 6" },
@@ -69,6 +80,9 @@ export function Transactions() {
   const navigate = useNavigate();
   const [open, setOpen] = useState<string | null>("TXN-001");
   const [tab, setTab] = useState<"all" | "active" | "completed">("all");
+  const [showDocs, setShowDocs] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const filtered = TRANSACTIONS.filter((t) => {
     if (tab === "active") return t.status === "in_progress";
@@ -164,20 +178,55 @@ export function Transactions() {
               {isOpen && (
                 <div className="px-4 pb-4 border-t border-gray-50">
 
-                  {/* STEP TRACKER */}
-                  <div className="mt-3 mb-3">
-                    <div className="text-xs font-bold text-gray-600 mb-2">Case Progress</div>
+                  {/* AUTO DOCS NOTICE */}
+                  {tx.docsAutoSubmitted && (
+                    <div className="mt-3 bg-green-50 border border-green-100 rounded-xl p-3 mb-3 flex gap-2">
+                      <Shield size={14} className="text-green-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="text-[11px] font-black text-green-700 mb-0.5">
+                          ✅ Documents Auto-Submitted
+                        </div>
+                        <div className="text-[10px] text-green-600">
+                          Your KYC-verified documents were automatically shared with {tx.provider}. No re-upload needed.
+                        </div>
+                        <button
+                          onClick={() => setShowDocs(showDocs === tx.id ? null : tx.id)}
+                          className="text-[10px] text-green-700 font-bold mt-1 underline"
+                        >
+                          {showDocs === tx.id ? "Hide docs" : "View submitted docs"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                    {/* Progress Bar */}
-                    <div className="flex gap-1 mb-3">
-                      {tx.steps.map((_, i) => (
-                        <div key={i} className={`flex-1 h-1.5 rounded-full ${
-                          i < tx.currentStep ? "bg-[#1a56f0]" : "bg-gray-100"
-                        }`} />
+                  {/* DOCS LIST */}
+                  {showDocs === tx.id && (
+                    <div className="mb-3 bg-white border border-gray-100 rounded-xl overflow-hidden">
+                      {SEEKER_DOCS.map((doc, i) => (
+                        <div key={doc.name} className={`flex items-center gap-3 px-3 py-2.5 ${i < SEEKER_DOCS.length - 1 ? "border-b border-gray-50" : ""}`}>
+                          <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <FileText size={13} className="text-[#1a56f0]" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-gray-700">{doc.name}</div>
+                            <div className="text-[10px] text-gray-400">Uploaded {doc.uploadedAt}</div>
+                          </div>
+                          {doc.verified
+                            ? <span className="text-[10px] font-bold text-green-500">✓ Verified</span>
+                            : <span className="text-[10px] font-bold text-amber-500">Pending</span>}
+                        </div>
                       ))}
                     </div>
+                  )}
 
-                    {/* Steps List */}
+                  {/* STEP TRACKER */}
+                  <div className="mt-1 mb-3">
+                    <div className="text-xs font-bold text-gray-600 mb-2">Case Progress</div>
+                    <div className="flex gap-1 mb-3">
+                      {tx.steps.map((_, i) => (
+                        <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.currentStep ? "bg-[#1a56f0]" : "bg-gray-100"}`} />
+                      ))}
+                    </div>
                     <div className="flex flex-col gap-2">
                       {tx.steps.map((step, i) => (
                         <div key={i} className="flex items-start gap-2.5">
@@ -192,9 +241,7 @@ export function Transactions() {
                             <div className={`text-xs font-semibold ${step.done ? "text-gray-800" : "text-gray-400"}`}>
                               {step.title}
                             </div>
-                            {step.date && (
-                              <div className="text-[10px] text-gray-400">{step.date}</div>
-                            )}
+                            {step.date && <div className="text-[10px] text-gray-400">{step.date}</div>}
                           </div>
                         </div>
                       ))}
@@ -210,13 +257,19 @@ export function Transactions() {
                       </button>
                     </Link>
 
-                    {tx.status === "in_progress" && (
+                    {tx.status === "in_progress" && !confirmed && (
                       <button
-                        onClick={() => alert("Please confirm only after you receive your visa documents.")}
+                        onClick={() => setShowConfirmModal(true)}
                         className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl"
                       >
                         ✓ Confirm Visa Received
                       </button>
+                    )}
+
+                    {tx.status === "in_progress" && confirmed && (
+                      <div className="flex-1 bg-green-50 border border-green-100 text-green-600 text-xs font-bold py-2.5 rounded-xl text-center">
+                        ✅ Confirmed — Payment Released
+                      </div>
                     )}
 
                     {tx.status === "disputed" && (
@@ -237,10 +290,10 @@ export function Transactions() {
                     )}
                   </div>
 
-                  {tx.status === "in_progress" && (
+                  {tx.status === "in_progress" && !confirmed && (
                     <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-2.5">
                       <div className="text-[11px] text-amber-700">
-                        ⚠️ Only confirm visa received after you physically receive all visa documents. Escrow will release immediately after confirmation.
+                        ⚠️ Only confirm after you physically receive all visa documents. Escrow releases immediately.
                       </div>
                     </div>
                   )}
@@ -254,6 +307,41 @@ export function Transactions() {
           );
         })}
       </div>
+
+      {/* CONFIRM MODAL */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle size={28} className="text-green-500" />
+              </div>
+              <div className="font-black text-gray-800 text-lg mb-1">Confirm Visa Received?</div>
+              <div className="text-sm text-gray-500 leading-relaxed">
+                By confirming, you agree that you have received all visa documents and the Escrow payment of <span className="font-bold text-gray-800">$499 USDT</span> will be immediately released to ImmigrationPro.
+              </div>
+            </div>
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
+              <div className="text-xs text-red-600 font-semibold">
+                ⚠️ This action cannot be undone. Only confirm if you have physically received your visa.
+              </div>
+            </div>
+            <button
+              onClick={() => { setConfirmed(true); setShowConfirmModal(false); }}
+              className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl text-sm mb-2"
+            >
+              ✓ Yes, I Received My Visa
+            </button>
+            <button
+              onClick={() => setShowConfirmModal(false)}
+              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
