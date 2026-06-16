@@ -1,219 +1,260 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
-import { TransactionStatus } from "../backend.d";
-import { useUpdateTransactionStatus } from "../hooks/useQueries";
-import { MOCK_TRANSACTIONS } from "../lib/mockData";
 
-const statusStyles: Record<TransactionStatus, string> = {
-  [TransactionStatus.initiated]: "status-initiated",
-  [TransactionStatus.escrowed]: "status-escrowed",
-  [TransactionStatus.completed]: "status-completed",
-  [TransactionStatus.disputed]: "status-disputed",
-  [TransactionStatus.refunded]: "status-refunded",
-};
+const TRANSACTIONS = [
+  {
+    id: "TXN-001",
+    title: "Canada PR — Express Entry",
+    provider: "ImmigrationPro",
+    country: "🇨🇦 Canada",
+    amount: 499,
+    currency: "USDT",
+    status: "in_progress",
+    currentStep: 2,
+    date: "June 10, 2026",
+    steps: [
+      { title: "Payment locked in Escrow", done: true, date: "June 10" },
+      { title: "Documents submitted by buyer", done: true, date: "June 12" },
+      { title: "Embassy application submitted", done: false, date: null },
+      { title: "Visa decision received", done: false, date: null },
+      { title: "Visa confirmed — payment released", done: false, date: null },
+    ],
+  },
+  {
+    id: "TXN-002",
+    title: "UK Student Visa",
+    provider: "Global Edu",
+    country: "🇬🇧 United Kingdom",
+    amount: 299,
+    currency: "USDT",
+    status: "completed",
+    currentStep: 5,
+    date: "May 20, 2026",
+    steps: [
+      { title: "Payment locked in Escrow", done: true, date: "May 20" },
+      { title: "Documents submitted by buyer", done: true, date: "May 21" },
+      { title: "Embassy application submitted", done: true, date: "May 25" },
+      { title: "Visa decision received", done: true, date: "June 1" },
+      { title: "Visa confirmed — payment released", done: true, date: "June 2" },
+    ],
+  },
+  {
+    id: "TXN-003",
+    title: "UAE Work Visa — IT Sector",
+    provider: "Dubai Visa Center",
+    country: "🇦🇪 UAE",
+    amount: 199,
+    currency: "USDT",
+    status: "disputed",
+    currentStep: 3,
+    date: "May 5, 2026",
+    steps: [
+      { title: "Payment locked in Escrow", done: true, date: "May 5" },
+      { title: "Documents submitted by buyer", done: true, date: "May 6" },
+      { title: "Embassy application submitted", done: true, date: "May 10" },
+      { title: "Visa decision received", done: false, date: null },
+      { title: "Visa confirmed — payment released", done: false, date: null },
+    ],
+  },
+];
 
-const statusLabels: Record<TransactionStatus, string> = {
-  [TransactionStatus.initiated]: "Initiated",
-  [TransactionStatus.escrowed]: "In Escrow",
-  [TransactionStatus.completed]: "Completed",
-  [TransactionStatus.disputed]: "Disputed",
-  [TransactionStatus.refunded]: "Refunded",
+const STATUS = {
+  in_progress: { label: "In Progress", color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
+  completed:   { label: "Completed",   color: "text-green-500", bg: "bg-green-50",  border: "border-green-100" },
+  disputed:    { label: "Disputed",    color: "text-red-500",   bg: "bg-red-50",    border: "border-red-100" },
 };
 
 export function Transactions() {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
-  const updateStatus = useUpdateTransactionStatus();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState<string | null>("TXN-001");
+  const [tab, setTab] = useState<"all" | "active" | "completed">("all");
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
-
-  const handleReleaseEscrow = async (txnId: string) => {
-    try {
-      await updateStatus.mutateAsync({
-        transactionId: txnId,
-        status: TransactionStatus.completed,
-      });
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === txnId ? { ...t, status: TransactionStatus.completed } : t,
-        ),
-      );
-      toast.success("Escrow released. Transaction completed!");
-    } catch {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === txnId ? { ...t, status: TransactionStatus.completed } : t,
-        ),
-      );
-      toast.success("Escrow released. Transaction completed!");
-    }
-  };
+  const filtered = TRANSACTIONS.filter((t) => {
+    if (tab === "active") return t.status === "in_progress";
+    if (tab === "completed") return t.status === "completed";
+    return true;
+  });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="font-display text-2xl font-bold text-foreground mb-6">
-        Transactions
-      </h1>
+    <div className="flex flex-col pb-8">
 
-      {transactions.length > 0 ? (
-        <div className="space-y-3">
-          {transactions.map((txn, i) => (
-            <Card
-              key={txn.id}
-              className="border-border/60 shadow-card overflow-hidden"
-              data-ocid={`transactions.item.${i + 1}`}
-            >
-              <CardContent className="p-0">
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors"
-                  onClick={() => toggleExpand(txn.id)}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground line-clamp-1">
-                        {txn.adTitle}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {txn.buyerName === "You"
-                          ? `Bought from ${txn.sellerName}`
-                          : `Sold to ${txn.buyerName}`}
-                        {" · "}
-                        {txn.createdAt}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0 ml-3">
-                    <span className="font-display font-bold text-foreground">
-                      ${txn.amount.toLocaleString()}
-                    </span>
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium border ${statusStyles[txn.status]}`}
-                    >
-                      {statusLabels[txn.status]}
-                    </span>
-                    {expandedId === txn.id ? (
-                      <ChevronUp size={16} className="text-muted-foreground" />
-                    ) : (
-                      <ChevronDown
-                        size={16}
-                        className="text-muted-foreground"
-                      />
-                    )}
-                  </div>
-                </button>
+      {/* BACK */}
+      <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+          <ArrowLeft size={20} className="text-gray-600" />
+        </button>
+        <span className="font-bold text-gray-800 text-sm">My Transactions</span>
+      </div>
 
-                {expandedId === txn.id && (
-                  <div className="border-t border-border/50 p-4 bg-muted/20">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">
-                          Transaction ID
-                        </p>
-                        <p className="font-mono font-medium">{txn.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">
-                          Amount
-                        </p>
-                        <p className="font-semibold">
-                          {txn.currency} {txn.amount.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">
-                          {txn.buyerName === "You" ? "Seller" : "Buyer"}
-                        </p>
-                        <p className="font-medium">
-                          {txn.buyerName === "You"
-                            ? txn.sellerName
-                            : txn.buyerName}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">
-                          Date
-                        </p>
-                        <p className="font-medium">{txn.createdAt}</p>
-                      </div>
-                    </div>
-
-                    <Separator className="mb-4" />
-
-                    <div className="flex flex-wrap gap-2">
-                      <Link to="/ads/$id" params={{ id: txn.adId }}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 text-xs"
-                        >
-                          <ExternalLink size={12} />
-                          View Ad
-                        </Button>
-                      </Link>
-
-                      {txn.status === TransactionStatus.escrowed && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleReleaseEscrow(txn.id)}
-                          disabled={updateStatus.isPending}
-                          className="gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          {updateStatus.isPending ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <CheckCircle size={12} />
-                          )}
-                          Release Escrow
-                        </Button>
-                      )}
-
-                      {(txn.status === TransactionStatus.escrowed ||
-                        txn.status === TransactionStatus.initiated) && (
-                        <Link to="/disputes">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5"
-                          >
-                            <AlertTriangle size={12} />
-                            Open Dispute
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* TABS */}
+      <div className="bg-white px-4 pb-3 border-b border-gray-100">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
+          {(["all", "active", "completed"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
+              }`}>
+              {t === "all" ? "All" : t === "active" ? "Active" : "Completed"}
+            </button>
           ))}
         </div>
-      ) : (
-        <div
-          className="flex flex-col items-center justify-center py-20 text-center"
-          data-ocid="transactions.empty_state"
-        >
-          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-            <CheckCircle size={20} className="text-muted-foreground" />
-          </div>
-          <p className="text-muted-foreground text-sm">No transactions yet.</p>
+      </div>
+
+      {/* SUMMARY */}
+      <div className="mx-4 mt-4">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Total Spent", value: "$997", icon: Lock, color: "text-[#1a56f0]", bg: "bg-blue-50" },
+            { label: "In Escrow", value: "$499", icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+            { label: "Completed", value: "$498", icon: CheckCircle, color: "text-green-500", bg: "bg-green-50" },
+          ].map(({ label, value, icon: Icon, color, bg }) => (
+            <div key={label} className={`${bg} rounded-2xl p-3 flex flex-col gap-1`}>
+              <Icon size={16} className={color} />
+              <div className={`font-black text-sm ${color}`}>{value}</div>
+              <div className="text-[10px] text-gray-500">{label}</div>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* TRANSACTIONS */}
+      <div className="mx-4 mt-4 flex flex-col gap-3">
+        {filtered.map((tx) => {
+          const s = STATUS[tx.status as keyof typeof STATUS];
+          const isOpen = open === tx.id;
+
+          return (
+            <div key={tx.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+
+              {/* HEADER */}
+              <button
+                onClick={() => setOpen(isOpen ? null : tx.id)}
+                className="w-full px-4 py-4 flex items-start gap-3 text-left"
+              >
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+                  {tx.status === "completed"
+                    ? <CheckCircle size={18} className={s.color} />
+                    : tx.status === "disputed"
+                    ? <AlertTriangle size={18} className={s.color} />
+                    : <Clock size={18} className={s.color} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-800 text-sm truncate">{tx.title}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{tx.country} · {tx.provider}</div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color} ${s.border}`}>
+                      {s.label}
+                    </span>
+                    <span className="text-[10px] text-gray-400">{tx.date}</span>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="font-black text-gray-800">${tx.amount}</div>
+                  <div className="text-[10px] text-gray-400">{tx.currency}</div>
+                  <div className="mt-1">
+                    {isOpen
+                      ? <ChevronUp size={14} className="text-gray-400 ml-auto" />
+                      : <ChevronDown size={14} className="text-gray-400 ml-auto" />}
+                  </div>
+                </div>
+              </button>
+
+              {/* EXPANDED */}
+              {isOpen && (
+                <div className="px-4 pb-4 border-t border-gray-50">
+
+                  {/* STEP TRACKER */}
+                  <div className="mt-3 mb-3">
+                    <div className="text-xs font-bold text-gray-600 mb-2">Case Progress</div>
+
+                    {/* Progress Bar */}
+                    <div className="flex gap-1 mb-3">
+                      {tx.steps.map((_, i) => (
+                        <div key={i} className={`flex-1 h-1.5 rounded-full ${
+                          i < tx.currentStep ? "bg-[#1a56f0]" : "bg-gray-100"
+                        }`} />
+                      ))}
+                    </div>
+
+                    {/* Steps List */}
+                    <div className="flex flex-col gap-2">
+                      {tx.steps.map((step, i) => (
+                        <div key={i} className="flex items-start gap-2.5">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            step.done ? "bg-[#1a56f0]" : "bg-gray-100"
+                          }`}>
+                            {step.done
+                              ? <CheckCircle size={12} className="text-white" />
+                              : <span className="text-[9px] text-gray-400 font-bold">{i + 1}</span>}
+                          </div>
+                          <div className="flex-1">
+                            <div className={`text-xs font-semibold ${step.done ? "text-gray-800" : "text-gray-400"}`}>
+                              {step.title}
+                            </div>
+                            {step.date && (
+                              <div className="text-[10px] text-gray-400">{step.date}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="flex gap-2 mt-3">
+                    <Link to="/messages" className="flex-1">
+                      <button className="w-full border border-[#1a56f0] text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                        <MessageCircle size={14} />
+                        Message
+                      </button>
+                    </Link>
+
+                    {tx.status === "in_progress" && (
+                      <button
+                        onClick={() => alert("Please confirm only after you receive your visa documents.")}
+                        className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl"
+                      >
+                        ✓ Confirm Visa Received
+                      </button>
+                    )}
+
+                    {tx.status === "disputed" && (
+                      <Link to="/disputes" className="flex-1">
+                        <button className="w-full bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl">
+                          View Dispute
+                        </button>
+                      </Link>
+                    )}
+
+                    {tx.status === "completed" && (
+                      <button
+                        onClick={() => alert("Review submitted! Thank you.")}
+                        className="flex-1 bg-amber-400 text-white text-xs font-bold py-2.5 rounded-xl"
+                      >
+                        ⭐ Leave Review
+                      </button>
+                    )}
+                  </div>
+
+                  {tx.status === "in_progress" && (
+                    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-2.5">
+                      <div className="text-[11px] text-amber-700">
+                        ⚠️ Only confirm visa received after you physically receive all visa documents. Escrow will release immediately after confirmation.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-2 text-center">
+                    <span className="text-[10px] text-gray-400">Transaction ID: {tx.id}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
     </div>
   );
 }
