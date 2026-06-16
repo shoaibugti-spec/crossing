@@ -1,46 +1,41 @@
 export const COUNTRIES = [
-  // Asia
-  "Afghanistan", "Armenia", "Azerbaijan", "Bahrain", "Bangladesh", "Bhutan", "Brunei",
-  "Cambodia", "China", "Cyprus", "Georgia", "India", "Indonesia", "Iran", "Iraq",
-  "Israel", "Japan", "Jordan", "Kazakhstan", "Kuwait", "Kyrgyzstan", "Laos", "Lebanon",
-  "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "North Korea", "Oman",
-  "Pakistan", "Palestine", "Philippines", "Qatar", "Saudi Arabia", "Singapore",
-  "South Korea", "Sri Lanka", "Syria", "Taiwan", "Tajikistan", "Thailand", "Timor-Leste",
-  "Turkey", "Turkmenistan", "UAE", "Uzbekistan", "Vietnam", "Yemen",
-  // Europe
-  "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina",
-  "Bulgaria", "Croatia", "Czech Republic", "Denmark", "Estonia", "Finland", "France",
-  "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia",
-  "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro",
-  "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia",
-  "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland",
-  "Ukraine", "United Kingdom", "Vatican City",
-  // Africa
-  "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon",
-  "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo", "DR Congo",
-  "Djibouti", "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon",
-  "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Ivory Coast", "Kenya", "Lesotho",
-  "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius",
-  "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome",
-  "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
-  "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
-  // Americas
-  "Antigua and Barbuda", "Bahamas", "Barbados", "Belize", "Canada", "Costa Rica",
-  "Cuba", "Dominica", "Dominican Republic", "El Salvador", "Grenada", "Guatemala",
-  "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Saint Kitts",
-  "Saint Lucia", "Saint Vincent", "Trinidad and Tobago", "USA",
-  "Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana",
-  "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela",
-  // Oceania
-  "Australia", "Fiji", "Kiribati", "Marshall Islands", "Micronesia", "Nauru",
-  "New Zealand", "Palau", "Papua New Guinea", "Samoa", "Solomon Islands", "Tonga",
-  "Tuvalu", "Vanuatu",
+  "Afghanistan","Armenia","Azerbaijan","Bahrain","Bangladesh","Bhutan","Brunei",
+  "Cambodia","China","Cyprus","Georgia","India","Indonesia","Iran","Iraq",
+  "Israel","Japan","Jordan","Kazakhstan","Kuwait","Kyrgyzstan","Laos","Lebanon",
+  "Malaysia","Maldives","Mongolia","Myanmar","Nepal","North Korea","Oman",
+  "Pakistan","Palestine","Philippines","Qatar","Saudi Arabia","Singapore",
+  "South Korea","Sri Lanka","Syria","Taiwan","Tajikistan","Thailand","Timor-Leste",
+  "Turkey","Turkmenistan","UAE","Uzbekistan","Vietnam","Yemen",
+  "Albania","Andorra","Austria","Belarus","Belgium","Bosnia and Herzegovina",
+  "Bulgaria","Croatia","Czech Republic","Denmark","Estonia","Finland","France",
+  "Germany","Greece","Hungary","Iceland","Ireland","Italy","Kosovo","Latvia",
+  "Liechtenstein","Lithuania","Luxembourg","Malta","Moldova","Monaco","Montenegro",
+  "Netherlands","North Macedonia","Norway","Poland","Portugal","Romania","Russia",
+  "San Marino","Serbia","Slovakia","Slovenia","Spain","Sweden","Switzerland",
+  "Ukraine","United Kingdom","Vatican City",
+  "Algeria","Angola","Benin","Botswana","Burkina Faso","Burundi","Cameroon",
+  "Cape Verde","Central African Republic","Chad","Comoros","Congo","DR Congo",
+  "Djibouti","Egypt","Equatorial Guinea","Eritrea","Eswatini","Ethiopia","Gabon",
+  "Gambia","Ghana","Guinea","Guinea-Bissau","Ivory Coast","Kenya","Lesotho",
+  "Liberia","Libya","Madagascar","Malawi","Mali","Mauritania","Mauritius",
+  "Morocco","Mozambique","Namibia","Niger","Nigeria","Rwanda","Sao Tome",
+  "Senegal","Seychelles","Sierra Leone","Somalia","South Africa","South Sudan",
+  "Sudan","Tanzania","Togo","Tunisia","Uganda","Zambia","Zimbabwe",
+  "Antigua and Barbuda","Bahamas","Barbados","Belize","Canada","Costa Rica",
+  "Cuba","Dominica","Dominican Republic","El Salvador","Grenada","Guatemala",
+  "Haiti","Honduras","Jamaica","Mexico","Nicaragua","Panama","Saint Kitts",
+  "Saint Lucia","Saint Vincent","Trinidad and Tobago","USA",
+  "Argentina","Bolivia","Brazil","Chile","Colombia","Ecuador","Guyana",
+  "Paraguay","Peru","Suriname","Uruguay","Venezuela",
+  "Australia","Fiji","Kiribati","Marshall Islands","Micronesia","Nauru",
+  "New Zealand","Palau","Papua New Guinea","Samoa","Solomon Islands","Tonga",
+  "Tuvalu","Vanuatu",
 ];
 
 export const VISA_TYPES = [
-  "Work Visa", "Study Visa", "Tourist Visa", "Business Visa",
-  "Family Visa", "Sponsorship", "PR / Immigration", "Transit Visa",
-  "Medical Visa", "Religious Visa", "Diplomatic Visa",
+  "Work Visa","Study Visa","Tourist Visa","Business Visa",
+  "Family Visa","Sponsorship","PR / Immigration","Transit Visa",
+  "Medical Visa","Religious Visa","Diplomatic Visa",
 ];
 
 export interface Ad {
@@ -66,7 +61,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "1",
     title: "Canada Express Entry — PR Assistance",
-    description: "Full Express Entry profile evaluation, CRS score optimization, document review, and submission assistance. Includes 3 months of post-submission support. 200+ successful cases.",
+    description: "Full Express Entry profile evaluation, CRS score optimization, document review, and submission assistance. 200+ successful cases.",
     country: "Canada",
     category: "Work Visa",
     visaType: "PR / Immigration",
@@ -90,7 +85,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "2",
     title: "UK Student Visa — Full Service",
-    description: "Complete UK student visa application support including CAS guidance, financial statements review, biometric appointment scheduling, and interview preparation.",
+    description: "Complete UK student visa application support including CAS guidance, financial statements review, and biometric appointment scheduling.",
     country: "United Kingdom",
     category: "Study Visa",
     visaType: "Study Visa",
@@ -114,7 +109,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "3",
     title: "Germany Skilled Worker Visa — IT Professionals",
-    description: "End-to-end Germany Skilled Worker Visa processing. Qualification recognition support, job seeker visa, blocked account setup, and embassy appointment guidance.",
+    description: "End-to-end Germany Skilled Worker Visa. Qualification recognition, blocked account setup, and embassy appointment guidance.",
     country: "Germany",
     category: "Work Visa",
     visaType: "Work Visa",
@@ -138,7 +133,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "4",
     title: "UAE Work Visa — IT & Tech Sector",
-    description: "Fast-track UAE employment visa for IT professionals. Emirates ID processing, health insurance linkage, and accommodation guidance included.",
+    description: "Fast-track UAE employment visa for IT professionals. Emirates ID processing and health insurance linkage included.",
     country: "UAE",
     category: "Work Visa",
     visaType: "Work Visa",
@@ -162,7 +157,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "5",
     title: "Australia Skilled Migration — Subclass 189",
-    description: "Subclass 189/190 skilled migration visa. Skills assessment, Expression of Interest lodgement, state nomination assistance, and full application support.",
+    description: "Subclass 189/190 skilled migration visa. Skills assessment, EOI lodgement, and state nomination assistance.",
     country: "Australia",
     category: "PR / Immigration",
     visaType: "PR / Immigration",
@@ -186,7 +181,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "6",
     title: "Saudi Arabia Work Visa — Construction",
-    description: "Complete Saudi work visa processing for construction and engineering professionals. Attestation, medical, and Iqama guidance included.",
+    description: "Complete Saudi work visa for construction and engineering professionals. Attestation, medical, and Iqama guidance included.",
     country: "Saudi Arabia",
     category: "Work Visa",
     visaType: "Work Visa",
@@ -210,7 +205,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "7",
     title: "Romania Work Visa — Skilled Workers",
-    description: "Romania work permit for skilled workers. Job placement assistance, visa processing, and accommodation support. Salary €600-900/month.",
+    description: "Romania work permit for skilled workers. Job placement assistance, visa processing, and accommodation support.",
     country: "Romania",
     category: "Work Visa",
     visaType: "Work Visa",
@@ -234,7 +229,7 @@ export const MOCK_ADS: Ad[] = [
   {
     id: "8",
     title: "Schengen Tourist Visa — Multiple Entry",
-    description: "Multiple entry Schengen visa for 26 European countries. Complete application preparation, hotel bookings, travel insurance, and interview coaching.",
+    description: "Multiple entry Schengen visa for 26 European countries. Hotel bookings, travel insurance, and interview coaching included.",
     country: "Germany",
     category: "Tourist Visa",
     visaType: "Tourist Visa",
@@ -255,7 +250,9 @@ export const MOCK_ADS: Ad[] = [
     ],
     createdAt: "June 13, 2026",
   },
-  export const ADMIN_USERS = [
+];
+
+export const ADMIN_USERS = [
   {
     id: "u1",
     name: "Ahmad Khan",
@@ -366,7 +363,7 @@ export const ADMIN_DISPUTES = [
     id: "DSP-001",
     txnId: "TXN-003",
     buyer: "Ahmad Khan",
-    ller: "Dubai Visa Center",
+    seller: "Dubai Visa Center",
     amount: 199,
     reason: "Provider stopped responding after document submission",
     status: "under_review",
