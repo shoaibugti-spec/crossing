@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock, CheckCircle } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -8,8 +8,8 @@ const VISA_TYPES = [
   "Religious Visa","Diplomatic Visa","Seasonal Work","Working Holiday",
 ];
 
-// Mock KYC — real app میں backend سے آئے گا
-const USER_KYC_LEVEL = 2; // 2 = phone verified, 3 = identity verified
+const USER_KYC_LEVEL = 2;
+const USER_DEPOSIT = 0;
 
 export function PostAd() {
   const navigate = useNavigate();
@@ -23,117 +23,185 @@ export function PostAd() {
   });
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
   const addReq = () => {
     if (!req.trim()) return;
     setForm((f) => ({ ...f, requirements: [...f.requirements, req.trim()] }));
     setReq("");
   };
-
   const removeReq = (i: number) =>
     setForm((f) => ({ ...f, requirements: f.requirements.filter((_, idx) => idx !== i) }));
-
   const setStepText = (i: number, val: string) => {
     const steps = [...form.steps];
     steps[i] = val;
     setForm((f) => ({ ...f, steps }));
   };
-
-  const handleSubmit = () => {
-    void navigate({ to: "/my-ads" });
-  };
-
+  const handleSubmit = () => void navigate({ to: "/my-ads" });
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
 
-  // ── KYC GATE ──
-  if (USER_KYC_LEVEL < 3) {
+  // ── GATE: KYC + DEPOSIT ──
+  if (USER_KYC_LEVEL < 3 || USER_DEPOSIT < 2000) {
     return (
       <div className="flex flex-col pb-8">
         <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-          <button
-            onClick={() => void navigate({ to: "/" })}
-            className="p-1.5 rounded-full hover:bg-gray-100"
-          >
+          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <span className="font-bold text-gray-800 text-sm">Post a Listing</span>
         </div>
 
-        <div className="mx-4 mt-6">
-          <div className="bg-white rounded-3xl p-6 shadow-sm text-center">
-            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock size={28} className="text-red-400" />
-            </div>
-            <div className="font-black text-gray-800 text-xl mb-2">KYC Required</div>
-            <div className="text-sm text-gray-500 leading-relaxed mb-5">
-              You must complete Identity Verification before posting listings on Crossing.
-            </div>
+        <div className="mx-4 mt-5 flex flex-col gap-3">
 
-            <div className="bg-gray-50 rounded-2xl p-4 mb-4 text-left">
-              <div className="text-xs font-black text-gray-600 mb-3 uppercase tracking-wider">
-                Your Verification Status
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {[
-                  { level: 1, label: "Email Verification" },
-                  { level: 2, label: "Phone Verification" },
-                  { level: 3, label: "Identity Verification (Required)" },
-                  { level: 4, label: "Business Verification" },
-                ].map((item) => (
-                  <div key={item.level} className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      USER_KYC_LEVEL >= item.level
-                        ? "bg-green-500 text-white"
-                        : item.level === USER_KYC_LEVEL + 1
-                        ? "bg-[#1a56f0] text-white"
-                        : "bg-gray-100 text-gray-400"
-                    }`}>
-                      {USER_KYC_LEVEL >= item.level ? "✓" : item.level}
-                    </div>
-                    <span className={`text-sm font-semibold flex-1 ${
-                      USER_KYC_LEVEL >= item.level
-                        ? "text-gray-800"
-                        : item.level === USER_KYC_LEVEL + 1
-                        ? "text-[#1a56f0]"
-                        : "text-gray-300"
-                    }`}>
-                      {item.label}
-                    </span>
-                    {item.level === USER_KYC_LEVEL + 1 && (
-                      <span className="text-[10px] font-bold text-[#1a56f0] bg-blue-50 px-2 py-0.5 rounded-full flex-shrink-0">
-                        Next Step
-                      </span>
-                    )}
-                    {item.level === 3 && USER_KYC_LEVEL < 3 && (
-                      <span className="text-[10px] font-bold text-red-400 bg-red-50 px-2 py-0.5 rounded-full flex-shrink-0">
-                        Required
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {/* TITLE */}
+          <div className="text-center py-2">
+            <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-2">
+              <Lock size={26} className="text-red-400" />
             </div>
-
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-5 flex gap-2 text-left">
-              <Shield size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="text-[11px] text-amber-700">
-                Only KYC-verified providers can post listings. This protects buyers from fraud and ensures all providers are legitimate.
-              </div>
-            </div>
-
-            <Link to="/kyc">
-              <button className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm mb-2">
-                Complete KYC Verification →
-              </button>
-            </Link>
-            <button
-              onClick={() => void navigate({ to: "/" })}
-              className="w-full text-gray-400 text-sm font-semibold py-2"
-            >
-              Go Back
-            </button>
+            <div className="font-black text-gray-800 text-lg">Two Requirements Needed</div>
+            <div className="text-xs text-gray-500 mt-1">Complete both to start posting listings</div>
           </div>
+
+          {/* KYC CARD */}
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${USER_KYC_LEVEL >= 3 ? "border-green-200" : "border-red-100"}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${USER_KYC_LEVEL >= 3 ? "bg-green-50" : "bg-red-50"}`}>
+                {USER_KYC_LEVEL >= 3
+                  ? <CheckCircle size={20} className="text-green-500" />
+                  : <Lock size={20} className="text-red-400" />}
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800 text-sm">Identity Verification (KYC)</div>
+                <div className={`text-xs font-semibold mt-0.5 ${USER_KYC_LEVEL >= 3 ? "text-green-500" : "text-red-400"}`}>
+                  {USER_KYC_LEVEL >= 3 ? "✓ Completed" : "⚠ Not completed — Required"}
+                </div>
+              </div>
+              {USER_KYC_LEVEL >= 3 && (
+                <span className="text-[10px] font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Done ✓</span>
+              )}
+            </div>
+            {USER_KYC_LEVEL < 3 && (
+              <>
+                <div className="flex flex-col gap-2 mb-3">
+                  {[
+                    { level: 1, label: "Email Verification" },
+                    { level: 2, label: "Phone Verification" },
+                    { level: 3, label: "Identity Verification" },
+                    { level: 4, label: "Business Verification" },
+                  ].map((item) => (
+                    <div key={item.level} className="flex items-center gap-2.5">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                        USER_KYC_LEVEL >= item.level ? "bg-green-500 text-white"
+                          : item.level === USER_KYC_LEVEL + 1 ? "bg-[#1a56f0] text-white"
+                          : "bg-gray-100 text-gray-400"
+                      }`}>
+                        {USER_KYC_LEVEL >= item.level ? "✓" : item.level}
+                      </div>
+                      <span className={`text-xs font-semibold flex-1 ${
+                        USER_KYC_LEVEL >= item.level ? "text-gray-700"
+                          : item.level === USER_KYC_LEVEL + 1 ? "text-[#1a56f0]"
+                          : "text-gray-300"
+                      }`}>{item.label}</span>
+                      {item.level === USER_KYC_LEVEL + 1 && (
+                        <span className="text-[9px] font-bold text-[#1a56f0] bg-blue-50 px-1.5 py-0.5 rounded-full">Next</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Link to="/kyc">
+                  <button className="w-full bg-[#1a56f0] text-white font-bold py-3 rounded-xl text-sm">
+                    Complete KYC →
+                  </button>
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* DEPOSIT CARD */}
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${USER_DEPOSIT >= 2000 ? "border-green-200" : "border-amber-200"}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${USER_DEPOSIT >= 2000 ? "bg-green-50" : "bg-amber-50"}`}>
+                {USER_DEPOSIT >= 2000
+                  ? <CheckCircle size={20} className="text-green-500" />
+                  : <Shield size={20} className="text-amber-500" />}
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
+                <div className={`text-xs font-semibold mt-0.5 ${USER_DEPOSIT >= 2000 ? "text-green-500" : "text-amber-500"}`}>
+                  {USER_DEPOSIT >= 2000 ? "✓ $2,000 USDT Deposited" : `⚠ $${USER_DEPOSIT} / $2,000 USDT deposited`}
+                </div>
+              </div>
+              {USER_DEPOSIT >= 2000 && (
+                <span className="text-[10px] font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Done ✓</span>
+              )}
+            </div>
+
+            {USER_DEPOSIT < 2000 && (
+              <>
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-3">
+                  <div className="text-[11px] text-amber-700 flex flex-col gap-1">
+                    <div className="font-black mb-0.5">Why $2,000 USDT required?</div>
+                    <div>• Protects buyers if you fail to deliver visa</div>
+                    <div>• Dispute refunds paid from this deposit</div>
+                    <div>• Shows you are a serious, committed provider</div>
+                    <div>• 100% refundable when you close your account</div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 mb-3">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs text-gray-500">Required Deposit</span>
+                    <span className="font-black text-gray-800">$2,000 USDT</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs text-gray-500">Your Balance</span>
+                    <span className="font-bold text-red-400">${USER_DEPOSIT} USDT</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Remaining</span>
+                    <span className="font-bold text-amber-500">${2000 - USER_DEPOSIT} USDT</span>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400 rounded-full transition-all"
+                      style={{ width: `${(USER_DEPOSIT / 2000) * 100}%` }} />
+                  </div>
+                </div>
+                <Link to="/wallet">
+                  <button className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl text-sm">
+                    Deposit $2,000 USDT →
+                  </button>
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* SUMMARY CHECKLIST */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="text-xs font-black text-gray-600 mb-3 uppercase tracking-wider">
+              Requirements Checklist
+            </div>
+            {[
+              { label: "Email Verification", done: true },
+              { label: "Phone Verification", done: true },
+              { label: "Identity Verification (KYC Level 3)", done: USER_KYC_LEVEL >= 3 },
+              { label: "Security Deposit ($2,000 USDT)", done: USER_DEPOSIT >= 2000 },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${item.done ? "bg-green-500" : "bg-gray-100"}`}>
+                  {item.done
+                    ? <CheckCircle size={11} className="text-white" />
+                    : <span className="w-1.5 h-1.5 rounded-full bg-gray-300 block" />}
+                </div>
+                <span className={`text-sm font-medium flex-1 ${item.done ? "text-gray-800" : "text-gray-400"}`}>
+                  {item.label}
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  item.done ? "text-green-500 bg-green-50" : "text-red-400 bg-red-50"
+                }`}>
+                  {item.done ? "✓ Done" : "Required"}
+                </span>
+              </div>
+            ))}
+          </div>
+
         </div>
       </div>
     );
@@ -142,36 +210,27 @@ export function PostAd() {
   // ── POST AD WIZARD ──
   return (
     <div className="flex flex-col pb-8">
-
       <div className="bg-white px-4 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => step > 1 ? setStep(step - 1) : void navigate({ to: "/" })}
-            className="p-1.5 rounded-full hover:bg-gray-100"
-          >
+            className="p-1.5 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <span className="font-bold text-gray-800 text-sm flex-1">Post a Visa Listing</span>
           <span className="text-xs text-gray-400">{step}/{totalSteps}</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#1a56f0] rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-full bg-[#1a56f0] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex justify-between mt-1.5">
-          {["Basic","Details","Pricing","Docs","Review"].map((l, i) => (
-            <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#1a56f0]" : "text-gray-300"}`}>
-              {l}
-            </span>
+          {["Basic","Details","Pricing","Process","Review"].map((l, i) => (
+            <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#1a56f0]" : "text-gray-300"}`}>{l}</span>
           ))}
         </div>
       </div>
 
       <div className="px-4 mt-4">
-
-        {/* STEP 1 */}
         {step === 1 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Basic Information</div>
@@ -198,12 +257,8 @@ export function PostAd() {
                   {VISA_TYPES.map(v => (
                     <button key={v} onClick={() => set("visaType", v)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                        form.visaType === v
-                          ? "bg-[#1a56f0] text-white border-[#1a56f0]"
-                          : "bg-gray-50 text-gray-600 border-gray-100"
-                      }`}>
-                      {v}
-                    </button>
+                        form.visaType === v ? "bg-[#1a56f0] text-white border-[#1a56f0]" : "bg-gray-50 text-gray-600 border-gray-100"
+                      }`}>{v}</button>
                   ))}
                 </div>
               </div>
@@ -211,7 +266,6 @@ export function PostAd() {
           </div>
         )}
 
-        {/* STEP 2 */}
         {step === 2 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Service Details</div>
@@ -225,7 +279,7 @@ export function PostAd() {
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Description *</label>
                 <textarea value={form.description} onChange={e => set("description", e.target.value)}
-                  placeholder="Describe your service in detail. What do you offer? What is included? Success rate?"
+                  placeholder="Describe your service in detail..."
                   rows={5}
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0] resize-none" />
               </div>
@@ -236,17 +290,14 @@ export function PostAd() {
                     onKeyDown={e => e.key === "Enter" && addReq()}
                     placeholder="e.g. Valid Passport"
                     className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#1a56f0]" />
-                  <button onClick={addReq}
-                    className="w-10 h-10 bg-[#1a56f0] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <button onClick={addReq} className="w-10 h-10 bg-[#1a56f0] rounded-xl flex items-center justify-center flex-shrink-0">
                     <Plus size={18} className="text-white" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {["Valid Passport","Bank Statements","Employment Letter","Photographs","Travel Insurance","Educational Certificates","Police Clearance","Medical Certificate"].map(s => (
                     <button key={s} onClick={() => setForm(f => ({ ...f, requirements: [...f.requirements, s] }))}
-                      className="text-[10px] bg-blue-50 border border-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
-                      + {s}
-                    </button>
+                      className="text-[10px] bg-blue-50 border border-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">+ {s}</button>
                   ))}
                 </div>
                 {form.requirements.map((r, i) => (
@@ -261,7 +312,6 @@ export function PostAd() {
           </div>
         )}
 
-        {/* STEP 3 */}
         {step === 3 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Pricing</div>
@@ -280,12 +330,8 @@ export function PostAd() {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Currency</label>
                   <select value={form.currency} onChange={e => set("currency", e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none">
-                    <option>USDT</option>
-                    <option>USD</option>
-                    <option>EUR</option>
-                    <option>GBP</option>
-                    <option>AED</option>
-                    <option>PKR</option>
+                    <option>USDT</option><option>USD</option><option>EUR</option>
+                    <option>GBP</option><option>AED</option><option>PKR</option>
                   </select>
                 </div>
               </div>
@@ -295,31 +341,23 @@ export function PostAd() {
                   <div>• Buyer pays: Your fee + $36 Crossing fee</div>
                   <div>• You receive: Your fee − $36 Crossing fee</div>
                   <div>• Payment released only after visa confirmed</div>
+                  <div>• Your $2,000 deposit stays safe unless dispute</div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 4 */}
         {step === 4 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-1">Step-by-Step Process</div>
-            <div className="text-xs text-gray-500 mb-4">Explain what will happen at each stage</div>
+            <div className="text-xs text-gray-500 mb-4">Explain what will happen at each stage for the buyer</div>
             <div className="flex flex-col gap-3">
               {form.steps.map((s, i) => (
                 <div key={i} className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-[#1a56f0] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">
-                    {i + 1}
-                  </div>
+                  <div className="w-7 h-7 rounded-full bg-[#1a56f0] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">{i + 1}</div>
                   <input value={s} onChange={e => setStepText(i, e.target.value)}
-                    placeholder={[
-                      "Documents collection from buyer",
-                      "Document verification & preparation",
-                      "Embassy application submission",
-                      "Interview scheduling (if required)",
-                      "Visa delivery & case closure",
-                    ][i]}
+                    placeholder={["Documents collection from buyer","Document verification & preparation","Embassy application submission","Interview scheduling (if required)","Visa delivery & case closure"][i]}
                     className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                 </div>
               ))}
@@ -327,7 +365,6 @@ export function PostAd() {
           </div>
         )}
 
-        {/* STEP 5 */}
         {step === 5 && (
           <div className="flex flex-col gap-3">
             <div className="bg-white rounded-2xl p-4 shadow-sm">
@@ -358,19 +395,16 @@ export function PostAd() {
             </div>
             <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
               <div className="text-sm font-bold text-green-700 mb-1">✓ Ready to Publish</div>
-              <div className="text-xs text-green-600">Your listing will be reviewed by admin within 24 hours before going live.</div>
+              <div className="text-xs text-green-600">Listing reviewed by admin within 24 hours before going live.</div>
             </div>
           </div>
         )}
 
-        {/* NEXT / SUBMIT */}
         <button
           onClick={() => step < totalSteps ? setStep(step + 1) : handleSubmit()}
-          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2"
-        >
+          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2">
           {step < totalSteps ? <><span>Continue</span><ChevronRight size={16} /></> : <span>Submit Listing 🚀</span>}
         </button>
-
       </div>
     </div>
   );
