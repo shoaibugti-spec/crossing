@@ -1,195 +1,211 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, MoreVertical, Paperclip, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { MOCK_CONVERSATIONS, MOCK_MESSAGES } from "../lib/mockData";
+import { ArrowLeft, Send, Paperclip, Image, FileText, Lock, CheckCircle, AlertTriangle } from "lucide-react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { useState, useRef, useEffect } from "react";
+
+const CHATS: Record<string, {
+  name: string;
+  role: string;
+  avatar: string;
+  verified: boolean;
+  messages: { id: number; from: "me" | "them"; text: string; time: string; type?: string }[];
+}> = {
+  "1": {
+    name: "ImmigrationPro",
+    role: "Visa Provider · 🇨🇦 Canada",
+    avatar: "IP",
+    verified: true,
+    messages: [
+      { id: 1, from: "them", text: "السلام علیکم! I received your escrow payment. Let's get started on your Canada PR application.", time: "10:00 AM" },
+      { id: 2, from: "them", text: "🌐 Translated from Arabic", time: "10:00 AM", type: "translate" },
+      { id: 3, from: "me", text: "Wa alaikum assalam! Great, what documents do you need first?", time: "10:02 AM" },
+      { id: 4, from: "them", text: "Please send:\n1. Passport copy (all pages)\n2. IELTS result\n3. Educational certificates\n4. Work experience letters (last 3 years)", time: "10:05 AM" },
+      { id: 5, from: "me", text: "I will prepare them today and upload through the app.", time: "10:08 AM" },
+      { id: 6, from: "them", text: "Perfect! Once I receive them I will review within 48 hours and proceed to embassy submission.", time: "10:10 AM" },
+    ],
+  },
+  "2": {
+    name: "Global Edu",
+    role: "Study Visa · 🇬🇧 UK",
+    avatar: "GE",
+    verified: true,
+    messages: [
+      { id: 1, from: "them", text: "Hello! Your UK student visa application has been submitted to the embassy.", time: "9:00 AM" },
+      { id: 2, from: "me", text: "Thank you! How long will it take?", time: "9:05 AM" },
+      { id: 3, from: "them", text: "Usually 3-4 weeks. I will update you immediately when there is any news.", time: "9:07 AM" },
+    ],
+  },
+};
+
+const QUICK_REPLIES = [
+  "What documents do you need?",
+  "What is the current status?",
+  "How long will it take?",
+  "Please send an update",
+];
 
 export function ChatView() {
   const { id } = useParams({ from: "/messages/$id" });
-  const conversation =
-    MOCK_CONVERSATIONS.find((c) => c.id === id) ?? MOCK_CONVERSATIONS[0];
-  const [messages, setMessages] = useState(
-    MOCK_MESSAGES.filter((m) => m.conversationId === (id || "conv-1")),
-  );
-  const [inputText, setInputText] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const chat = CHATS[id] ?? CHATS["1"];
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on message change is intentional
+  const [messages, setMessages] = useState(chat.messages);
+  const [text, setText] = useState("");
+  const [showAttach, setShowAttach] = useState(false);
+  const [showEscrowInfo, setShowEscrowInfo] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = () => {
-    const text = inputText.trim();
-    if (!text) return;
-
+  const send = () => {
+    if (!text.trim()) return;
     const newMsg = {
-      id: `msg-${Date.now()}`,
-      conversationId: id,
-      text,
-      senderId: "me",
-      senderName: "You",
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      isOwn: true,
+      id: messages.length + 1,
+      from: "me" as const,
+      text: text.trim(),
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
+    setMessages((m) => [...m, newMsg]);
+    setText("");
 
-    setMessages((prev) => [...prev, newMsg]);
-    setInputText("");
-    toast.success("Message sent");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    // Auto reply
+    setTimeout(() => {
+      setMessages((m) => [...m, {
+        id: m.length + 1,
+        from: "them" as const,
+        text: "Thank you for your message. I will get back to you shortly.",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
+    }, 1200);
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div
-        className="bg-card rounded-xl border border-border/60 shadow-card overflow-hidden flex flex-col"
-        style={{ height: "calc(100vh - 200px)", minHeight: "500px" }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-border/60 bg-card">
-          <Link
-            to="/messages"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
-              {conversation.participantAvatar}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-foreground">
-              {conversation.participantName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              Re:{" "}
-              <Link
-                to="/ads/$id"
-                params={{ id: conversation.adId }}
-                className="text-primary hover:underline"
-              >
-                {conversation.adTitle}
-              </Link>
-            </p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical size={15} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>View Ad</DropdownMenuItem>
-              <DropdownMenuItem>View Profile</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
-                Block User
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-56px)]">
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-sm text-muted-foreground">
-                Start the conversation by sending a message.
-              </p>
-            </div>
-          ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex items-end gap-2",
-                  msg.isOwn ? "flex-row-reverse" : "flex-row",
-                )}
-              >
-                {!msg.isOwn && (
-                  <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                      {conversation.participantAvatar}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                <div
-                  className={cn(
-                    "max-w-[70%] rounded-2xl px-4 py-2.5 text-sm",
-                    msg.isOwn
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-muted text-foreground rounded-bl-md",
-                  )}
-                >
-                  <p className="leading-relaxed">{msg.text}</p>
-                  <p
-                    className={cn(
-                      "text-xs mt-1",
-                      msg.isOwn
-                        ? "text-primary-foreground/60"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {msg.timestamp}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
+      {/* HEADER */}
+      <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100 flex-shrink-0">
+        <button
+          onClick={() => void navigate({ to: "/messages" })}
+          className="p-1.5 rounded-full hover:bg-gray-100"
+        >
+          <ArrowLeft size={20} className="text-gray-600" />
+        </button>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+          {chat.avatar}
         </div>
-
-        {/* Input */}
-        <div className="border-t border-border/60 p-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={() => toast.info("File attachment coming soon")}
-              data-ocid="chat.attachment_button"
-            >
-              <Paperclip size={16} />
-            </Button>
-            <Input
-              placeholder="Type a message..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 h-9"
-              data-ocid="chat.message_input"
-            />
-            <Button
-              size="icon"
-              className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={sendMessage}
-              disabled={!inputText.trim()}
-              data-ocid="chat.send_button"
-            >
-              <Send size={15} />
-            </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-gray-800 text-sm">{chat.name}</span>
+            {chat.verified && (
+              <CheckCircle size={13} className="text-[#1a56f0] flex-shrink-0" />
+            )}
           </div>
+          <div className="text-xs text-gray-400 truncate">{chat.role}</div>
+        </div>
+        <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded-full">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <span className="text-[10px] font-semibold text-green-600">Online</span>
         </div>
       </div>
+
+      {/* ESCROW BANNER */}
+      {showEscrowInfo && (
+        <div className="mx-3 mt-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center gap-2 flex-shrink-0">
+          <Lock size={13} className="text-[#1a56f0] flex-shrink-0" />
+          <span className="text-[11px] text-blue-700 flex-1">Escrow active — $499 USDT locked until visa confirmed</span>
+          <button onClick={() => setShowEscrowInfo(false)} className="text-blue-300 text-xs font-bold">✕</button>
+        </div>
+      )}
+
+      {/* MESSAGES */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+        {messages.map((msg) => {
+          if (msg.type === "translate") {
+            return (
+              <div key={msg.id} className="self-start bg-purple-50 border border-purple-100 rounded-xl px-3 py-1.5 flex items-center gap-1.5 max-w-[70%]">
+                <span className="text-[11px] text-purple-600">🌐 {msg.text}</span>
+              </div>
+            );
+          }
+
+          return (
+            <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.from === "me" ? "items-end" : "items-start"}`}>
+              <div className={`px-4 py-2.5 rounded-2xl max-w-[78%] text-sm leading-relaxed whitespace-pre-line ${
+                msg.from === "me"
+                  ? "bg-[#1a56f0] text-white rounded-br-sm"
+                  : "bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-50"
+              }`}>
+                {msg.text}
+              </div>
+              <span className="text-[10px] text-gray-400 px-1">{msg.time}</span>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* QUICK REPLIES */}
+      <div className="flex gap-2 overflow-x-auto px-4 py-2 flex-shrink-0 scrollbar-none">
+        {QUICK_REPLIES.map((q) => (
+          <button
+            key={q}
+            onClick={() => setText(q)}
+            className="flex-shrink-0 bg-white border border-gray-100 rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:border-[#1a56f0]/40 hover:text-[#1a56f0] transition-all"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+
+      {/* ATTACH MENU */}
+      {showAttach && (
+        <div className="mx-4 mb-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-3 flex gap-3 flex-shrink-0">
+          {[
+            { icon: Image, label: "Photo", color: "bg-blue-50 text-blue-500" },
+            { icon: FileText, label: "Document", color: "bg-green-50 text-green-500" },
+            { icon: AlertTriangle, label: "Evidence", color: "bg-red-50 text-red-500" },
+          ].map(({ icon: Icon, label, color }) => (
+            <button
+              key={label}
+              onClick={() => { alert(`${label} picker opening...`); setShowAttach(false); }}
+              className="flex-1 flex flex-col items-center gap-1.5 py-2"
+            >
+              <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center`}>
+                <Icon size={18} />
+              </div>
+              <span className="text-[10px] text-gray-500 font-semibold">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* INPUT */}
+      <div className="bg-white border-t border-gray-100 px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => setShowAttach(!showAttach)}
+          className={`p-2 rounded-xl transition-all ${showAttach ? "bg-[#1a56f0] text-white" : "bg-gray-50 text-gray-400"}`}
+        >
+          <Paperclip size={18} />
+        </button>
+        <div className="flex-1 flex items-center gap-2 bg-gray-50 rounded-2xl px-4 py-2.5 border border-gray-100">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+            placeholder="Type a message..."
+            className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
+          />
+        </div>
+        <button
+          onClick={send}
+          disabled={!text.trim()}
+          className="w-10 h-10 rounded-xl bg-[#1a56f0] flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-all"
+        >
+          <Send size={16} className="text-white" />
+        </button>
+      </div>
+
     </div>
   );
 }
