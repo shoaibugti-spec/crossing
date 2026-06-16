@@ -1,575 +1,335 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, ChevronRight, Plus, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, CheckCircle, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
-import { useCreateListing } from "../hooks/useQueries";
-import { COUNTRIES, VISA_TYPES } from "../lib/mockData";
 
-type Step = 1 | 2 | 3 | 4;
-
-interface AdFormData {
-  title: string;
-  category: string;
-  destinationCountry: string;
-  originCountry: string;
-  price: string;
-  currency: string;
-  processingTime: string;
-  requirements: string[];
-  description: string;
-}
-
-const CURRENCIES = ["USD", "EUR", "GBP", "AED", "SAR", "PKR", "INR"];
+const COUNTRIES = ["Saudi Arabia","UAE","United Kingdom","Germany","Canada","Australia","New Zealand","USA","Turkey","Malaysia"];
+const VISA_TYPES = ["Work Visa","Study Visa","Tourist Visa","Business Visa","Family Visa","Sponsorship","PR / Immigration","Transit Visa"];
+const CURRENCIES = ["USDT","USD","EUR","GBP","AED","PKR"];
 
 export function PostAd() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>(1);
-  const createListing = useCreateListing();
-
-  const [form, setForm] = useState<AdFormData>({
-    title: "",
-    category: "",
-    destinationCountry: "",
-    originCountry: "",
-    price: "",
-    currency: "USD",
-    processingTime: "",
-    requirements: [""],
-    description: "",
+  const [step, setStep] = useState(1);
+  const [req, setReq] = useState("");
+  const [form, setForm] = useState({
+    title: "", country: "", visaType: "", price: "",
+    currency: "USDT", processingTime: "", description: "",
+    requirements: [] as string[],
+    steps: ["", "", "", "", ""],
   });
 
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof AdFormData, string>>
-  >({});
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const updateField = (field: keyof AdFormData, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+  const addReq = () => {
+    if (!req.trim()) return;
+    setForm((f) => ({ ...f, requirements: [...f.requirements, req.trim()] }));
+    setReq("");
   };
 
-  const validateStep = (s: Step): boolean => {
-    const newErrors: typeof errors = {};
-    if (s === 1) {
-      if (!form.title.trim()) newErrors.title = "Title is required";
-      if (!form.category) newErrors.category = "Category is required";
-      if (!form.destinationCountry)
-        newErrors.destinationCountry = "Destination country is required";
-      if (!form.description.trim())
-        newErrors.description = "Description is required";
-    }
-    if (s === 2) {
-      if (
-        !form.price ||
-        Number.isNaN(Number(form.price)) ||
-        Number(form.price) <= 0
-      ) {
-        newErrors.price = "Valid price is required";
-      }
-      if (!form.processingTime.trim())
-        newErrors.processingTime = "Processing time is required";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const removeReq = (i: number) =>
+    setForm((f) => ({ ...f, requirements: f.requirements.filter((_, idx) => idx !== i) }));
+
+  const setStepText = (i: number, val: string) => {
+    const steps = [...form.steps];
+    steps[i] = val;
+    setForm((f) => ({ ...f, steps }));
   };
 
-  const nextStep = () => {
-    if (validateStep(step)) {
-      setStep((s) => Math.min(4, s + 1) as Step);
-    }
+  const handleSubmit = () => {
+    void navigate({ to: "/my-ads" });
   };
 
-  const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
-
-  const addRequirement = () => {
-    setForm((prev) => ({ ...prev, requirements: [...prev.requirements, ""] }));
-  };
-
-  const updateRequirement = (index: number, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      requirements: prev.requirements.map((r, i) => (i === index ? value : r)),
-    }));
-  };
-
-  const removeRequirement = (index: number) => {
-    setForm((prev) => ({
-      ...prev,
-      requirements: prev.requirements.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handlePublish = async (isDraft = false) => {
-    try {
-      const id = await createListing.mutateAsync({
-        title: form.title,
-        category: form.category,
-        price: BigInt(Math.round(Number(form.price) * 100)),
-      });
-      toast.success(
-        isDraft ? "Ad saved as draft" : "Ad published successfully!",
-      );
-      void navigate({ to: "/my-ads" });
-      console.log("Created listing:", id);
-    } catch {
-      // Fallback for unauthenticated users
-      toast.success(
-        isDraft ? "Ad saved as draft" : "Ad published successfully!",
-      );
-      void navigate({ to: "/my-ads" });
-    }
-  };
-
-  const steps = [
-    { label: "Basic Info", number: 1 },
-    { label: "Pricing", number: 2 },
-    { label: "Requirements", number: 3 },
-    { label: "Preview", number: 4 },
-  ];
+  const totalSteps = 5;
+  const progress = (step / totalSteps) * 100;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl font-bold text-foreground">
-          Post a Visa Service
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Share your visa facilitation service with thousands of seekers
-        </p>
+    <div className="flex flex-col pb-8">
+
+      {/* BACK + PROGRESS */}
+      <div className="bg-white px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2 mb-3">
+          <button onClick={() => step > 1 ? setStep(step - 1) : void navigate({ to: "/" })}
+            className="p-1.5 rounded-full hover:bg-gray-100">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
+          <span className="font-bold text-gray-800 text-sm flex-1">Post a Visa Listing</span>
+          <span className="text-xs text-gray-400">{step}/{totalSteps}</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#1a56f0] rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5">
+          {["Basic Info","Details","Docs","Process","Review"].map((l, i) => (
+            <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#1a56f0]" : "text-gray-300"}`}>{l}</span>
+          ))}
+        </div>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-2">
-        {steps.map((s, i) => (
-          <div key={s.number} className="flex items-center">
-            <div className="flex items-center gap-2 shrink-0">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
-                  step > s.number
-                    ? "bg-green-600 text-white"
-                    : step === s.number
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {step > s.number ? <CheckCircle size={16} /> : s.number}
-              </div>
-              <span
-                className={`text-sm font-medium shrink-0 ${
-                  step === s.number
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {s.label}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div className="w-8 h-px bg-border mx-3 shrink-0" />
-            )}
-          </div>
-        ))}
-      </div>
+      <div className="px-4 mt-4">
 
-      <Card className="border-border/60 shadow-card">
-        <CardContent className="p-6">
-          {/* Step 1: Basic Info */}
-          {step === 1 && (
-            <div className="space-y-5">
-              <h2 className="font-display font-bold text-lg">
-                Basic Information
-              </h2>
+        {/* STEP 1 — BASIC INFO */}
+        {step === 1 && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-4">Basic Information</div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="title">
-                  Service Title <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="title"
-                  placeholder="e.g., Saudi Arabia Work Visa - Guaranteed Processing"
+              <div className="mb-3">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Listing Title</label>
+                <input
                   value={form.title}
-                  onChange={(e) => updateField("title", e.target.value)}
-                  className={errors.title ? "border-destructive" : ""}
+                  onChange={(e) => set("title", e.target.value)}
+                  placeholder="e.g. Canada PR Express Entry — Full Service"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]"
                 />
-                {errors.title && (
-                  <p className="text-xs text-destructive">{errors.title}</p>
-                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>
-                    Visa Category <span className="text-destructive">*</span>
-                  </Label>
-                  <Select
-                    value={form.category}
-                    onValueChange={(v) => updateField("category", v)}
-                  >
-                    <SelectTrigger
-                      className={errors.category ? "border-destructive" : ""}
-                    >
-                      <SelectValue placeholder="Select visa type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VISA_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.category && (
-                    <p className="text-xs text-destructive">
-                      {errors.category}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>
-                    Destination Country{" "}
-                    <span className="text-destructive">*</span>
-                  </Label>
-                  <Select
-                    value={form.destinationCountry}
-                    onValueChange={(v) => updateField("destinationCountry", v)}
-                  >
-                    <SelectTrigger
-                      className={
-                        errors.destinationCountry ? "border-destructive" : ""
-                      }
-                    >
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.destinationCountry && (
-                    <p className="text-xs text-destructive">
-                      {errors.destinationCountry}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Origin Country (Optional)</Label>
-                <Select
-                  value={form.originCountry}
-                  onValueChange={(v) => updateField("originCountry", v)}
+              <div className="mb-3">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Destination Country</label>
+                <select
+                  value={form.country}
+                  onChange={(e) => set("country", e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Where applicants typically come from" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">Select country...</option>
+                  {COUNTRIES.map((c) => <option key={c}>{c}</option>)}
+                </select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="description">
-                  Description <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe your service in detail — experience, success rate, what's included..."
-                  rows={4}
-                  value={form.description}
-                  onChange={(e) => updateField("description", e.target.value)}
-                  className={errors.description ? "border-destructive" : ""}
-                  data-ocid="post_ad.description_textarea"
-                />
-                {errors.description && (
-                  <p className="text-xs text-destructive">
-                    {errors.description}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Pricing */}
-          {step === 2 && (
-            <div className="space-y-5">
-              <h2 className="font-display font-bold text-lg">
-                Pricing & Timeline
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="price">
-                    Service Fee <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    placeholder="0.00"
-                    value={form.price}
-                    onChange={(e) => updateField("price", e.target.value)}
-                    className={errors.price ? "border-destructive" : ""}
-                  />
-                  {errors.price && (
-                    <p className="text-xs text-destructive">{errors.price}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Currency</Label>
-                  <Select
-                    value={form.currency}
-                    onValueChange={(v) => updateField("currency", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="mb-3">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Visa Type</label>
+                <div className="flex flex-wrap gap-2">
+                  {VISA_TYPES.map((v) => (
+                    <button key={v} onClick={() => set("visaType", v)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                        form.visaType === v
+                          ? "bg-[#1a56f0] text-white border-[#1a56f0]"
+                          : "bg-gray-50 text-gray-600 border-gray-100"
+                      }`}>
+                      {v}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="processingTime">
-                  Processing Time Estimate{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="processingTime"
-                  placeholder="e.g., 15-21 business days"
-                  value={form.processingTime}
-                  onChange={(e) =>
-                    updateField("processingTime", e.target.value)
-                  }
-                  className={errors.processingTime ? "border-destructive" : ""}
-                />
-                {errors.processingTime && (
-                  <p className="text-xs text-destructive">
-                    {errors.processingTime}
-                  </p>
-                )}
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                <p className="font-semibold mb-1">💡 Pricing Guidance</p>
-                <p>
-                  Similar {form.category || "visa"} services in our marketplace
-                  are priced between $120–$2,500. Competitive pricing increases
-                  your chances of getting matched.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Requirements */}
-          {step === 3 && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="font-display font-bold text-lg">
-                  Documents Required
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  List all documents buyers need to provide for their
-                  application
-                </p>
-              </div>
-
-              <div className="space-y-2.5">
-                {form.requirements.map((req, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: requirements are positional
-                  <div key={i} className="flex gap-2 items-center">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-semibold shrink-0">
-                      {i + 1}
-                    </div>
-                    <Input
-                      placeholder={`Requirement ${i + 1}, e.g., Valid passport (min 6 months)`}
-                      value={req}
-                      onChange={(e) => updateRequirement(i, e.target.value)}
-                      className="flex-1"
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Price</label>
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
+                    <span className="text-gray-400 text-sm font-bold">$</span>
+                    <input
+                      type="number"
+                      value={form.price}
+                      onChange={(e) => set("price", e.target.value)}
+                      placeholder="499"
+                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold"
                     />
-                    {form.requirements.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeRequirement(i)}
-                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                      >
-                        <X size={14} />
-                      </Button>
-                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Currency</label>
+                  <select
+                    value={form.currency}
+                    onChange={(e) => set("currency", e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none"
+                  >
+                    {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2 — DETAILS */}
+        {step === 2 && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-4">Service Details</div>
+
+              <div className="mb-3">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Processing Time</label>
+                <input
+                  value={form.processingTime}
+                  onChange={(e) => set("processingTime", e.target.value)}
+                  placeholder="e.g. 4-6 weeks"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  placeholder="Describe your service in detail. What do you offer? What is your success rate? How many years experience?"
+                  rows={5}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0] resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 — REQUIREMENTS */}
+        {step === 3 && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-1">Required Documents</div>
+              <div className="text-xs text-gray-500 mb-4">List all documents the buyer must provide</div>
+
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={req}
+                  onChange={(e) => setReq(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addReq()}
+                  placeholder="e.g. Valid Passport"
+                  className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]"
+                />
+                <button onClick={addReq}
+                  className="w-11 h-11 bg-[#1a56f0] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Plus size={18} className="text-white" />
+                </button>
+              </div>
+
+              {form.requirements.length === 0 && (
+                <div className="text-center py-6 text-gray-300 text-xs">
+                  No requirements added yet. Type above and press Enter.
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {form.requirements.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+                    <div className="w-5 h-5 rounded-full bg-[#1a56f0]/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-[#1a56f0]">{i + 1}</span>
+                    </div>
+                    <span className="flex-1 text-sm text-gray-700">{r}</span>
+                    <button onClick={() => removeReq(i)}>
+                      <X size={14} className="text-gray-400" />
+                    </button>
                   </div>
                 ))}
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addRequirement}
-                className="gap-2"
-              >
-                <Plus size={14} />
-                Add Requirement
-              </Button>
+              <div className="mt-4 bg-blue-50 rounded-xl p-3">
+                <div className="text-xs text-blue-700 font-semibold mb-1">Common Requirements</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["Valid Passport","Bank Statements","Employment Letter","Photographs","Travel Insurance","Educational Certificates"].map((s) => (
+                    <button key={s} onClick={() => setForm((f) => ({ ...f, requirements: [...f.requirements, s] }))}
+                      className="text-[11px] bg-white border border-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+                      + {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Step 4: Preview */}
-          {step === 4 && (
-            <div className="space-y-5">
-              <h2 className="font-display font-bold text-lg">
-                Preview & Publish
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Review your listing before publishing
-              </p>
+        {/* STEP 4 — PROCESS STEPS */}
+        {step === 4 && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-1">Step-by-Step Process</div>
+              <div className="text-xs text-gray-500 mb-4">Explain exactly what will happen at each stage</div>
 
-              <div className="bg-muted/30 rounded-xl p-5 space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {form.category && (
-                    <Badge variant="outline" className="badge-navy text-xs">
-                      {form.category}
-                    </Badge>
-                  )}
-                  {form.destinationCountry && (
-                    <Badge variant="outline" className="text-xs">
-                      {form.destinationCountry}
-                    </Badge>
-                  )}
-                </div>
-
-                <h3 className="font-display font-bold text-xl text-foreground">
-                  {form.title || "Your Ad Title"}
-                </h3>
-
-                {form.description && (
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {form.description}
-                  </p>
-                )}
-
-                <Separator />
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Price</span>
-                    <p className="font-bold text-lg font-display">
-                      {form.price
-                        ? `$${Number(form.price).toLocaleString()} ${form.currency}`
-                        : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">
-                      Processing Time
-                    </span>
-                    <p className="font-medium">{form.processingTime || "—"}</p>
-                  </div>
-                </div>
-
-                {form.requirements.filter((r) => r.trim()).length > 0 && (
-                  <>
-                    <Separator />
-                    <div>
-                      <p className="text-sm font-semibold mb-2">
-                        Requirements:
-                      </p>
-                      <ul className="space-y-1.5">
-                        {form.requirements
-                          .filter((r) => r.trim())
-                          .map((req) => (
-                            <li
-                              key={req}
-                              className="flex items-start gap-2 text-sm text-muted-foreground"
-                            >
-                              <CheckCircle
-                                size={13}
-                                className="text-green-600 shrink-0 mt-0.5"
-                              />
-                              {req}
-                            </li>
-                          ))}
-                      </ul>
+              <div className="flex flex-col gap-3">
+                {form.steps.map((s, i) => (
+                  <div key={i} className="flex gap-3 items-start">
+                    <div className="w-7 h-7 rounded-full bg-[#1a56f0] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">
+                      {i + 1}
                     </div>
-                  </>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => handlePublish(true)}
-                  disabled={createListing.isPending}
-                  className="flex-1"
-                  data-ocid="post_ad.save_draft_button"
-                >
-                  Save as Draft
-                </Button>
-                <Button
-                  onClick={() => handlePublish(false)}
-                  disabled={createListing.isPending}
-                  className="flex-1 bg-primary text-primary-foreground"
-                  data-ocid="post_ad.submit_button"
-                >
-                  {createListing.isPending ? "Publishing..." : "Publish Ad"}
-                </Button>
+                    <div className="flex-1">
+                      <input
+                        value={s}
+                        onChange={(e) => setStepText(i, e.target.value)}
+                        placeholder={[
+                          "Documents collection from buyer",
+                          "Document verification & preparation",
+                          "Embassy application submission",
+                          "Interview scheduling (if required)",
+                          "Visa delivery & case closure",
+                        ][i]}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Navigation */}
-          {step < 4 && (
-            <div className="flex justify-between mt-6 pt-6 border-t border-border/50">
-              <Button
-                variant="outline"
-                onClick={prevStep}
-                disabled={step === 1}
-                className="gap-1.5"
-                data-ocid="post_ad.prev_button"
-              >
-                <ArrowLeft size={14} />
-                Back
-              </Button>
-              <Button
-                onClick={nextStep}
-                className="gap-1.5 bg-primary text-primary-foreground"
-                data-ocid="post_ad.next_button"
-              >
-                Continue
-                <ArrowRight size={14} />
-              </Button>
+        {/* STEP 5 — REVIEW */}
+        {step === 5 && (
+          <div className="flex flex-col gap-3">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-3">Review Your Listing</div>
+
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <div className="font-bold text-gray-800">{form.title || "Untitled Listing"}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{form.country} · {form.visaType}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-black text-[#1a56f0] text-lg">${form.price}</div>
+                  <div className="text-[10px] text-gray-400">{form.currency}</div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <span className="bg-blue-50 text-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold">⏱ {form.processingTime || "TBD"}</span>
+              </div>
+
+              {form.description && (
+                <p className="text-xs text-gray-500 mb-3 leading-relaxed">{form.description}</p>
+              )}
+
+              {form.requirements.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs font-bold text-gray-600 mb-2">📄 Required Docs ({form.requirements.length})</div>
+                  {form.requirements.map((r, i) => (
+                    <div key={i} className="text-xs text-gray-500 flex items-center gap-1.5 mb-1">
+                      <span className="w-1 h-1 rounded-full bg-[#1a56f0] flex-shrink-0" />
+                      {r}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-gray-100 pt-3">
+                <div className="text-xs font-bold text-gray-600 mb-2">📋 Process Steps</div>
+                {form.steps.filter(Boolean).map((s, i) => (
+                  <div key={i} className="flex gap-2 mb-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#1a56f0] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
+                    <span className="text-xs text-gray-500">{s}</span>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+              <div className="text-sm font-bold text-green-700 mb-1">✓ Ready to Publish</div>
+              <div className="text-xs text-green-600">Your listing will be reviewed by admin within 24 hours before going live.</div>
+            </div>
+          </div>
+        )}
+
+        {/* NEXT / SUBMIT */}
+        <button
+          onClick={() => step < totalSteps ? setStep(step + 1) : handleSubmit()}
+          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2"
+        >
+          {step < totalSteps ? (
+            <><span>Continue</span><ChevronRight size={16} /></>
+          ) : (
+            <span>Submit Listing 🚀</span>
           )}
-        </CardContent>
-      </Card>
+        </button>
+
+      </div>
     </div>
   );
 }
