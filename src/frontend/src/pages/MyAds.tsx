@@ -1,251 +1,219 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  Ban,
-  ChevronDown,
-  Edit,
-  Eye,
-  MessageCircle,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, Plus, Eye, MessageCircle, Edit3, Trash2, TrendingUp } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
-import { AdStatus } from "../backend.d";
-import { MOCK_ADS } from "../lib/mockData";
 
-const statusColors: Record<AdStatus, string> = {
-  [AdStatus.active]: "bg-green-50 text-green-700 border-green-200",
-  [AdStatus.draft]: "bg-gray-100 text-gray-600 border-gray-200",
-  [AdStatus.expired]: "bg-orange-50 text-orange-700 border-orange-200",
-  [AdStatus.suspended]: "bg-red-50 text-red-700 border-red-200",
+const MY_ADS = [
+  {
+    id: "1",
+    title: "Canada Express Entry — PR Assistance",
+    country: "🇨🇦 Canada",
+    category: "Work Visa",
+    price: 499,
+    status: "active",
+    views: 247,
+    messages: 12,
+    orders: 3,
+    createdAt: "June 1, 2026",
+  },
+  {
+    id: "2",
+    title: "UK Skilled Worker Visa — Full Service",
+    country: "🇬🇧 United Kingdom",
+    category: "Work Visa",
+    price: 399,
+    status: "active",
+    views: 189,
+    messages: 8,
+    orders: 2,
+    createdAt: "May 20, 2026",
+  },
+  {
+    id: "3",
+    title: "Germany Blue Card — IT Professionals",
+    country: "🇩🇪 Germany",
+    category: "Work Visa",
+    price: 249,
+    status: "pending",
+    views: 0,
+    messages: 0,
+    orders: 0,
+    createdAt: "June 14, 2026",
+  },
+  {
+    id: "4",
+    title: "UAE Tourist Visa — Fast Track",
+    country: "🇦🇪 UAE",
+    category: "Tourist Visa",
+    price: 99,
+    status: "expired",
+    views: 92,
+    messages: 5,
+    orders: 1,
+    createdAt: "April 1, 2026",
+  },
+];
+
+const STATUS = {
+  active:  { label: "Active",   color: "bg-green-50 text-green-600 border-green-100" },
+  pending: { label: "Pending Review", color: "bg-amber-50 text-amber-600 border-amber-100" },
+  expired: { label: "Expired",  color: "bg-gray-50 text-gray-400 border-gray-100" },
+  rejected:{ label: "Rejected", color: "bg-red-50 text-red-500 border-red-100" },
 };
 
 export function MyAds() {
   const navigate = useNavigate();
-  const [ads, setAds] = useState(
-    MOCK_ADS.map((ad, i) => ({
-      ...ad,
-      status:
-        i === 0
-          ? AdStatus.active
-          : i === 1
-            ? AdStatus.active
-            : i === 2
-              ? AdStatus.draft
-              : AdStatus.active,
-    })),
-  );
+  const [tab, setTab] = useState<"active" | "pending" | "expired">("active");
 
-  const activeAds = ads.filter((a) => a.status === AdStatus.active);
-  const draftAds = ads.filter((a) => a.status === AdStatus.draft);
-  const expiredAds = ads.filter((a) => a.status === AdStatus.expired);
-  const suspendedAds = ads.filter((a) => a.status === AdStatus.suspended);
+  const filtered = MY_ADS.filter((ad) => {
+    if (tab === "active") return ad.status === "active";
+    if (tab === "pending") return ad.status === "pending";
+    return ad.status === "expired" || ad.status === "rejected";
+  });
 
-  const handleSuspend = (id: string) => {
-    setAds((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: AdStatus.suspended } : a)),
-    );
-    toast.success("Ad suspended successfully");
-  };
-
-  const handleDelete = (id: string) => {
-    setAds((prev) => prev.filter((a) => a.id !== id));
-    toast.success("Ad deleted");
-  };
-
-  const AdRow = ({ ad }: { ad: (typeof ads)[0] }) => (
-    <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/60 hover:border-primary/30 hover:shadow-card transition-all">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2 mb-1.5">
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[ad.status]}`}
-          >
-            {ad.status}
-          </span>
-          <span className="text-xs text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
-            {ad.category}
-          </span>
-        </div>
-        <Link
-          to="/ads/$id"
-          params={{ id: ad.id }}
-          className="text-sm font-semibold text-foreground hover:text-primary transition-colors line-clamp-1"
-        >
-          {ad.title}
-        </Link>
-        <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Eye size={11} />
-            {ad.views} views
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageCircle size={11} />
-            {Math.floor(ad.views * 0.05)} messages
-          </span>
-          <span>
-            ${ad.price.toLocaleString()} {ad.currency}
-          </span>
-          <span className="hidden sm:block">{ad.destinationCountry}</span>
-        </div>
-      </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1 shrink-0 ml-2">
-            Actions
-            <ChevronDown size={12} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link
-              to="/ads/$id"
-              params={{ id: ad.id }}
-              className="flex items-center gap-2"
-            >
-              <Eye size={13} />
-              View
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => void navigate({ to: "/post-ad" })}
-            className="flex items-center gap-2"
-          >
-            <Edit size={13} />
-            Edit
-          </DropdownMenuItem>
-          {ad.status === AdStatus.active && (
-            <DropdownMenuItem
-              onClick={() => handleSuspend(ad.id)}
-              className="flex items-center gap-2 text-orange-600"
-            >
-              <Ban size={13} />
-              Suspend
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem
-            onClick={() => handleDelete(ad.id)}
-            className="flex items-center gap-2 text-destructive"
-          >
-            <Trash2 size={13} />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-
-  const EmptyState = ({ message }: { message: string }) => (
-    <div
-      className="flex flex-col items-center justify-center py-16 text-center"
-      data-ocid="my_ads.empty_state"
-    >
-      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-        <Eye size={20} className="text-muted-foreground" />
-      </div>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <Link to="/post-ad">
-        <Button size="sm" variant="outline" className="mt-3 gap-1.5">
-          <Plus size={13} />
-          Post New Ad
-        </Button>
-      </Link>
-    </div>
-  );
+  const totalViews = MY_ADS.reduce((s, a) => s + a.views, 0);
+  const totalOrders = MY_ADS.reduce((s, a) => s + a.orders, 0);
+  const totalMessages = MY_ADS.reduce((s, a) => s + a.messages, 0);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            My Ads
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage your visa service listings
-          </p>
-        </div>
-        <Link to="/post-ad" data-ocid="nav.post_ad_link">
-          <Button
-            className="gap-2 bg-primary text-primary-foreground"
-            size="sm"
-          >
-            <Plus size={14} />
-            New Ad
-          </Button>
+    <div className="flex flex-col pb-8">
+
+      {/* HEADER */}
+      <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+        <button
+          onClick={() => void navigate({ to: "/" })}
+          className="p-1.5 rounded-full hover:bg-gray-100"
+        >
+          <ArrowLeft size={20} className="text-gray-600" />
+        </button>
+        <span className="font-bold text-gray-800 text-sm flex-1">My Listings</span>
+        <Link to="/post-ad">
+          <button className="flex items-center gap-1.5 bg-[#1a56f0] text-white text-xs font-bold px-3 py-2 rounded-xl">
+            <Plus size={14} /> New Ad
+          </button>
         </Link>
       </div>
 
-      <Tabs defaultValue="active">
-        <TabsList className="mb-6">
-          <TabsTrigger value="active" className="gap-1.5">
-            Active
-            {activeAds.length > 0 && (
-              <span className="ml-1 bg-primary/10 text-primary rounded-full px-1.5 py-0.5 text-xs font-semibold">
-                {activeAds.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="drafts">
-            Drafts
-            {draftAds.length > 0 && (
-              <span className="ml-1 bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-xs font-semibold">
-                {draftAds.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="expired">Expired</TabsTrigger>
-          <TabsTrigger value="suspended">Suspended</TabsTrigger>
-        </TabsList>
+      {/* STATS */}
+      <div className="mx-4 mt-4">
+        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp size={16} className="text-white" />
+            <span className="text-white font-bold text-sm">Performance Overview</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Total Views", value: totalViews },
+              { label: "Messages", value: totalMessages },
+              { label: "Orders", value: totalOrders },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white/10 rounded-xl p-2.5 text-center">
+                <div className="text-white font-black text-xl">{value}</div>
+                <div className="text-white/50 text-[10px] mt-0.5">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-        <TabsContent value="active">
-          <div className="space-y-3">
-            {activeAds.length > 0 ? (
-              activeAds.map((ad) => <AdRow key={ad.id} ad={ad} />)
-            ) : (
-              <EmptyState message="No active ads. Post your first visa service!" />
+      {/* TABS */}
+      <div className="mx-4 mt-4">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          {(["active", "pending", "expired"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
+              }`}
+            >
+              {t === "active" ? "Active" : t === "pending" ? "Pending" : "Expired"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ADS */}
+      <div className="mx-4 mt-3 flex flex-col gap-3">
+        {filtered.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-2xl shadow-sm">
+            <div className="text-3xl mb-3">📋</div>
+            <div className="text-sm font-bold text-gray-400">No {tab} listings</div>
+            {tab === "active" && (
+              <Link to="/post-ad">
+                <button className="mt-3 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2 rounded-xl">
+                  Post Your First Ad
+                </button>
+              </Link>
             )}
           </div>
-        </TabsContent>
+        ) : (
+          filtered.map((ad) => {
+            const s = STATUS[ad.status as keyof typeof STATUS];
+            return (
+              <div key={ad.id} className="bg-white rounded-2xl shadow-sm p-4">
 
-        <TabsContent value="drafts">
-          <div className="space-y-3">
-            {draftAds.length > 0 ? (
-              draftAds.map((ad) => <AdRow key={ad.id} ad={ad} />)
-            ) : (
-              <EmptyState message="No draft ads saved." />
-            )}
-          </div>
-        </TabsContent>
+                {/* TOP */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 text-sm leading-snug">{ad.title}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{ad.country} · {ad.category}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-black text-[#1a56f0]">${ad.price}</div>
+                    <div className="text-[10px] text-gray-400">USDT</div>
+                  </div>
+                </div>
 
-        <TabsContent value="expired">
-          <div className="space-y-3">
-            {expiredAds.length > 0 ? (
-              expiredAds.map((ad) => <AdRow key={ad.id} ad={ad} />)
-            ) : (
-              <EmptyState message="No expired ads." />
-            )}
-          </div>
-        </TabsContent>
+                {/* STATUS */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.color}`}>
+                    {s.label}
+                  </span>
+                  <span className="text-[10px] text-gray-400">Posted {ad.createdAt}</span>
+                </div>
 
-        <TabsContent value="suspended">
-          <div className="space-y-3">
-            {suspendedAds.length > 0 ? (
-              suspendedAds.map((ad) => <AdRow key={ad.id} ad={ad} />)
-            ) : (
-              <EmptyState message="No suspended ads." />
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+                {/* STATS */}
+                {ad.status === "active" && (
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {[
+                      { icon: Eye, label: "Views", value: ad.views },
+                      { icon: MessageCircle, label: "Msgs", value: ad.messages },
+                      { icon: TrendingUp, label: "Orders", value: ad.orders },
+                    ].map(({ icon: Icon, label, value }) => (
+                      <div key={label} className="bg-gray-50 rounded-xl p-2 text-center">
+                        <div className="font-black text-gray-800 text-sm">{value}</div>
+                        <div className="text-[10px] text-gray-400">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ACTIONS */}
+                <div className="flex gap-2">
+                  <Link to="/ads/$id" params={{ id: ad.id }} className="flex-1">
+                    <button className="w-full border border-gray-100 bg-gray-50 text-gray-600 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                      <Eye size={13} /> Preview
+                    </button>
+                  </Link>
+                  <button
+                    onClick={() => alert("Edit coming soon")}
+                    className="flex-1 border border-[#1a56f0]/20 bg-[#1a56f0]/5 text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
+                  >
+                    <Edit3 size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => alert("Are you sure you want to delete this listing?")}
+                    className="w-10 border border-red-100 bg-red-50 text-red-400 rounded-xl flex items-center justify-center"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
     </div>
   );
 }
