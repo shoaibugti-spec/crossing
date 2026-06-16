@@ -1,211 +1,230 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
-import { HelpCircle, Shield } from "lucide-react";
+import { ArrowLeft, Search, ChevronDown, ChevronUp, MessageCircle, Shield, Mail } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { useState } from "react";
 
-const FAQ_CATEGORIES = [
-  {
-    category: "Account & KYC",
-    items: [
-      {
-        q: "How do I verify my identity (KYC)?",
-        a: "Go to your profile and click on 'KYC Verification'. Upload a valid government-issued ID (passport, CNIC, or national ID) along with a selfie holding the document. Our team reviews submissions within 1-2 business days.",
-      },
-      {
-        q: "What are the different verification levels?",
-        a: "Level 0 (Basic): Email/phone verified. Level 1 (Document Verified): Government ID submitted and reviewed. Level 2 (Fully Verified): Video verification completed. Higher levels unlock more platform features.",
-      },
-      {
-        q: "Can I use the platform without KYC verification?",
-        a: "You can browse listings without verification. However, to message sellers, unlock contact information, or start transactions, you'll need at least Level 1 verification.",
-      },
-      {
-        q: "My KYC was rejected. What should I do?",
-        a: "Review the rejection reason provided by our moderators. Common issues include blurry images, expired documents, or missing selfie. Resubmit with clearer, up-to-date documents.",
-      },
-    ],
-  },
-  {
-    category: "Listings",
-    items: [
-      {
-        q: "How do I post a visa service listing?",
-        a: "Click 'Post Ad' in the navigation. Follow the 4-step wizard: Basic Info, Pricing, Requirements, and Preview. Your ad can be saved as a draft or published immediately (subject to KYC approval).",
-      },
-      {
-        q: "What information should I include in my listing?",
-        a: "Include a clear title, visa type, destination country, detailed description of your service, processing timeline, fees, and a checklist of documents required from the buyer.",
-      },
-      {
-        q: "How are listings ranked in search results?",
-        a: "Listings are ranked based on relevance, seller verification level, trust score, ratings, and activity. Verified sellers with higher ratings typically appear higher in results.",
-      },
-    ],
-  },
+const FAQS = [
   {
     category: "Payments & Escrow",
-    items: [
+    icon: "🔒",
+    questions: [
       {
-        q: "How does the escrow payment system work?",
-        a: "When you initiate a transaction, funds are held securely by Crossing in escrow. The seller receives payment only after you confirm the service is delivered. If there's a dispute, funds remain frozen until resolved.",
+        q: "How does Escrow work?",
+        a: "When you deposit funds, they are locked in Crossing Escrow — not sent to the provider. Funds are only released after you confirm receipt of your visa documents. If anything goes wrong, you can file a dispute and get a full refund.",
       },
       {
-        q: "What payment methods are accepted?",
-        a: "We accept credit/debit cards, bank transfers, and selected local payment wallets. Cryptocurrency payments are also supported via our crypto gateway.",
+        q: "What currency do you use?",
+        a: "Crossing uses USDT (Tether) on TRC-20 network for all payments. This ensures fast, borderless transactions with low fees. No bank account needed.",
       },
       {
-        q: "When are funds released to the seller?",
-        a: "Funds are released when: (1) The buyer confirms service completion, (2) 14 days pass after delivery without a dispute, or (3) A dispute is resolved in the seller's favor.",
+        q: "When are funds released to the provider?",
+        a: "Funds are released only after you confirm that your visa has been successfully received. You must click 'Confirm Visa Received' in the Transactions page. Never confirm before receiving your documents.",
       },
       {
-        q: "What are the platform fees?",
-        a: "Crossing charges a 5% service fee on completed transactions. This covers escrow management, KYC verification, dispute resolution, and platform maintenance.",
+        q: "What if I want a refund?",
+        a: "If your visa is rejected or the provider fails to deliver, you can file a dispute. Admin will review evidence from both sides and issue a refund if fraud or failure is confirmed.",
       },
     ],
   },
   {
-    category: "Safety & Disputes",
-    items: [
+    category: "Verification & KYC",
+    icon: "✅",
+    questions: [
       {
-        q: "How do I report a suspicious user or listing?",
-        a: "Click the '...' menu on any listing or user profile and select 'Report'. Provide details about your concern. Our moderation team reviews reports within 24 hours.",
+        q: "Why do I need to verify my identity?",
+        a: "KYC verification builds trust between buyers and sellers. Verified users get higher trust scores, can access Escrow payments, and are less likely to be scammed.",
       },
+      {
+        q: "How long does KYC take?",
+        a: "Level 1 (Email) and Level 2 (Phone) are instant. Level 3 (Identity) takes 24-48 hours for admin review. Level 4 (Business) takes 3-5 business days.",
+      },
+      {
+        q: "What documents are accepted for Level 3?",
+        a: "Passport, National ID card, or Driving License. The document must be valid, clearly readable, and match your registered name.",
+      },
+    ],
+  },
+  {
+    category: "Visa Providers",
+    icon: "🏢",
+    questions: [
+      {
+        q: "How are providers verified?",
+        a: "Providers must complete Level 4 KYC including business registration, trade license, and office address verification. All documents are reviewed by our admin team before approval.",
+      },
+      {
+        q: "What if a provider disappears after payment?",
+        a: "Your funds are safe in Escrow — the provider never receives your money until you confirm delivery. If they stop responding, file a dispute immediately and admin will intervene.",
+      },
+      {
+        q: "Can I negotiate the price?",
+        a: "Yes! Use the in-app chat to message the provider directly and negotiate pricing before making a deposit.",
+      },
+    ],
+  },
+  {
+    category: "Disputes",
+    icon: "⚖️",
+    questions: [
       {
         q: "How do I file a dispute?",
-        a: "Go to the Disputes section and click 'File Dispute'. Enter the transaction ID, describe the issue clearly, and attach any evidence. Disputes must be filed within 30 days of the transaction.",
+        a: "Go to Disputes page → File New Dispute → Select the transaction → Choose reason → Add details and evidence → Submit. Admin will review within 24 hours.",
       },
       {
-        q: "How long does dispute resolution take?",
-        a: "Simple disputes are typically resolved within 3-5 business days. Complex cases involving document review may take up to 14 business days. Both parties are notified at each stage.",
+        q: "How long does a dispute take?",
+        a: "Most disputes are resolved within 3-7 business days. Complex cases may take up to 14 days. During this time, Escrow funds remain locked.",
       },
       {
-        q: "What happens if the seller doesn't deliver?",
-        a: "If the seller fails to deliver within the agreed timeframe, you can open a dispute. If resolved in your favor, you'll receive a full refund of the escrowed amount.",
-      },
-    ],
-  },
-  {
-    category: "Legal & Compliance",
-    items: [
-      {
-        q: "Is it legal to use Crossing for visa facilitation?",
-        a: "Crossing is a platform connecting individuals with licensed visa consultants and agents. We require all sellers to be legitimately licensed in their jurisdiction. Crossing does not provide immigration legal advice.",
-      },
-      {
-        q: "What activities are prohibited on Crossing?",
-        a: "Prohibited activities include: facilitating illegal immigration, document forgery, misrepresentation of qualifications, money laundering, and any service that violates immigration law in the destination country.",
-      },
-      {
-        q: "How is my personal data protected?",
-        a: "KYC documents are encrypted at rest and in transit. We only retain personal data as required by our verification obligations and applicable laws. You can request data deletion under our privacy policy.",
+        q: "What evidence should I provide?",
+        a: "Screenshots of chat conversations, documents submitted, any promises made by the provider, and timeline of events. More evidence = faster resolution.",
       },
     ],
   },
 ];
 
 export function Help() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [openQ, setOpenQ] = useState<string | null>(null);
+
+  const filtered = FAQS.map((cat) => ({
+    ...cat,
+    questions: cat.questions.filter(
+      (q) =>
+        !search ||
+        q.q.toLowerCase().includes(search.toLowerCase()) ||
+        q.a.toLowerCase().includes(search.toLowerCase())
+    ),
+  })).filter((cat) => cat.questions.length > 0);
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* Header */}
-      <div className="text-center mb-10">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-          <Shield size={28} className="text-primary" />
+    <div className="flex flex-col pb-8">
+
+      {/* HEADER */}
+      <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+        <button
+          onClick={() => void navigate({ to: "/" })}
+          className="p-1.5 rounded-full hover:bg-gray-100"
+        >
+          <ArrowLeft size={20} className="text-gray-600" />
+        </button>
+        <span className="font-bold text-gray-800 text-sm">Help & Safety Center</span>
+      </div>
+
+      {/* HERO */}
+      <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 py-6 text-center">
+        <div className="text-2xl mb-2">🎧</div>
+        <div className="text-white font-black text-lg mb-1">How can we help?</div>
+        <div className="text-white/60 text-xs mb-4">Find answers to common questions</div>
+        <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3">
+          <Search size={16} className="text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search help articles..."
+            className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+          />
         </div>
-        <h1 className="font-display text-3xl font-bold text-foreground mb-2">
-          Help & Safety Center
-        </h1>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Find answers to common questions about using Crossing safely and
-          effectively
-        </p>
       </div>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
-        {[
-          { icon: "🪪", label: "KYC Verification", href: "#kyc" },
-          { icon: "📋", label: "Posting Ads", href: "#listings" },
-          { icon: "💳", label: "Payments", href: "#payments" },
-          { icon: "⚖️", label: "Disputes", href: "#disputes" },
-        ].map(({ icon, label, href }) => (
-          <a
-            key={label}
-            href={href}
-            className="flex flex-col items-center gap-2 p-4 bg-card border border-border/60 rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-center"
-          >
-            <span className="text-2xl">{icon}</span>
-            <span className="text-xs font-medium text-foreground">{label}</span>
-          </a>
-        ))}
+      {/* QUICK LINKS */}
+      <div className="mx-4 mt-4">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { icon: "🔒", label: "Escrow", link: "/wallet" },
+            { icon: "⚖️", label: "Disputes", link: "/disputes" },
+            { icon: "✅", label: "KYC", link: "/kyc" },
+          ].map(({ icon, label, link }) => (
+            <Link key={label} to={link as "/"}>
+              <div className="bg-white rounded-2xl p-3 text-center shadow-sm">
+                <div className="text-xl mb-1">{icon}</div>
+                <div className="text-xs font-bold text-gray-700">{label}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* FAQ Accordion by category */}
-      <div className="space-y-6">
-        {FAQ_CATEGORIES.map((cat) => (
-          <div
-            key={cat.category}
-            id={cat.category.toLowerCase().replace(/\s+/g, "-")}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Badge variant="outline" className="badge-navy text-xs">
-                {cat.category}
-              </Badge>
+      {/* FAQS */}
+      <div className="mx-4 mt-4 flex flex-col gap-4">
+        {filtered.map((cat) => (
+          <div key={cat.category}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">{cat.icon}</span>
+              <span className="text-sm font-black text-gray-800">{cat.category}</span>
             </div>
-            <Accordion type="single" collapsible className="space-y-2">
-              {cat.items.map((item, i) => (
-                <AccordionItem
-                  key={item.q}
-                  value={`${cat.category}-${i}`}
-                  className="bg-card border border-border/60 rounded-xl px-5 data-[state=open]:border-primary/30"
-                >
-                  <AccordionTrigger className="text-sm font-medium text-foreground py-4 hover:no-underline">
-                    <div className="flex items-start gap-2 text-left">
-                      <HelpCircle
-                        size={14}
-                        className="text-muted-foreground shrink-0 mt-0.5"
-                      />
-                      {item.q}
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-4">
-                    <p className="text-sm text-muted-foreground leading-relaxed pl-6">
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              {cat.questions.map((item, i) => (
+                <div key={item.q}>
+                  <button
+                    onClick={() => setOpenQ(openQ === item.q ? null : item.q)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 text-left"
+                  >
+                    <span className="text-sm font-semibold text-gray-700 flex-1 pr-2">{item.q}</span>
+                    {openQ === item.q
+                      ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" />
+                      : <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />}
+                  </button>
+                  {openQ === item.q && (
+                    <div className="px-4 pb-4 text-xs text-gray-500 leading-relaxed border-t border-gray-50 pt-3">
                       {item.a}
-                    </p>
-                  </AccordionContent>
-                </AccordionItem>
+                    </div>
+                  )}
+                  {i < cat.questions.length - 1 && (
+                    <div className="h-px bg-gray-50 mx-4" />
+                  )}
+                </div>
               ))}
-            </Accordion>
+            </div>
           </div>
         ))}
+
+        {filtered.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">🔍</div>
+            <div className="text-sm font-bold text-gray-400">No results found</div>
+            <div className="text-xs text-gray-300 mt-1">Try different keywords</div>
+          </div>
+        )}
       </div>
 
-      {/* Contact section */}
-      <div className="mt-10 text-center bg-muted/30 rounded-xl p-8 border border-border/60">
-        <h3 className="font-display font-bold text-lg text-foreground mb-2">
-          Still need help?
-        </h3>
-        <p className="text-muted-foreground text-sm mb-4">
-          Our support team is available 24/7 to help you with any issues
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <button
-            type="button"
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Contact Support
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors"
-          >
-            Report a Problem
-          </button>
+      {/* CONTACT */}
+      <div className="mx-4 mt-4">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-sm font-black text-gray-800 mb-3">Still need help?</div>
+          <div className="flex flex-col gap-2">
+            <Link to="/messages">
+              <button className="w-full flex items-center gap-3 bg-[#1a56f0]/5 border border-[#1a56f0]/20 rounded-xl px-4 py-3">
+                <MessageCircle size={18} className="text-[#1a56f0]" />
+                <div className="text-left">
+                  <div className="text-sm font-bold text-gray-800">Live Chat Support</div>
+                  <div className="text-xs text-gray-500">Available 24/7 · Usually replies in minutes</div>
+                </div>
+              </button>
+            </Link>
+            <button
+              onClick={() => alert("Email: support@crossing.app")}
+              className="w-full flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3"
+            >
+              <Mail size={18} className="text-gray-500" />
+              <div className="text-left">
+                <div className="text-sm font-bold text-gray-800">Email Support</div>
+                <div className="text-xs text-gray-500">support@crossing.app · 24h response</div>
+              </div>
+            </button>
+            <button
+              onClick={() => void navigate({ to: "/disputes" })}
+              className="w-full flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3"
+            >
+              <Shield size={18} className="text-gray-500" />
+              <div className="text-left">
+                <div className="text-sm font-bold text-gray-800">File a Dispute</div>
+                <div className="text-xs text-gray-500">For payment and fraud issues</div>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
