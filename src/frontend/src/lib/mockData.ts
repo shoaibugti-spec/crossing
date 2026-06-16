@@ -7,7 +7,6 @@ export const COUNTRIES = [
   "Pakistan", "Palestine", "Philippines", "Qatar", "Saudi Arabia", "Singapore",
   "South Korea", "Sri Lanka", "Syria", "Taiwan", "Tajikistan", "Thailand", "Timor-Leste",
   "Turkey", "Turkmenistan", "UAE", "Uzbekistan", "Vietnam", "Yemen",
-
   // Europe
   "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina",
   "Bulgaria", "Croatia", "Czech Republic", "Denmark", "Estonia", "Finland", "France",
@@ -16,7 +15,6 @@ export const COUNTRIES = [
   "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia",
   "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland",
   "Ukraine", "United Kingdom", "Vatican City",
-
   // Africa
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon",
   "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo", "DR Congo",
@@ -26,19 +24,235 @@ export const COUNTRIES = [
   "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome",
   "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
   "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe",
-
-  // North & Central America
+  // Americas
   "Antigua and Barbuda", "Bahamas", "Barbados", "Belize", "Canada", "Costa Rica",
   "Cuba", "Dominica", "Dominican Republic", "El Salvador", "Grenada", "Guatemala",
   "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Saint Kitts",
   "Saint Lucia", "Saint Vincent", "Trinidad and Tobago", "USA",
-
-  // South America
   "Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana",
   "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela",
-
   // Oceania
   "Australia", "Fiji", "Kiribati", "Marshall Islands", "Micronesia", "Nauru",
   "New Zealand", "Palau", "Papua New Guinea", "Samoa", "Solomon Islands", "Tonga",
   "Tuvalu", "Vanuatu",
+];
+
+export const VISA_TYPES = [
+  "Work Visa", "Study Visa", "Tourist Visa", "Business Visa",
+  "Family Visa", "Sponsorship", "PR / Immigration", "Transit Visa",
+  "Medical Visa", "Religious Visa", "Diplomatic Visa",
+];
+
+export interface Ad {
+  id: string;
+  title: string;
+  description: string;
+  country: string;
+  category: string;
+  visaType?: string;
+  price: number;
+  currency: string;
+  processingTime?: string;
+  verified: boolean;
+  sellerName?: string;
+  sellerId?: string;
+  rating?: string;
+  reviewCount?: number;
+  requirements?: string[];
+  createdAt?: string;
+}
+
+export const MOCK_ADS: Ad[] = [
+  {
+    id: "1",
+    title: "Canada Express Entry — PR Assistance",
+    description: "Full Express Entry profile evaluation, CRS score optimization, document review, and submission assistance. Includes 3 months of post-submission support. 200+ successful cases.",
+    country: "Canada",
+    category: "Work Visa",
+    visaType: "PR / Immigration",
+    price: 499,
+    currency: "USDT",
+    processingTime: "6-8 months",
+    verified: true,
+    sellerName: "ImmigrationPro",
+    sellerId: "provider1",
+    rating: "4.9",
+    reviewCount: 234,
+    requirements: [
+      "Valid Passport (min 6 months validity)",
+      "IELTS or CELPIP language test result",
+      "Educational credentials assessment (ECA)",
+      "Work experience proof (NOC code letters)",
+      "Passport-size photographs",
+    ],
+    createdAt: "June 1, 2026",
+  },
+  {
+    id: "2",
+    title: "UK Student Visa — Full Service",
+    description: "Complete UK student visa application support including CAS guidance, financial statements review, biometric appointment scheduling, and interview preparation.",
+    country: "United Kingdom",
+    category: "Study Visa",
+    visaType: "Study Visa",
+    price: 299,
+    currency: "USDT",
+    processingTime: "3-4 weeks",
+    verified: true,
+    sellerName: "Global Edu",
+    sellerId: "provider2",
+    rating: "4.7",
+    reviewCount: 89,
+    requirements: [
+      "University offer letter (CAS number)",
+      "Bank statements (last 6 months)",
+      "English language certificate (IELTS 6.0+)",
+      "Valid passport",
+      "Tuberculosis test (if applicable)",
+    ],
+    createdAt: "May 20, 2026",
+  },
+  {
+    id: "3",
+    title: "Germany Skilled Worker Visa — IT Professionals",
+    description: "End-to-end Germany Skilled Worker Visa processing. Qualification recognition support, job seeker visa, blocked account setup, and embassy appointment guidance.",
+    country: "Germany",
+    category: "Work Visa",
+    visaType: "Work Visa",
+    price: 399,
+    currency: "USDT",
+    processingTime: "8-10 weeks",
+    verified: true,
+    sellerName: "EuroPath Immigration",
+    sellerId: "provider3",
+    rating: "4.8",
+    reviewCount: 156,
+    requirements: [
+      "Recognized degree or qualification",
+      "B1 German or English proficiency",
+      "Employment contract or job offer",
+      "Health insurance proof",
+      "Blocked account (€11,208)",
+    ],
+    createdAt: "June 5, 2026",
+  },
+  {
+    id: "4",
+    title: "UAE Work Visa — IT & Tech Sector",
+    description: "Fast-track UAE employment visa for IT professionals. Emirates ID processing, health insurance linkage, and accommodation guidance included.",
+    country: "UAE",
+    category: "Work Visa",
+    visaType: "Work Visa",
+    price: 199,
+    currency: "USDT",
+    processingTime: "2-3 weeks",
+    verified: true,
+    sellerName: "Dubai Visa Center",
+    sellerId: "provider4",
+    rating: "4.6",
+    reviewCount: 312,
+    requirements: [
+      "IT-related degree or 3 years experience",
+      "Job offer from UAE employer",
+      "Medical fitness certificate",
+      "Passport copy + photographs",
+      "Educational certificates",
+    ],
+    createdAt: "June 8, 2026",
+  },
+  {
+    id: "5",
+    title: "Australia Skilled Migration — Subclass 189",
+    description: "Subclass 189/190 skilled migration visa. Skills assessment, Expression of Interest lodgement, state nomination assistance, and full application support.",
+    country: "Australia",
+    category: "PR / Immigration",
+    visaType: "PR / Immigration",
+    price: 599,
+    currency: "USDT",
+    processingTime: "10-14 months",
+    verified: true,
+    sellerName: "AusImmigration Pro",
+    sellerId: "provider5",
+    rating: "4.9",
+    reviewCount: 201,
+    requirements: [
+      "Skills assessment from relevant body",
+      "IELTS 6.0+ or equivalent",
+      "Points test score 65+",
+      "Age under 45",
+      "Health and character certificates",
+    ],
+    createdAt: "May 15, 2026",
+  },
+  {
+    id: "6",
+    title: "Saudi Arabia Work Visa — Construction",
+    description: "Complete Saudi work visa processing for construction and engineering professionals. Attestation, medical, and Iqama guidance included.",
+    country: "Saudi Arabia",
+    category: "Work Visa",
+    visaType: "Work Visa",
+    price: 149,
+    currency: "USDT",
+    processingTime: "3-5 weeks",
+    verified: true,
+    sellerName: "Gulf Visa Pro",
+    sellerId: "provider6",
+    rating: "4.5",
+    reviewCount: 445,
+    requirements: [
+      "Valid passport (2+ years)",
+      "Job offer from Saudi employer",
+      "Medical fitness certificate",
+      "Educational certificates (attested)",
+      "Police clearance certificate",
+    ],
+    createdAt: "June 10, 2026",
+  },
+  {
+    id: "7",
+    title: "Romania Work Visa — Skilled Workers",
+    description: "Romania work permit for skilled workers. Job placement assistance, visa processing, and accommodation support. Salary €600-900/month.",
+    country: "Romania",
+    category: "Work Visa",
+    visaType: "Work Visa",
+    price: 350,
+    currency: "USDT",
+    processingTime: "6-8 weeks",
+    verified: true,
+    sellerName: "EuroWork Agency",
+    sellerId: "provider7",
+    rating: "4.4",
+    reviewCount: 78,
+    requirements: [
+      "Valid passport",
+      "Work contract from Romanian employer",
+      "Educational certificates",
+      "Medical certificate",
+      "Accommodation proof",
+    ],
+    createdAt: "June 12, 2026",
+  },
+  {
+    id: "8",
+    title: "Schengen Tourist Visa — Multiple Entry",
+    description: "Multiple entry Schengen visa for 26 European countries. Complete application preparation, hotel bookings, travel insurance, and interview coaching.",
+    country: "Germany",
+    category: "Tourist Visa",
+    visaType: "Tourist Visa",
+    price: 120,
+    currency: "USDT",
+    processingTime: "2-3 weeks",
+    verified: true,
+    sellerName: "EuroVisa Express",
+    sellerId: "provider8",
+    rating: "4.7",
+    reviewCount: 523,
+    requirements: [
+      "Valid passport (3+ months beyond stay)",
+      "Bank statements (last 3 months)",
+      "Travel insurance (min €30,000)",
+      "Hotel bookings",
+      "Return flight tickets",
+    ],
+    createdAt: "June 13, 2026",
+  },
 ];
