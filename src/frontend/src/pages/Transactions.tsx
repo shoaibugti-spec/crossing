@@ -1,14 +1,6 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Shield } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Shield, Calendar, Upload, Plus } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-
-// Seeker کے pre-verified documents جو KYC میں پہلے سے upload ہوئے
-const SEEKER_DOCS = [
-  { name: "Passport", uploadedAt: "June 5, 2026", verified: true },
-  { name: "IELTS Result", uploadedAt: "June 5, 2026", verified: true },
-  { name: "Educational Certificate", uploadedAt: "June 6, 2026", verified: true },
-  { name: "Police Clearance", uploadedAt: "June 6, 2026", verified: false },
-];
 
 const TRANSACTIONS = [
   {
@@ -21,11 +13,27 @@ const TRANSACTIONS = [
     status: "in_progress",
     currentStep: 2,
     date: "June 10, 2026",
-    docsAutoSubmitted: true,
+    requiredDocs: [
+      { id: "d1", name: "Passport (All Pages)", required: true, submitted: true, verified: true },
+      { id: "d2", name: "IELTS Result", required: true, submitted: true, verified: true },
+      { id: "d3", name: "Educational Certificate", required: true, submitted: true, verified: false },
+      { id: "d4", name: "Work Experience Letter", required: true, submitted: false, verified: false },
+      { id: "d5", name: "Police Clearance Certificate", required: true, submitted: false, verified: false },
+    ],
+    additionalDocs: [
+      { id: "ad1", name: "Bank Statement (6 months)", addedBy: "ImmigrationPro", submitted: false },
+    ],
+    appointment: {
+      set: true,
+      date: "July 5, 2026",
+      time: "10:30 AM",
+      location: "Canadian Embassy, Islamabad",
+      voucher: null,
+    },
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "June 10" },
-      { title: "Documents submitted by buyer", done: true, date: "June 12" },
-      { title: "Embassy application submitted", done: false, date: null },
+      { title: "Documents submitted", done: true, date: "June 12" },
+      { title: "Embassy appointment scheduled", done: true, date: "June 14" },
       { title: "Visa decision received", done: false, date: null },
       { title: "Visa confirmed — payment released", done: false, date: null },
     ],
@@ -40,11 +48,13 @@ const TRANSACTIONS = [
     status: "completed",
     currentStep: 5,
     date: "May 20, 2026",
-    docsAutoSubmitted: true,
+    requiredDocs: [],
+    additionalDocs: [],
+    appointment: { set: true, date: "June 1, 2026", time: "2:00 PM", location: "UK VFS, Karachi", voucher: "VFS-UK-2026-4412" },
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "May 20" },
-      { title: "Documents submitted by buyer", done: true, date: "May 21" },
-      { title: "Embassy application submitted", done: true, date: "May 25" },
+      { title: "Documents submitted", done: true, date: "May 21" },
+      { title: "Embassy appointment scheduled", done: true, date: "May 25" },
       { title: "Visa decision received", done: true, date: "June 1" },
       { title: "Visa confirmed — payment released", done: true, date: "June 2" },
     ],
@@ -57,13 +67,15 @@ const TRANSACTIONS = [
     amount: 199,
     currency: "USDT",
     status: "disputed",
-    currentStep: 3,
+    currentStep: 2,
     date: "May 5, 2026",
-    docsAutoSubmitted: true,
+    requiredDocs: [],
+    additionalDocs: [],
+    appointment: { set: false, date: null, time: null, location: null, voucher: null },
     steps: [
       { title: "Payment locked in Escrow", done: true, date: "May 5" },
-      { title: "Documents submitted by buyer", done: true, date: "May 6" },
-      { title: "Embassy application submitted", done: true, date: "May 10" },
+      { title: "Documents submitted", done: true, date: "May 6" },
+      { title: "Embassy appointment scheduled", done: false, date: null },
       { title: "Visa decision received", done: false, date: null },
       { title: "Visa confirmed — payment released", done: false, date: null },
     ],
@@ -80,15 +92,48 @@ export function Transactions() {
   const navigate = useNavigate();
   const [open, setOpen] = useState<string | null>("TXN-001");
   const [tab, setTab] = useState<"all" | "active" | "completed">("all");
-  const [showDocs, setShowDocs] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [activeTab, setActiveTab] = useState<Record<string, string>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [transactions, setTransactions] = useState(TRANSACTIONS);
+  const [voucherInput, setVoucherInput] = useState("");
+  const [showVoucherInput, setShowVoucherInput] = useState<string | null>(null);
 
-  const filtered = TRANSACTIONS.filter((t) => {
+  const filtered = transactions.filter((t) => {
     if (tab === "active") return t.status === "in_progress";
     if (tab === "completed") return t.status === "completed";
     return true;
   });
+
+  const submitDoc = (txId: string, docId: string) => {
+    setTransactions((prev) => prev.map((t) =>
+      t.id === txId ? {
+        ...t,
+        requiredDocs: t.requiredDocs.map((d) =>
+          d.id === docId ? { ...d, submitted: true } : d
+        ),
+        additionalDocs: t.additionalDocs.map((d) =>
+          d.id === docId ? { ...d, submitted: true } : d
+        ),
+      } : t
+    ));
+  };
+
+  const submitVoucher = (txId: string) => {
+    if (!voucherInput.trim()) return;
+    setTransactions((prev) => prev.map((t) =>
+      t.id === txId ? {
+        ...t,
+        appointment: { ...t.appointment, voucher: voucherInput.trim() },
+      } : t
+    ));
+    setVoucherInput("");
+    setShowVoucherInput(null);
+  };
+
+  const getTabForTx = (txId: string) => activeTab[txId] || "docs";
+  const setTabForTx = (txId: string, tab: string) =>
+    setActiveTab((prev) => ({ ...prev, [txId]: tab }));
 
   return (
     <div className="flex flex-col pb-8">
@@ -101,7 +146,7 @@ export function Transactions() {
         <span className="font-bold text-gray-800 text-sm">My Transactions</span>
       </div>
 
-      {/* TABS */}
+      {/* STATUS TABS */}
       <div className="bg-white px-4 pb-3 border-b border-gray-100">
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
           {(["all", "active", "completed"] as const).map((t) => (
@@ -137,6 +182,9 @@ export function Transactions() {
         {filtered.map((tx) => {
           const s = STATUS[tx.status as keyof typeof STATUS];
           const isOpen = open === tx.id;
+          const currentTab = getTabForTx(tx.id);
+          const pendingDocs = tx.requiredDocs.filter((d) => !d.submitted).length
+            + tx.additionalDocs.filter((d) => !d.submitted).length;
 
           return (
             <div key={tx.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -147,10 +195,8 @@ export function Transactions() {
                 className="w-full px-4 py-4 flex items-start gap-3 text-left"
               >
                 <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                  {tx.status === "completed"
-                    ? <CheckCircle size={18} className={s.color} />
-                    : tx.status === "disputed"
-                    ? <AlertTriangle size={18} className={s.color} />
+                  {tx.status === "completed" ? <CheckCircle size={18} className={s.color} />
+                    : tx.status === "disputed" ? <AlertTriangle size={18} className={s.color} />
                     : <Clock size={18} className={s.color} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -160,146 +206,270 @@ export function Transactions() {
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color} ${s.border}`}>
                       {s.label}
                     </span>
-                    <span className="text-[10px] text-gray-400">{tx.date}</span>
+                    {pendingDocs > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100">
+                        {pendingDocs} docs pending
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="font-black text-gray-800">${tx.amount}</div>
                   <div className="text-[10px] text-gray-400">{tx.currency}</div>
-                  <div className="mt-1">
-                    {isOpen
-                      ? <ChevronUp size={14} className="text-gray-400 ml-auto" />
-                      : <ChevronDown size={14} className="text-gray-400 ml-auto" />}
-                  </div>
+                  {isOpen
+                    ? <ChevronUp size={14} className="text-gray-400 ml-auto mt-1" />
+                    : <ChevronDown size={14} className="text-gray-400 ml-auto mt-1" />}
                 </div>
               </button>
 
               {/* EXPANDED */}
               {isOpen && (
-                <div className="px-4 pb-4 border-t border-gray-50">
+                <div className="border-t border-gray-50">
 
-                  {/* AUTO DOCS NOTICE */}
-                  {tx.docsAutoSubmitted && (
-                    <div className="mt-3 bg-green-50 border border-green-100 rounded-xl p-3 mb-3 flex gap-2">
-                      <Shield size={14} className="text-green-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="text-[11px] font-black text-green-700 mb-0.5">
-                          ✅ Documents Auto-Submitted
-                        </div>
-                        <div className="text-[10px] text-green-600">
-                          Your KYC-verified documents were automatically shared with {tx.provider}. No re-upload needed.
-                        </div>
-                        <button
-                          onClick={() => setShowDocs(showDocs === tx.id ? null : tx.id)}
-                          className="text-[10px] text-green-700 font-bold mt-1 underline"
-                        >
-                          {showDocs === tx.id ? "Hide docs" : "View submitted docs"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* DOCS LIST */}
-                  {showDocs === tx.id && (
-                    <div className="mb-3 bg-white border border-gray-100 rounded-xl overflow-hidden">
-                      {SEEKER_DOCS.map((doc, i) => (
-                        <div key={doc.name} className={`flex items-center gap-3 px-3 py-2.5 ${i < SEEKER_DOCS.length - 1 ? "border-b border-gray-50" : ""}`}>
-                          <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <FileText size={13} className="text-[#1a56f0]" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-xs font-semibold text-gray-700">{doc.name}</div>
-                            <div className="text-[10px] text-gray-400">Uploaded {doc.uploadedAt}</div>
-                          </div>
-                          {doc.verified
-                            ? <span className="text-[10px] font-bold text-green-500">✓ Verified</span>
-                            : <span className="text-[10px] font-bold text-amber-500">Pending</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* STEP TRACKER */}
-                  <div className="mt-1 mb-3">
-                    <div className="text-xs font-bold text-gray-600 mb-2">Case Progress</div>
-                    <div className="flex gap-1 mb-3">
-                      {tx.steps.map((_, i) => (
-                        <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.currentStep ? "bg-[#1a56f0]" : "bg-gray-100"}`} />
-                      ))}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {tx.steps.map((step, i) => (
-                        <div key={i} className="flex items-start gap-2.5">
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                            step.done ? "bg-[#1a56f0]" : "bg-gray-100"
-                          }`}>
-                            {step.done
-                              ? <CheckCircle size={12} className="text-white" />
-                              : <span className="text-[9px] text-gray-400 font-bold">{i + 1}</span>}
-                          </div>
-                          <div className="flex-1">
-                            <div className={`text-xs font-semibold ${step.done ? "text-gray-800" : "text-gray-400"}`}>
-                              {step.title}
-                            </div>
-                            {step.date && <div className="text-[10px] text-gray-400">{step.date}</div>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  {/* INNER TABS */}
+                  <div className="flex border-b border-gray-100">
+                    {[
+                      { key: "docs", label: "📄 Documents" },
+                      { key: "appointment", label: "📅 Appointment" },
+                      { key: "progress", label: "📊 Progress" },
+                    ].map((t) => (
+                      <button key={t.key} onClick={() => setTabForTx(tx.id, t.key)}
+                        className={`flex-1 py-2.5 text-xs font-bold transition-all ${
+                          currentTab === t.key
+                            ? "text-[#1a56f0] border-b-2 border-[#1a56f0]"
+                            : "text-gray-400"
+                        }`}>
+                        {t.label}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* ACTIONS */}
-                  <div className="flex gap-2 mt-3">
-                    <Link to="/messages" className="flex-1">
-                      <button className="w-full border border-[#1a56f0] text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                        <MessageCircle size={14} />
-                        Message
-                      </button>
-                    </Link>
+                  <div className="px-4 py-3">
 
-                    {tx.status === "in_progress" && !confirmed && (
-                      <button
-                        onClick={() => setShowConfirmModal(true)}
-                        className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl"
-                      >
-                        ✓ Confirm Visa Received
-                      </button>
-                    )}
+                    {/* ── DOCUMENTS TAB ── */}
+                    {currentTab === "docs" && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Shield size={13} className="text-green-500" />
+                          <span className="text-[11px] text-green-600 font-semibold">KYC docs auto-shared with provider</span>
+                        </div>
 
-                    {tx.status === "in_progress" && confirmed && (
-                      <div className="flex-1 bg-green-50 border border-green-100 text-green-600 text-xs font-bold py-2.5 rounded-xl text-center">
-                        ✅ Confirmed — Payment Released
+                        {/* Required Docs */}
+                        <div className="text-xs font-bold text-gray-600 mb-2">Required Documents</div>
+                        <div className="flex flex-col gap-2 mb-3">
+                          {tx.requiredDocs.map((doc) => (
+                            <div key={doc.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                              <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <FileText size={13} className="text-[#1a56f0]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
+                                <div className={`text-[10px] font-semibold mt-0.5 ${
+                                  doc.verified ? "text-green-500"
+                                  : doc.submitted ? "text-amber-500"
+                                  : "text-red-400"
+                                }`}>
+                                  {doc.verified ? "✓ Verified" : doc.submitted ? "⏳ Under Review" : "⚠ Not submitted"}
+                                </div>
+                              </div>
+                              {!doc.submitted && tx.status === "in_progress" && (
+                                <button
+                                  onClick={() => submitDoc(tx.id, doc.id)}
+                                  className="bg-[#1a56f0] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0"
+                                >
+                                  <Upload size={10} /> Upload
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Additional Docs from Provider */}
+                        {tx.additionalDocs.length > 0 && (
+                          <>
+                            <div className="text-xs font-bold text-gray-600 mb-2">
+                              Additional (Requested by {tx.provider})
+                            </div>
+                            <div className="flex flex-col gap-2 mb-3">
+                              {tx.additionalDocs.map((doc) => (
+                                <div key={doc.id} className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                                  <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <Plus size={13} className="text-amber-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
+                                    <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                      {doc.submitted ? "✓ Submitted" : "⚠ Requested by provider"}
+                                    </div>
+                                  </div>
+                                  {!doc.submitted && tx.status === "in_progress" && (
+                                    <button
+                                      onClick={() => submitDoc(tx.id, doc.id)}
+                                      className="bg-amber-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0"
+                                    >
+                                      <Upload size={10} /> Upload
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 
-                    {tx.status === "disputed" && (
-                      <Link to="/disputes" className="flex-1">
-                        <button className="w-full bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl">
-                          View Dispute
+                    {/* ── APPOINTMENT TAB ── */}
+                    {currentTab === "appointment" && (
+                      <div>
+                        {tx.appointment.set ? (
+                          <>
+                            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-3">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Calendar size={16} className="text-[#1a56f0]" />
+                                <span className="text-sm font-bold text-[#1a56f0]">Embassy Appointment</span>
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-gray-500">Date</span>
+                                  <span className="text-xs font-bold text-gray-800">{tx.appointment.date}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-gray-500">Time</span>
+                                  <span className="text-xs font-bold text-gray-800">{tx.appointment.time}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-gray-500">Location</span>
+                                  <span className="text-xs font-bold text-gray-800 text-right max-w-[60%]">{tx.appointment.location}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* VOUCHER */}
+                            <div className="text-xs font-bold text-gray-600 mb-2">Appointment Voucher</div>
+                            {tx.appointment.voucher ? (
+                              <div className="bg-green-50 border border-green-100 rounded-xl p-3 flex items-center gap-2">
+                                <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                                <div>
+                                  <div className="text-xs font-bold text-green-700">Voucher Confirmed</div>
+                                  <div className="text-[11px] text-green-600 font-mono mt-0.5">{tx.appointment.voucher}</div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                {showVoucherInput === tx.id ? (
+                                  <div className="flex gap-2">
+                                    <input
+                                      value={voucherInput}
+                                      onChange={(e) => setVoucherInput(e.target.value)}
+                                      placeholder="Enter voucher/reference number"
+                                      className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#1a56f0]"
+                                    />
+                                    <button
+                                      onClick={() => submitVoucher(tx.id)}
+                                      className="bg-[#1a56f0] text-white text-xs font-bold px-3 py-2.5 rounded-xl"
+                                    >
+                                      Submit
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowVoucherInput(tx.id)}
+                                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 font-semibold hover:border-[#1a56f0]/40 transition-all"
+                                  >
+                                    + Add Appointment Voucher
+                                  </button>
+                                )}
+                                <div className="text-[10px] text-gray-400 mt-1.5 text-center">
+                                  Add your embassy appointment reference number as proof
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-center py-6">
+                            <Calendar size={28} className="text-gray-200 mx-auto mb-2" />
+                            <div className="text-sm font-bold text-gray-400">No Appointment Yet</div>
+                            <div className="text-xs text-gray-300 mt-1">Provider will schedule your embassy appointment</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── PROGRESS TAB ── */}
+                    {currentTab === "progress" && (
+                      <div>
+                        <div className="flex gap-1 mb-4">
+                          {tx.steps.map((_, i) => (
+                            <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.currentStep ? "bg-[#1a56f0]" : "bg-gray-100"}`} />
+                          ))}
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          {tx.steps.map((step, i) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                                step.done ? "bg-[#1a56f0]" : "bg-gray-100"
+                              }`}>
+                                {step.done
+                                  ? <CheckCircle size={13} className="text-white" />
+                                  : <span className="text-[9px] text-gray-400 font-bold">{i + 1}</span>}
+                              </div>
+                              <div className="flex-1">
+                                <div className={`text-xs font-semibold ${step.done ? "text-gray-800" : "text-gray-400"}`}>
+                                  {step.title}
+                                </div>
+                                {step.date && <div className="text-[10px] text-gray-400 mt-0.5">{step.date}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── BOTTOM ACTIONS ── */}
+                    <div className="flex gap-2 mt-4">
+                      <Link to={`/messages/1`} className="flex-1">
+                        <button className="w-full border border-[#1a56f0] text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                          <MessageCircle size={14} />
+                          Chat with Provider
                         </button>
                       </Link>
-                    )}
 
-                    {tx.status === "completed" && (
-                      <button
-                        onClick={() => alert("Review submitted! Thank you.")}
-                        className="flex-1 bg-amber-400 text-white text-xs font-bold py-2.5 rounded-xl"
-                      >
-                        ⭐ Leave Review
-                      </button>
-                    )}
-                  </div>
+                      {tx.status === "in_progress" && !confirmed && (
+                        <button
+                          onClick={() => setShowConfirmModal(true)}
+                          className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl"
+                        >
+                          ✓ Visa Received
+                        </button>
+                      )}
 
-                  {tx.status === "in_progress" && !confirmed && (
-                    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-2.5">
-                      <div className="text-[11px] text-amber-700">
-                        ⚠️ Only confirm after you physically receive all visa documents. Escrow releases immediately.
-                      </div>
+                      {tx.status === "in_progress" && confirmed && (
+                        <div className="flex-1 bg-green-50 border border-green-100 text-green-600 text-xs font-bold py-2.5 rounded-xl text-center">
+                          ✅ Payment Released
+                        </div>
+                      )}
+
+                      {tx.status === "disputed" && (
+                        <Link to="/disputes" className="flex-1">
+                          <button className="w-full bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl">
+                            View Dispute
+                          </button>
+                        </Link>
+                      )}
+
+                      {tx.status === "completed" && (
+                        <button
+                          onClick={() => alert("Review submitted! Thank you.")}
+                          className="flex-1 bg-amber-400 text-white text-xs font-bold py-2.5 rounded-xl"
+                        >
+                          ⭐ Leave Review
+                        </button>
+                      )}
                     </div>
-                  )}
 
-                  <div className="mt-2 text-center">
-                    <span className="text-[10px] text-gray-400">Transaction ID: {tx.id}</span>
+                    <div className="mt-2 text-center">
+                      <span className="text-[10px] text-gray-400">ID: {tx.id}</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -319,12 +489,12 @@ export function Transactions() {
               </div>
               <div className="font-black text-gray-800 text-lg mb-1">Confirm Visa Received?</div>
               <div className="text-sm text-gray-500 leading-relaxed">
-                By confirming, you agree that you have received all visa documents and the Escrow payment of <span className="font-bold text-gray-800">$499 USDT</span> will be immediately released to ImmigrationPro.
+                Confirming will release <span className="font-bold text-gray-800">$499 USDT</span> from Escrow to ImmigrationPro immediately.
               </div>
             </div>
             <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
               <div className="text-xs text-red-600 font-semibold">
-                ⚠️ This action cannot be undone. Only confirm if you have physically received your visa.
+                ⚠️ Only confirm after you physically receive your visa documents. This cannot be undone.
               </div>
             </div>
             <button
