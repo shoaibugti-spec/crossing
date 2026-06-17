@@ -1,52 +1,20 @@
-import { Search, CheckCheck, Lock } from "lucide-react";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Search, CheckCheck, Lock, Loader2 } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
-// صرف وہ conversations جن کا order/escrow ہے — باقی سب locked
-const CONVERSATIONS = [
-  {
-    id: "1",
-    name: "ImmigrationPro",
-    avatar: "IP",
-    role: "Canada PR Provider",
-    lastMsg: "Please send your passport copy and IELTS result.",
-    time: "2m ago",
-    unread: 3,
-    online: true,
-    verified: true,
-    hasOrder: true,
-    escrowActive: true,
-    escrowAmount: 499,
-  },
-  {
-    id: "2",
-    name: "Global Edu",
-    avatar: "GE",
-    role: "UK Study Visa",
-    lastMsg: "Your application has been submitted to the embassy ✓",
-    time: "1h ago",
-    unread: 0,
-    online: true,
-    verified: true,
-    hasOrder: true,
-    escrowActive: false,
-    escrowAmount: 0,
-  },
-  {
-    id: "3",
-    name: "Rafique Jobs",
-    avatar: "RJ",
-    role: "UAE Work Visa",
-    lastMsg: "Interview scheduled for next Tuesday at 3 PM",
-    time: "Yesterday",
-    unread: 1,
-    online: false,
-    verified: true,
-    hasOrder: true,
-    escrowActive: true,
-    escrowAmount: 199,
-  },
-];
+interface ConversationRow {
+  transactionId: string;
+  name: string;
+  initial: string;
+  role: string;
+  lastMsg: string;
+  time: string;
+  unread: number;
+  verified: boolean;
+  escrowActive: boolean;
+  escrowAmount: number;
+}
 
 const AVATAR_COLORS = [
   "from-[#1a56f0] to-purple-600",
@@ -55,19 +23,95 @@ const AVATAR_COLORS = [
 ];
 
 export function Messages() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "active">("all");
+  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<ConversationRow[]>([]);
 
-  // صرف order والی conversations دکھیں
-  const orderedConvs = CONVERSATIONS.filter((c) => c.hasOrder);
+  useEffect(() => {
+    void loadConversations();
+  }, []);
 
-  const filtered = orderedConvs.filter((c) => {
-    const matchSearch = !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.role.toLowerCase().includes(search.toLowerCase());
+  async function loadConversations() {
+    setLoading(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setLoading(false);
+      void navigate({ to: "/login" });
+      return;
+    }
+    const uid = userData.user.id;
+
+    // Only transactions the user is part of unlock a chat — no order, no conversation
+    const { data: txs } = await supabase
+      .from("transactions")
+      .select(`
+        id, status, amount, buyer_id, seller_id,
+        ads:ad_id(title),
+        buyer:buyer_id(full_name, kyc_status),
+        seller:seller_id(full_name, kyc_status)
+      `)
+      .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+      .order("created_at", { ascending: false });
+
+    if (!txs) {
+      setLoading(false);
+      return;
+    }
+
+    const rows: ConversationRow[] = [];
+    for (const row of txs as any[]) {
+      const isBuyer = row.buyer_id === uid;
+      const counterparty = isBuyer ? row.seller : row.buyer;
+
+      // Fetch the most recent message for a preview line
+      const { data: lastMessage } = await supabase
+        .from("messages")
+        .select("content, created_at, sender_id")
+        .eq("transaction_id", row.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Count unread messages sent by the other party
+      const { count: unreadCount } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("transaction_id", row.id)
+        .neq("sender_id", uid);
+
+      rows.push({
+        transactionId: row.id,
+        name: counterparty?.full_name ?? "User",
+        initial: (counterparty?.full_name ?? "U")[0]?.toUpperCase() ?? "U",
+        role: row.ads?.title ?? "Visa Order",
+        lastMsg: lastMessage?.content ?? "No messages yet — say hello!",
+        time: lastMessage ? new Date(lastMessage.created_at).toLocaleDateString() : "",
+        unread: unreadCount ?? 0,
+        verified: counterparty?.kyc_status === "approved",
+        escrowActive: row.status === "escrow_active" || row.status === "in_progress",
+        escrowAmount: Number(row.amount),
+      });
+    }
+
+    setConversations(rows);
+    setLoading(false);
+  }
+
+  const filtered = conversations.filter((c) => {
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.role.toLowerCase().includes(search.toLowerCase());
     const matchTab = tab === "all" || c.escrowActive;
     return matchSearch && matchTab;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col pb-8">
@@ -88,9 +132,7 @@ export function Messages() {
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
           {(["all", "active"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
-              }`}>
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}>
               {t === "all" ? "All Messages" : "🔒 Escrow Active"}
             </button>
           ))}
@@ -112,7 +154,9 @@ export function Messages() {
         {filtered.length === 0 ? (
           <div className="text-center py-12">
             <Lock size={32} className="text-gray-200 mx-auto mb-3" />
-            <div className="text-sm font-bold text-gray-400">No conversations yet</div>
+            <div className="text-sm font-bold text-gray-400">
+              {conversations.length === 0 ? "No conversations yet" : "No matches"}
+            </div>
             <div className="text-xs text-gray-300 mt-1 px-8">
               Browse listings and place an order to unlock chat with a provider
             </div>
@@ -124,16 +168,13 @@ export function Messages() {
           </div>
         ) : (
           filtered.map((conv, i) => (
-            <Link key={conv.id} to="/messages/$id" params={{ id: conv.id }}>
+            <Link key={conv.transactionId} to="/messages/$id" params={{ id: conv.transactionId }}>
               <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-50 hover:bg-gray-50 transition-all">
 
                 <div className="relative flex-shrink-0">
                   <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white font-black text-sm`}>
-                    {conv.avatar}
+                    {conv.initial}
                   </div>
-                  {conv.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
