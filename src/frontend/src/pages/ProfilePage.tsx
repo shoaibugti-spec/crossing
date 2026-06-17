@@ -41,6 +41,7 @@ export function ProfilePage() {
   const [listings, setListings] = useState<AdRow[]>([]);
   const [activeTab, setActiveTab] = useState<"reviews" | "listings">("reviews");
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     void loadProfile();
@@ -49,22 +50,27 @@ export function ProfilePage() {
   async function loadProfile() {
     setLoading(true);
 
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData, error: authError } = await supabase.auth.getUser();
     const currentUserId = userData.user?.id ?? null;
 
     const targetId = id === "me" ? currentUserId : id;
     setIsOwnProfile(id === "me" || targetId === currentUserId);
 
     if (!targetId) {
+      setDebugInfo(`id param="${id}" | currentUserId=null | authError=${authError?.message ?? "none"}`);
       setLoading(false);
       return;
     }
 
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("id, full_name, role, country, kyc_level, kyc_status, trust_score, created_at")
       .eq("id", targetId)
       .single();
+
+    if (!profileData) {
+      setDebugInfo(`id param="${id}" | targetId="${targetId}" | profileError=${profileError?.message ?? "none"}`);
+    }
     setProfile(profileData ?? null);
 
     if (profileData?.role === "provider") {
@@ -100,6 +106,7 @@ export function ProfilePage() {
         <div className="text-2xl mb-2">👤</div>
         <div className="font-bold text-gray-700">Profile not found</div>
         <div className="text-xs text-gray-400 mt-1">This user may not exist or hasn't completed signup.</div>
+        <div className="text-xs text-red-500 mt-4 font-mono break-all px-4 bg-red-50 py-2 rounded-lg">{debugInfo}</div>
       </div>
     );
   }
