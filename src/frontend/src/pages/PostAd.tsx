@@ -1,6 +1,7 @@
-import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock, CheckCircle } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock, CheckCircle, Loader2 } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const VISA_TYPES = [
   "Work Visa","Study Visa","Tourist Visa","Business Visa","Family Visa",
@@ -8,19 +9,54 @@ const VISA_TYPES = [
   "Religious Visa","Diplomatic Visa","Seasonal Work","Working Holiday",
 ];
 
-const USER_KYC_LEVEL = 2;
-const USER_DEPOSIT = 0;
+const COUNTRY_LIST = ["Saudi Arabia","UAE","United Kingdom","Germany","Canada","Australia","USA","Turkey","Malaysia","Pakistan","Romania","Poland","Portugal","Spain","France","Italy","Netherlands","Sweden","Norway","Denmark","Finland","Ireland","Switzerland","Austria","Belgium","Czech Republic","Hungary","Bulgaria","Croatia","Greece","Cyprus","Malta","Slovakia","Slovenia","Estonia","Latvia","Lithuania","Iceland","Luxembourg","Serbia","Albania","Bosnia","Kosovo","Montenegro","North Macedonia","Moldova","Ukraine","Russia","Georgia","Armenia","Azerbaijan","Kazakhstan","Uzbekistan","China","Japan","South Korea","Vietnam","Thailand","Indonesia","Philippines","Bangladesh","Nepal","Sri Lanka","Singapore","Taiwan","Mongolia","India","Egypt","Morocco","Tunisia","Algeria","Libya","Sudan","Ethiopia","Kenya","Nigeria","Ghana","South Africa","Tanzania","Uganda","Rwanda","Senegal","Cameroon","Mozambique","Zambia","Zimbabwe","Angola","Somalia","Mauritius","Seychelles","Brazil","Argentina","Colombia","Chile","Peru","Venezuela","Ecuador","Bolivia","Mexico","Panama","Costa Rica","Guatemala","Honduras","El Salvador","Nicaragua","Cuba","Dominican Republic","Jamaica","Trinidad and Tobago","Bahamas","Barbados","New Zealand","Fiji","Papua New Guinea"];
+
+interface UserStatus {
+  kycLevel: number;
+  deposit: number;
+}
 
 export function PostAd() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [req, setReq] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [status, setStatus] = useState<UserStatus>({ kycLevel: 0, deposit: 0 });
+
   const [form, setForm] = useState({
     title: "", country: "", visaType: "", price: "",
     currency: "USDT", processingTime: "", description: "",
     requirements: [] as string[],
     steps: ["", "", "", "", ""],
   });
+
+  useEffect(() => {
+    void loadStatus();
+  }, []);
+
+  async function loadStatus() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setLoading(false);
+      void navigate({ to: "/login" });
+      return;
+    }
+    setUserId(userData.user.id);
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("kyc_level, security_deposit")
+      .eq("id", userData.user.id)
+      .single();
+
+    setStatus({
+      kycLevel: profile?.kyc_level ?? 0,
+      deposit: Number(profile?.security_deposit ?? 0),
+    });
+    setLoading(false);
+  }
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const addReq = () => {
@@ -35,12 +71,48 @@ export function PostAd() {
     steps[i] = val;
     setForm((f) => ({ ...f, steps }));
   };
-  const handleSubmit = () => void navigate({ to: "/my-ads" });
+
+  async function handleSubmit() {
+    if (!userId) return;
+    setSubmitting(true);
+
+    const { error } = await supabase.from("ads").insert({
+      provider_id: userId,
+      title: form.title,
+      description: form.description,
+      country: form.country,
+      visa_type: form.visaType,
+      price: Number(form.price) || 0,
+      currency: form.currency,
+      processing_time: form.processingTime,
+      requirements: form.requirements,
+      steps: form.steps.filter((s) => s.trim() !== ""),
+      status: "pending_review",
+    });
+
+    setSubmitting(false);
+
+    if (error) {
+      alert("Failed to submit listing: " + error.message);
+      return;
+    }
+
+    void navigate({ to: "/my-ads" });
+  }
+
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
+      </div>
+    );
+  }
+
   // ── GATE: KYC + DEPOSIT ──
-  if (USER_KYC_LEVEL < 3 || USER_DEPOSIT < 2000) {
+  if (status.kycLevel < 3 || status.deposit < 2000) {
     return (
       <div className="flex flex-col pb-8">
         <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
@@ -52,7 +124,6 @@ export function PostAd() {
 
         <div className="mx-4 mt-5 flex flex-col gap-3">
 
-          {/* TITLE */}
           <div className="text-center py-2">
             <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-2">
               <Lock size={26} className="text-red-400" />
@@ -62,106 +133,61 @@ export function PostAd() {
           </div>
 
           {/* KYC CARD */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${USER_KYC_LEVEL >= 3 ? "border-green-200" : "border-red-100"}`}>
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.kycLevel >= 3 ? "border-green-200" : "border-red-100"}`}>
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${USER_KYC_LEVEL >= 3 ? "bg-green-50" : "bg-red-50"}`}>
-                {USER_KYC_LEVEL >= 3
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.kycLevel >= 3 ? "bg-green-50" : "bg-red-50"}`}>
+                {status.kycLevel >= 3
                   ? <CheckCircle size={20} className="text-green-500" />
                   : <Lock size={20} className="text-red-400" />}
               </div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Identity Verification (KYC)</div>
-                <div className={`text-xs font-semibold mt-0.5 ${USER_KYC_LEVEL >= 3 ? "text-green-500" : "text-red-400"}`}>
-                  {USER_KYC_LEVEL >= 3 ? "✓ Completed" : "⚠ Not completed — Required"}
+                <div className={`text-xs font-semibold mt-0.5 ${status.kycLevel >= 3 ? "text-green-500" : "text-red-400"}`}>
+                  {status.kycLevel >= 3 ? "✓ Completed" : "⚠ Not completed — Required"}
                 </div>
               </div>
-              {USER_KYC_LEVEL >= 3 && (
+              {status.kycLevel >= 3 && (
                 <span className="text-[10px] font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Done ✓</span>
               )}
             </div>
-            {USER_KYC_LEVEL < 3 && (
-              <>
-                <div className="flex flex-col gap-2 mb-3">
-                  {[
-                    { level: 1, label: "Email Verification" },
-                    { level: 2, label: "Phone Verification" },
-                    { level: 3, label: "Identity Verification" },
-                    { level: 4, label: "Business Verification" },
-                  ].map((item) => (
-                    <div key={item.level} className="flex items-center gap-2.5">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
-                        USER_KYC_LEVEL >= item.level ? "bg-green-500 text-white"
-                          : item.level === USER_KYC_LEVEL + 1 ? "bg-[#1a56f0] text-white"
-                          : "bg-gray-100 text-gray-400"
-                      }`}>
-                        {USER_KYC_LEVEL >= item.level ? "✓" : item.level}
-                      </div>
-                      <span className={`text-xs font-semibold flex-1 ${
-                        USER_KYC_LEVEL >= item.level ? "text-gray-700"
-                          : item.level === USER_KYC_LEVEL + 1 ? "text-[#1a56f0]"
-                          : "text-gray-300"
-                      }`}>{item.label}</span>
-                      {item.level === USER_KYC_LEVEL + 1 && (
-                        <span className="text-[9px] font-bold text-[#1a56f0] bg-blue-50 px-1.5 py-0.5 rounded-full">Next</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <Link to="/kyc">
-                  <button className="w-full bg-[#1a56f0] text-white font-bold py-3 rounded-xl text-sm">
-                    Complete KYC →
-                  </button>
-                </Link>
-              </>
+            {status.kycLevel < 3 && (
+              <Link to="/kyc">
+                <button className="w-full bg-[#1a56f0] text-white font-bold py-3 rounded-xl text-sm">
+                  Complete KYC →
+                </button>
+              </Link>
             )}
           </div>
 
           {/* DEPOSIT CARD */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${USER_DEPOSIT >= 2000 ? "border-green-200" : "border-amber-200"}`}>
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.deposit >= 2000 ? "border-green-200" : "border-amber-200"}`}>
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${USER_DEPOSIT >= 2000 ? "bg-green-50" : "bg-amber-50"}`}>
-                {USER_DEPOSIT >= 2000
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.deposit >= 2000 ? "bg-green-50" : "bg-amber-50"}`}>
+                {status.deposit >= 2000
                   ? <CheckCircle size={20} className="text-green-500" />
                   : <Shield size={20} className="text-amber-500" />}
               </div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
-                <div className={`text-xs font-semibold mt-0.5 ${USER_DEPOSIT >= 2000 ? "text-green-500" : "text-amber-500"}`}>
-                  {USER_DEPOSIT >= 2000 ? "✓ $2,000 USDT Deposited" : `⚠ $${USER_DEPOSIT} / $2,000 USDT deposited`}
+                <div className={`text-xs font-semibold mt-0.5 ${status.deposit >= 2000 ? "text-green-500" : "text-amber-500"}`}>
+                  {status.deposit >= 2000 ? "✓ $2,000 USDT Deposited" : `⚠ $${status.deposit} / $2,000 USDT deposited`}
                 </div>
               </div>
-              {USER_DEPOSIT >= 2000 && (
-                <span className="text-[10px] font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Done ✓</span>
-              )}
             </div>
 
-            {USER_DEPOSIT < 2000 && (
+            {status.deposit < 2000 && (
               <>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-3">
-                  <div className="text-[11px] text-amber-700 flex flex-col gap-1">
-                    <div className="font-black mb-0.5">Why $2,000 USDT required?</div>
-                    <div>• Protects buyers if you fail to deliver visa</div>
-                    <div>• Dispute refunds paid from this deposit</div>
-                    <div>• Shows you are a serious, committed provider</div>
-                    <div>• 100% refundable when you close your account</div>
-                  </div>
-                </div>
                 <div className="bg-gray-50 rounded-xl p-3 mb-3">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-xs text-gray-500">Required Deposit</span>
                     <span className="font-black text-gray-800">$2,000 USDT</span>
                   </div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-xs text-gray-500">Your Balance</span>
-                    <span className="font-bold text-red-400">${USER_DEPOSIT} USDT</span>
-                  </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">Remaining</span>
-                    <span className="font-bold text-amber-500">${2000 - USER_DEPOSIT} USDT</span>
+                    <span className="font-bold text-amber-500">${2000 - status.deposit} USDT</span>
                   </div>
                   <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400 rounded-full transition-all"
-                      style={{ width: `${(USER_DEPOSIT / 2000) * 100}%` }} />
+                    <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(status.deposit / 2000) * 100}%` }} />
                   </div>
                 </div>
                 <Link to="/wallet">
@@ -171,35 +197,6 @@ export function PostAd() {
                 </Link>
               </>
             )}
-          </div>
-
-          {/* SUMMARY CHECKLIST */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="text-xs font-black text-gray-600 mb-3 uppercase tracking-wider">
-              Requirements Checklist
-            </div>
-            {[
-              { label: "Email Verification", done: true },
-              { label: "Phone Verification", done: true },
-              { label: "Identity Verification (KYC Level 3)", done: USER_KYC_LEVEL >= 3 },
-              { label: "Security Deposit ($2,000 USDT)", done: USER_DEPOSIT >= 2000 },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${item.done ? "bg-green-500" : "bg-gray-100"}`}>
-                  {item.done
-                    ? <CheckCircle size={11} className="text-white" />
-                    : <span className="w-1.5 h-1.5 rounded-full bg-gray-300 block" />}
-                </div>
-                <span className={`text-sm font-medium flex-1 ${item.done ? "text-gray-800" : "text-gray-400"}`}>
-                  {item.label}
-                </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  item.done ? "text-green-500 bg-green-50" : "text-red-400 bg-red-50"
-                }`}>
-                  {item.done ? "✓ Done" : "Required"}
-                </span>
-              </div>
-            ))}
           </div>
 
         </div>
@@ -212,9 +209,7 @@ export function PostAd() {
     <div className="flex flex-col pb-8">
       <div className="bg-white px-4 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => step > 1 ? setStep(step - 1) : void navigate({ to: "/" })}
-            className="p-1.5 rounded-full hover:bg-gray-100">
+          <button onClick={() => step > 1 ? setStep(step - 1) : void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <span className="font-bold text-gray-800 text-sm flex-1">Post a Visa Listing</span>
@@ -237,28 +232,26 @@ export function PostAd() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Listing Title *</label>
-                <input value={form.title} onChange={e => set("title", e.target.value)}
+                <input value={form.title} onChange={(e) => set("title", e.target.value)}
                   placeholder="e.g. Canada Work Permit for Engineers"
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Destination Country *</label>
-                <select value={form.country} onChange={e => set("country", e.target.value)}
+                <select value={form.country} onChange={(e) => set("country", e.target.value)}
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]">
                   <option value="">Select country...</option>
-                  {["Saudi Arabia","UAE","United Kingdom","Germany","Canada","Australia","USA","Turkey","Malaysia","Pakistan","Romania","Poland","Portugal","Spain","France","Italy","Netherlands","Sweden","Norway","Denmark","Finland","Ireland","Switzerland","Austria","Belgium","Czech Republic","Hungary","Bulgaria","Croatia","Greece","Cyprus","Malta","Slovakia","Slovenia","Estonia","Latvia","Lithuania","Iceland","Luxembourg","Serbia","Albania","Bosnia","Kosovo","Montenegro","North Macedonia","Moldova","Ukraine","Russia","Georgia","Armenia","Azerbaijan","Kazakhstan","Uzbekistan","China","Japan","South Korea","Vietnam","Thailand","Indonesia","Philippines","Bangladesh","Nepal","Sri Lanka","Singapore","Taiwan","Mongolia","India","Egypt","Morocco","Tunisia","Algeria","Libya","Sudan","Ethiopia","Kenya","Nigeria","Ghana","South Africa","Tanzania","Uganda","Rwanda","Senegal","Cameroon","Mozambique","Zambia","Zimbabwe","Angola","Somalia","Mauritius","Seychelles","Brazil","Argentina","Colombia","Chile","Peru","Venezuela","Ecuador","Bolivia","Mexico","Panama","Costa Rica","Guatemala","Honduras","El Salvador","Nicaragua","Cuba","Dominican Republic","Jamaica","Trinidad and Tobago","Bahamas","Barbados","New Zealand","Fiji","Papua New Guinea"].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                  {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Visa Type *</label>
                 <div className="flex flex-wrap gap-2">
-                  {VISA_TYPES.map(v => (
+                  {VISA_TYPES.map((v) => (
                     <button key={v} onClick={() => set("visaType", v)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                        form.visaType === v ? "bg-[#1a56f0] text-white border-[#1a56f0]" : "bg-gray-50 text-gray-600 border-gray-100"
-                      }`}>{v}</button>
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${form.visaType === v ? "bg-[#1a56f0] text-white border-[#1a56f0]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
+                      {v}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -272,22 +265,20 @@ export function PostAd() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Processing Time *</label>
-                <input value={form.processingTime} onChange={e => set("processingTime", e.target.value)}
+                <input value={form.processingTime} onChange={(e) => set("processingTime", e.target.value)}
                   placeholder="e.g. 4-6 weeks"
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Description *</label>
-                <textarea value={form.description} onChange={e => set("description", e.target.value)}
-                  placeholder="Describe your service in detail..."
-                  rows={5}
+                <textarea value={form.description} onChange={(e) => set("description", e.target.value)}
+                  placeholder="Describe your service in detail..." rows={5}
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0] resize-none" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Required Documents</label>
                 <div className="flex gap-2 mb-2">
-                  <input value={req} onChange={e => setReq(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && addReq()}
+                  <input value={req} onChange={(e) => setReq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addReq()}
                     placeholder="e.g. Valid Passport"
                     className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#1a56f0]" />
                   <button onClick={addReq} className="w-10 h-10 bg-[#1a56f0] rounded-xl flex items-center justify-center flex-shrink-0">
@@ -295,14 +286,14 @@ export function PostAd() {
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {["Valid Passport","Bank Statements","Employment Letter","Photographs","Travel Insurance","Educational Certificates","Police Clearance","Medical Certificate"].map(s => (
-                    <button key={s} onClick={() => setForm(f => ({ ...f, requirements: [...f.requirements, s] }))}
+                  {["Valid Passport","Bank Statements","Employment Letter","Photographs","Travel Insurance","Educational Certificates","Police Clearance","Medical Certificate"].map((s) => (
+                    <button key={s} onClick={() => setForm((f) => ({ ...f, requirements: [...f.requirements, s] }))}
                       className="text-[10px] bg-blue-50 border border-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">+ {s}</button>
                   ))}
                 </div>
                 {form.requirements.map((r, i) => (
                   <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 mb-1.5">
-                    <span className="w-4 h-4 rounded-full bg-[#1a56f0]/10 text-[#1a56f0] text-[9px] font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
+                    <span className="w-4 h-4 rounded-full bg-[#1a56f0]/10 text-[#1a56f0] text-[9px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                     <span className="flex-1 text-sm text-gray-700">{r}</span>
                     <button onClick={() => removeReq(i)}><X size={13} className="text-gray-400" /></button>
                   </div>
@@ -321,17 +312,15 @@ export function PostAd() {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Service Fee *</label>
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
                     <span className="text-gray-400 font-bold text-sm">$</span>
-                    <input type="number" value={form.price} onChange={e => set("price", e.target.value)}
-                      placeholder="499"
+                    <input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="499"
                       className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
                   </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Currency</label>
-                  <select value={form.currency} onChange={e => set("currency", e.target.value)}
+                  <select value={form.currency} onChange={(e) => set("currency", e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none">
-                    <option>USDT</option><option>USD</option><option>EUR</option>
-                    <option>GBP</option><option>AED</option><option>PKR</option>
+                    <option>USDT</option><option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>PKR</option>
                   </select>
                 </div>
               </div>
@@ -341,7 +330,6 @@ export function PostAd() {
                   <div>• Buyer pays: Your fee + $36 Crossing fee</div>
                   <div>• You receive: Your fee − $36 Crossing fee</div>
                   <div>• Payment released only after visa confirmed</div>
-                  <div>• Your $2,000 deposit stays safe unless dispute</div>
                 </div>
               </div>
             </div>
@@ -356,7 +344,7 @@ export function PostAd() {
               {form.steps.map((s, i) => (
                 <div key={i} className="flex gap-3 items-start">
                   <div className="w-7 h-7 rounded-full bg-[#1a56f0] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">{i + 1}</div>
-                  <input value={s} onChange={e => setStepText(i, e.target.value)}
+                  <input value={s} onChange={(e) => setStepText(i, e.target.value)}
                     placeholder={["Documents collection from buyer","Document verification & preparation","Embassy application submission","Interview scheduling (if required)","Visa delivery & case closure"][i]}
                     className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                 </div>
@@ -401,9 +389,10 @@ export function PostAd() {
         )}
 
         <button
-          onClick={() => step < totalSteps ? setStep(step + 1) : handleSubmit()}
-          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2">
-          {step < totalSteps ? <><span>Continue</span><ChevronRight size={16} /></> : <span>Submit Listing 🚀</span>}
+          onClick={() => step < totalSteps ? setStep(step + 1) : void handleSubmit()}
+          disabled={submitting}
+          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+          {submitting ? "Submitting..." : step < totalSteps ? <><span>Continue</span><ChevronRight size={16} /></> : <span>Submit Listing 🚀</span>}
         </button>
       </div>
     </div>
