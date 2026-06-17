@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Star, Lock, Users, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
+import { Search, Shield, Star, Lock, Users, ArrowRight, CheckCircle, Loader2, Plane, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -20,6 +20,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [walletBalance, setWalletBalance] = useState(0);
+  const [checked, setChecked] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<AdRow[]>([]);
@@ -29,14 +30,15 @@ export function LandingPage() {
   }, []);
 
   async function loadData() {
-    setLoading(true);
     const { data: userData } = await supabase.auth.getUser();
     if (userData.user) {
       setLoggedIn(true);
       const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", userData.user.id).single();
       setWalletBalance(Number(profile?.wallet_balance ?? 0));
     }
+    setChecked(true);
 
+    setLoading(true);
     const { data } = await supabase
       .from("ads")
       .select("id, title, description, country, visa_type, price, currency, processing_time, provider_id, profiles:provider_id(full_name, kyc_status)")
@@ -69,6 +71,93 @@ export function LandingPage() {
   const hotAds = ads.slice(0, 3);
   const featuredAds = ads.slice(3, 7);
 
+  // Wait until we know whether the visitor is logged in before rendering either version
+  if (!checked) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
+      </div>
+    );
+  }
+
+  // ── LOGGED-OUT VISITOR: simple welcome screen with two clear paths ──
+  if (!loggedIn) {
+    return (
+      <div className="flex flex-col min-h-[calc(100vh-56px)]">
+        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 pt-12 pb-10 flex flex-col items-center text-center">
+          <svg width="52" height="52" viewBox="0 0 80 80" fill="none">
+            <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
+            <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
+            <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
+            <circle cx="40" cy="40" r="7" fill="white" />
+          </svg>
+          <div className="text-white font-black text-2xl tracking-wider mt-3">CROSSING</div>
+          <div className="text-white/70 text-sm mt-1.5 max-w-xs">
+            The trusted Escrow-protected marketplace connecting visa seekers with verified providers.
+          </div>
+        </div>
+
+        <div className="flex-1 px-5 -mt-6 flex flex-col gap-4">
+
+          <Link to="/signup" search={{ role: "seeker" }}>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-50 flex items-center gap-4 hover:border-[#1a56f0]/30 transition-all">
+              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <Plane size={26} className="text-[#1a56f0]" />
+              </div>
+              <div className="flex-1">
+                <div className="font-black text-gray-800 text-base">I Need a Visa</div>
+                <div className="text-xs text-gray-500 mt-0.5">Find a verified provider and apply with Escrow protection</div>
+              </div>
+              <ArrowRight size={18} className="text-gray-300 flex-shrink-0" />
+            </div>
+          </Link>
+
+          <Link to="/signup" search={{ role: "provider" }}>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-50 flex items-center gap-4 hover:border-[#1a56f0]/30 transition-all">
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <Briefcase size={26} className="text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <div className="font-black text-gray-800 text-base">I Provide Visa Services</div>
+                <div className="text-xs text-gray-500 mt-0.5">List your services and reach thousands of seekers</div>
+              </div>
+              <ArrowRight size={18} className="text-gray-300 flex-shrink-0" />
+            </div>
+          </Link>
+
+          <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })}
+            className="text-center text-sm font-semibold text-[#1a56f0] py-2">
+            Just browse listings →
+          </button>
+
+          <div className="mt-auto">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm mb-4">
+              <div className="grid grid-cols-3 divide-x divide-gray-100">
+                {[
+                  { icon: Shield, value: "KYC", label: "Verified" },
+                  { icon: Lock, value: "Escrow", label: "Protected" },
+                  { icon: Star, value: "New", label: "Marketplace" },
+                ].map(({ icon: Icon, value, label }) => (
+                  <div key={label} className="flex flex-col items-center py-3 gap-0.5">
+                    <Icon size={16} className="text-[#1a56f0]" />
+                    <span className="text-xs font-bold text-gray-800">{value}</span>
+                    <span className="text-[10px] text-gray-400">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-center text-sm text-gray-500 pb-4">
+              Already have an account?{" "}
+              <Link to="/login"><span className="font-bold text-[#1a56f0]">Login</span></Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── LOGGED-IN USER: full home with wallet + listings ──
   return (
     <div className="flex flex-col">
 
@@ -101,23 +190,21 @@ export function LandingPage() {
       </div>
 
       {/* WALLET BALANCE */}
-      {loggedIn && (
-        <div className="mx-4 mt-4">
-          <div className="bg-white rounded-2xl px-5 py-4 flex items-center justify-between shadow-sm">
-            <div>
-              <div className="text-xs text-gray-500 mb-1">Wallet Balance</div>
-              <div className="text-2xl font-black text-gray-800">
-                ${walletBalance.toFixed(2)} <span className="text-sm font-semibold text-gray-400">USDT</span>
-              </div>
+      <div className="mx-4 mt-4">
+        <div className="bg-white rounded-2xl px-5 py-4 flex items-center justify-between shadow-sm">
+          <div>
+            <div className="text-xs text-gray-500 mb-1">Wallet Balance</div>
+            <div className="text-2xl font-black text-gray-800">
+              ${walletBalance.toFixed(2)} <span className="text-sm font-semibold text-gray-400">USDT</span>
             </div>
-            <Link to="/wallet">
-              <button className="bg-[#1a1a2e] text-white text-sm font-bold px-4 py-2.5 rounded-xl">
-                Add Funds
-              </button>
-            </Link>
           </div>
+          <Link to="/wallet">
+            <button className="bg-[#1a1a2e] text-white text-sm font-bold px-4 py-2.5 rounded-xl">
+              Add Funds
+            </button>
+          </Link>
         </div>
-      )}
+      </div>
 
       {/* TRUST STATS */}
       <div className="mx-4 mt-3">
@@ -179,7 +266,6 @@ export function LandingPage() {
         </div>
       ) : (
         <>
-          {/* TOP HOT */}
           {hotAds.length > 0 && (
             <div className="mt-5 px-4">
               <div className="flex items-center justify-between mb-3">
@@ -194,7 +280,6 @@ export function LandingPage() {
             </div>
           )}
 
-          {/* RECOMMENDED */}
           {featuredAds.length > 0 && (
             <div className="mt-5 px-4">
               <div className="flex items-center justify-between mb-3">
