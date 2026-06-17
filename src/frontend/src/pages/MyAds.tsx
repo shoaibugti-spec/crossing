@@ -1,88 +1,93 @@
-import { ArrowLeft, Plus, Eye, MessageCircle, Edit3, Trash2, TrendingUp } from "lucide-react";
+import { ArrowLeft, Plus, Eye, MessageCircle, Edit3, Trash2, TrendingUp, Loader2 } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
-const MY_ADS = [
-  {
-    id: "1",
-    title: "Canada Express Entry — PR Assistance",
-    country: "🇨🇦 Canada",
-    category: "Work Visa",
-    price: 499,
-    status: "active",
-    views: 247,
-    messages: 12,
-    orders: 3,
-    createdAt: "June 1, 2026",
-  },
-  {
-    id: "2",
-    title: "UK Skilled Worker Visa — Full Service",
-    country: "🇬🇧 United Kingdom",
-    category: "Work Visa",
-    price: 399,
-    status: "active",
-    views: 189,
-    messages: 8,
-    orders: 2,
-    createdAt: "May 20, 2026",
-  },
-  {
-    id: "3",
-    title: "Germany Blue Card — IT Professionals",
-    country: "🇩🇪 Germany",
-    category: "Work Visa",
-    price: 249,
-    status: "pending",
-    views: 0,
-    messages: 0,
-    orders: 0,
-    createdAt: "June 14, 2026",
-  },
-  {
-    id: "4",
-    title: "UAE Tourist Visa — Fast Track",
-    country: "🇦🇪 UAE",
-    category: "Tourist Visa",
-    price: 99,
-    status: "expired",
-    views: 92,
-    messages: 5,
-    orders: 1,
-    createdAt: "April 1, 2026",
-  },
-];
+interface AdRow {
+  id: string;
+  title: string;
+  country: string;
+  visa_type: string;
+  price: number;
+  currency: string;
+  status: string;
+  created_at: string;
+}
 
-const STATUS = {
-  active:  { label: "Active",   color: "bg-green-50 text-green-600 border-green-100" },
-  pending: { label: "Pending Review", color: "bg-amber-50 text-amber-600 border-amber-100" },
-  expired: { label: "Expired",  color: "bg-gray-50 text-gray-400 border-gray-100" },
-  rejected:{ label: "Rejected", color: "bg-red-50 text-red-500 border-red-100" },
+const STATUS: Record<string, { label: string; color: string }> = {
+  active:         { label: "Active",         color: "bg-green-50 text-green-600 border-green-100" },
+  pending_review: { label: "Pending Review", color: "bg-amber-50 text-amber-600 border-amber-100" },
+  suspended:      { label: "Suspended",       color: "bg-gray-50 text-gray-400 border-gray-100" },
+  rejected:       { label: "Rejected",        color: "bg-red-50 text-red-500 border-red-100" },
 };
 
 export function MyAds() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"active" | "pending" | "expired">("active");
+  const [tab, setTab] = useState<"active" | "pending" | "other">("active");
+  const [loading, setLoading] = useState(true);
+  const [ads, setAds] = useState<AdRow[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const filtered = MY_ADS.filter((ad) => {
+  useEffect(() => {
+    void loadAds();
+  }, []);
+
+  async function loadAds() {
+    setLoading(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setLoading(false);
+      void navigate({ to: "/login" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("ads")
+      .select("id, title, country, visa_type, price, currency, status, created_at")
+      .eq("provider_id", userData.user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setAds(data);
+    setLoading(false);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this listing? This cannot be undone.")) return;
+    setDeletingId(id);
+    const { error } = await supabase.from("ads").delete().eq("id", id);
+    if (error) {
+      alert("Failed to delete: " + error.message);
+    } else {
+      setAds((prev) => prev.filter((a) => a.id !== id));
+    }
+    setDeletingId(null);
+  }
+
+  const filtered = ads.filter((ad) => {
     if (tab === "active") return ad.status === "active";
-    if (tab === "pending") return ad.status === "pending";
-    return ad.status === "expired" || ad.status === "rejected";
+    if (tab === "pending") return ad.status === "pending_review";
+    return ad.status === "suspended" || ad.status === "rejected";
   });
 
-  const totalViews = MY_ADS.reduce((s, a) => s + a.views, 0);
-  const totalOrders = MY_ADS.reduce((s, a) => s + a.orders, 0);
-  const totalMessages = MY_ADS.reduce((s, a) => s + a.messages, 0);
+  // No real analytics table yet — show 0 honestly rather than fake numbers
+  const totalViews = 0;
+  const totalMessages = 0;
+  const totalOrders = 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col pb-8">
 
       {/* HEADER */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-        <button
-          onClick={() => void navigate({ to: "/" })}
-          className="p-1.5 rounded-full hover:bg-gray-100"
-        >
+        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
         <span className="font-bold text-gray-800 text-sm flex-1">My Listings</span>
@@ -112,21 +117,17 @@ export function MyAds() {
               </div>
             ))}
           </div>
+          <div className="text-white/40 text-[10px] mt-2 text-center">Analytics tracking coming soon</div>
         </div>
       </div>
 
       {/* TABS */}
       <div className="mx-4 mt-4">
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {(["active", "pending", "expired"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
-              }`}
-            >
-              {t === "active" ? "Active" : t === "pending" ? "Pending" : "Expired"}
+          {(["active", "pending", "other"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}>
+              {t === "active" ? "Active" : t === "pending" ? "Pending" : "Suspended/Rejected"}
             </button>
           ))}
         </div>
@@ -137,8 +138,10 @@ export function MyAds() {
         {filtered.length === 0 ? (
           <div className="text-center py-10 bg-white rounded-2xl shadow-sm">
             <div className="text-3xl mb-3">📋</div>
-            <div className="text-sm font-bold text-gray-400">No {tab} listings</div>
-            {tab === "active" && (
+            <div className="text-sm font-bold text-gray-400">
+              {ads.length === 0 ? "You haven't posted any listings yet" : `No ${tab} listings`}
+            </div>
+            {ads.length === 0 && (
               <Link to="/post-ad">
                 <button className="mt-3 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2 rounded-xl">
                   Post Your First Ad
@@ -148,37 +151,32 @@ export function MyAds() {
           </div>
         ) : (
           filtered.map((ad) => {
-            const s = STATUS[ad.status as keyof typeof STATUS];
+            const s = STATUS[ad.status] ?? { label: ad.status, color: "bg-gray-50 text-gray-400 border-gray-100" };
             return (
               <div key={ad.id} className="bg-white rounded-2xl shadow-sm p-4">
 
-                {/* TOP */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 text-sm leading-snug">{ad.title}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{ad.country} · {ad.category}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{ad.country} · {ad.visa_type}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-black text-[#1a56f0]">${ad.price}</div>
-                    <div className="text-[10px] text-gray-400">USDT</div>
+                    <div className="text-[10px] text-gray-400">{ad.currency}</div>
                   </div>
                 </div>
 
-                {/* STATUS */}
                 <div className="flex items-center gap-2 mb-3">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.color}`}>
-                    {s.label}
-                  </span>
-                  <span className="text-[10px] text-gray-400">Posted {ad.createdAt}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.color}`}>{s.label}</span>
+                  <span className="text-[10px] text-gray-400">Posted {new Date(ad.created_at).toLocaleDateString()}</span>
                 </div>
 
-                {/* STATS */}
                 {ad.status === "active" && (
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     {[
-                      { icon: Eye, label: "Views", value: ad.views },
-                      { icon: MessageCircle, label: "Msgs", value: ad.messages },
-                      { icon: TrendingUp, label: "Orders", value: ad.orders },
+                      { icon: Eye, label: "Views", value: 0 },
+                      { icon: MessageCircle, label: "Msgs", value: 0 },
+                      { icon: TrendingUp, label: "Orders", value: 0 },
                     ].map(({ icon: Icon, label, value }) => (
                       <div key={label} className="bg-gray-50 rounded-xl p-2 text-center">
                         <div className="font-black text-gray-800 text-sm">{value}</div>
@@ -188,24 +186,19 @@ export function MyAds() {
                   </div>
                 )}
 
-                {/* ACTIONS */}
                 <div className="flex gap-2">
                   <Link to="/ads/$id" params={{ id: ad.id }} className="flex-1">
                     <button className="w-full border border-gray-100 bg-gray-50 text-gray-600 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                       <Eye size={13} /> Preview
                     </button>
                   </Link>
-                  <button
-                    onClick={() => alert("Edit coming soon")}
-                    className="flex-1 border border-[#1a56f0]/20 bg-[#1a56f0]/5 text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5"
-                  >
+                  <button onClick={() => alert("Editing listings is coming soon")}
+                    className="flex-1 border border-[#1a56f0]/20 bg-[#1a56f0]/5 text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                     <Edit3 size={13} /> Edit
                   </button>
-                  <button
-                    onClick={() => alert("Are you sure you want to delete this listing?")}
-                    className="w-10 border border-red-100 bg-red-50 text-red-400 rounded-xl flex items-center justify-center"
-                  >
-                    <Trash2 size={14} />
+                  <button onClick={() => void handleDelete(ad.id)} disabled={deletingId === ad.id}
+                    className="w-10 border border-red-100 bg-red-50 text-red-400 rounded-xl flex items-center justify-center disabled:opacity-50">
+                    {deletingId === ad.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   </button>
                 </div>
               </div>
