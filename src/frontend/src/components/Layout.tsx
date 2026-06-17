@@ -1,15 +1,52 @@
-import { Link, useLocation } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Plus, Search, User, X, ShoppingBag } from "lucide-react";
-import { useState } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+interface ProfileInfo {
+  full_name: string | null;
+  role: string;
+  kyc_status: string;
+}
+
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname;
+
+  useEffect(() => {
+    loadProfile();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      loadProfile();
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  async function loadProfile() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setProfile(null);
+      return;
+    }
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, role, kyc_status")
+      .eq("id", userData.user.id)
+      .single();
+    if (data) setProfile(data);
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setMenuOpen(false);
+    void navigate({ to: "/login" });
+  }
 
   const sideMenuLinks = [
     { to: "/", label: "🏠 Home" },
@@ -31,6 +68,12 @@ export function Layout({ children }: LayoutProps) {
     return path.startsWith(to);
   };
 
+  const initial = profile?.full_name?.[0]?.toUpperCase() ?? "?";
+  const displayName = profile?.full_name || "Guest";
+  const roleLabel = profile
+    ? `${profile.kyc_status === "approved" ? "✅ Verified" : "⏳ Unverified"} · ${profile.role === "provider" ? "Provider" : "Seeker"}`
+    : "Not logged in";
+
   return (
     <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
 
@@ -38,7 +81,6 @@ export function Layout({ children }: LayoutProps) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
 
-          {/* Bell */}
           <Link to="/notifications">
             <div className="relative p-2 rounded-full hover:bg-gray-50">
               <Bell size={22} className="text-gray-600" />
@@ -46,7 +88,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          {/* Logo Center */}
           <Link to="/">
             <div className="flex flex-col items-center">
               <svg width="32" height="32" viewBox="0 0 80 80" fill="none">
@@ -55,17 +96,11 @@ export function Layout({ children }: LayoutProps) {
                 <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
                 <circle cx="40" cy="40" r="7" fill="white" />
               </svg>
-              <span className="text-[10px] font-black tracking-widest text-[#1a56f0] leading-none mt-0.5">
-                CROSSING
-              </span>
+              <span className="text-[10px] font-black tracking-widest text-[#1a56f0] leading-none mt-0.5">CROSSING</span>
             </div>
           </Link>
 
-          {/* Hamburger */}
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="p-2 rounded-full hover:bg-gray-50"
-          >
+          <button onClick={() => setMenuOpen(true)} className="p-2 rounded-full hover:bg-gray-50">
             <Menu size={22} className="text-gray-600" />
           </button>
         </div>
@@ -74,13 +109,9 @@ export function Layout({ children }: LayoutProps) {
       {/* SIDE DRAWER */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div
-            className="flex-1 bg-black/40 backdrop-blur-sm"
-            onClick={() => setMenuOpen(false)}
-          />
+          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
           <div className="w-72 bg-white h-full shadow-2xl flex flex-col overflow-y-auto">
 
-            {/* Drawer Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <svg width="28" height="28" viewBox="0 0 80 80" fill="none">
@@ -96,31 +127,23 @@ export function Layout({ children }: LayoutProps) {
               </button>
             </div>
 
-            {/* User Info */}
             <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                  A
+                  {initial}
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-800 text-sm">Ahmad Khan</div>
-                  <div className="text-xs text-gray-500">✅ Verified · Seeker</div>
+                  <div className="font-semibold text-gray-800 text-sm">{displayName}</div>
+                  <div className="text-xs text-gray-500">{roleLabel}</div>
                 </div>
               </div>
             </div>
 
-            {/* Nav Links */}
             <nav className="flex-1 px-3 py-3">
               {sideMenuLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to as "/"}
-                  onClick={() => setMenuOpen(false)}
-                >
+                <Link key={link.to} to={link.to as "/"} onClick={() => setMenuOpen(false)}>
                   <div className={`flex items-center px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-colors ${
-                    isActive(link.to)
-                      ? "bg-[#1a56f0]/10 text-[#1a56f0]"
-                      : "text-gray-600 hover:bg-gray-100"
+                    isActive(link.to) ? "bg-[#1a56f0]/10 text-[#1a56f0]" : "text-gray-600 hover:bg-gray-100"
                   }`}>
                     {link.label}
                   </div>
@@ -129,17 +152,20 @@ export function Layout({ children }: LayoutProps) {
             </nav>
 
             <div className="px-5 py-4 border-t border-gray-100">
-              <Link to="/login" onClick={() => setMenuOpen(false)}>
-                <div className="text-center text-sm font-semibold text-red-500">
+              {profile ? (
+                <button onClick={() => void handleLogout()} className="w-full text-center text-sm font-semibold text-red-500">
                   Logout
-                </div>
-              </Link>
+                </button>
+              ) : (
+                <Link to="/login" onClick={() => setMenuOpen(false)}>
+                  <div className="text-center text-sm font-semibold text-[#1a56f0]">Login</div>
+                </Link>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* PAGE CONTENT */}
       <main className="flex-1 max-w-lg mx-auto w-full pb-20">
         {children}
       </main>
@@ -148,7 +174,6 @@ export function Layout({ children }: LayoutProps) {
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-lg">
         <div className="max-w-lg mx-auto flex">
 
-          {/* Home */}
           <Link to="/" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <Home size={22} strokeWidth={isActive("/") ? 2.5 : 1.8} />
@@ -156,7 +181,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          {/* Orders */}
           <Link to="/transactions" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/transactions") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <ShoppingBag size={22} strokeWidth={isActive("/transactions") ? 2.5 : 1.8} />
@@ -164,7 +188,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          {/* Post — center raised button */}
           <Link to="/post-ad" className="flex-1">
             <div className="flex flex-col items-center gap-0.5 py-2.5">
               <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
@@ -174,7 +197,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          {/* Chat */}
           <Link to="/messages" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <MessageCircle size={22} strokeWidth={isActive("/messages") ? 2.5 : 1.8} />
@@ -182,7 +204,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          {/* Profile */}
           <Link to="/profile/me" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <User size={22} strokeWidth={isActive("/profile") ? 2.5 : 1.8} />
