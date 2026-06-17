@@ -90,18 +90,16 @@ export function Layout({ children }: LayoutProps) {
     ? `${profile.kyc_status === "approved" ? "✅ Verified" : "⏳ Unverified"} · ${profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Provider" : "Seeker"}`
     : checked ? "Not logged in" : "Loading...";
 
-  // ── LOGGED-OUT: bare page, no header, no bottom nav ──
   if (checked && !loggedIn) {
-    return <div className="min-h-screen bg-[#F2F3F7]">{children}</div>;
+    return <div className="min-h-screen bg-[#F4F6F6]">{children}</div>;
   }
 
-  // While we haven't checked auth yet, avoid flashing the wrong layout
   if (!checked) {
-    return <div className="min-h-screen bg-[#F2F3F7]" />;
+    return <div className="min-h-screen bg-[#F4F6F6]" />;
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
+    <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -110,19 +108,19 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/notifications">
             <div className="relative p-2 rounded-full hover:bg-gray-50">
               <Bell size={22} className="text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4AF37] rounded-full border border-white" />
             </div>
           </Link>
 
           <Link to="/">
             <div className="flex flex-col items-center">
               <svg width="32" height="32" viewBox="0 0 80 80" fill="none">
-                <rect width="80" height="80" rx="18" fill="#1a56f0" />
+                <rect width="80" height="80" rx="18" fill="#004B49" />
                 <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
                 <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                <circle cx="40" cy="40" r="7" fill="white" />
+                <circle cx="40" cy="40" r="7" fill="#D4AF37" />
               </svg>
-              <span className="text-[10px] font-black tracking-widest text-[#1a56f0] leading-none mt-0.5">CROSSING</span>
+              <span className="text-[10px] font-black tracking-widest text-[#004B49] leading-none mt-0.5">CROSSING</span>
             </div>
           </Link>
 
@@ -141,12 +139,12 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <svg width="28" height="28" viewBox="0 0 80 80" fill="none">
-                  <rect width="80" height="80" rx="18" fill="#1a56f0" />
+                  <rect width="80" height="80" rx="18" fill="#004B49" />
                   <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
                   <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                  <circle cx="40" cy="40" r="7" fill="white" />
+                  <circle cx="40" cy="40" r="7" fill="#D4AF37" />
                 </svg>
-                <span className="font-black text-[#1a56f0] tracking-wider text-sm">CROSSING</span>
+                <span className="font-black text-[#004B49] tracking-wider text-sm">CROSSING</span>
               </div>
               <button onClick={() => setMenuOpen(false)}>
                 <X size={20} className="text-gray-500" />
@@ -155,7 +153,7 @@ export function Layout({ children }: LayoutProps) {
 
             <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white font-bold text-sm">
                   {initial}
                 </div>
                 <div>
@@ -169,7 +167,7 @@ export function Layout({ children }: LayoutProps) {
               {sideMenuLinks.map((link) => (
                 <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}>
                   <div className={`flex items-center px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-colors ${
-                    isActive(link.to) ? "bg-[#1a56f0]/10 text-[#1a56f0]" : "text-gray-600 hover:bg-gray-100"
+                    isActive(link.to) ? "bg-[#004B49]/10 text-[#004B49]" : "text-gray-600 hover:bg-gray-100"
                   }`}>
                     {link.label}
                   </div>
@@ -195,14 +193,14 @@ export function Layout({ children }: LayoutProps) {
         <div className="max-w-lg mx-auto flex">
 
           <Link to="/" className="flex-1">
-            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/") ? "text-[#1a56f0]" : "text-gray-400"}`}>
+            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/") ? "text-[#004B49]" : "text-gray-400"}`}>
               <Home size={22} strokeWidth={isActive("/") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Home</span>
             </div>
           </Link>
 
           <Link to="/transactions" className="flex-1">
-            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/transactions") ? "text-[#1a56f0]" : "text-gray-400"}`}>
+            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/transactions") ? "text-[#004B49]" : "text-gray-400"}`}>
               <ShoppingBag size={22} strokeWidth={isActive("/transactions") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Orders</span>
             </div>
@@ -211,7 +209,7 @@ export function Layout({ children }: LayoutProps) {
           {isProvider ? (
             <Link to="/post-ad" className="flex-1">
               <div className="flex flex-col items-center gap-0.5 py-2.5">
-                <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
+                <div className="w-11 h-11 rounded-full bg-[#004B49] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
                   <Plus size={22} className="text-white" />
                 </div>
                 <span className="text-[10px] font-semibold text-gray-400 mt-0.5">Post</span>
@@ -220,7 +218,7 @@ export function Layout({ children }: LayoutProps) {
           ) : (
             <Link to="/wallet" className="flex-1">
               <div className="flex flex-col items-center gap-0.5 py-2.5">
-                <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
+                <div className="w-11 h-11 rounded-full bg-[#004B49] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
                   <WalletIcon size={20} className="text-white" />
                 </div>
                 <span className="text-[10px] font-semibold text-gray-400 mt-0.5">Wallet</span>
@@ -229,14 +227,14 @@ export function Layout({ children }: LayoutProps) {
           )}
 
           <Link to="/messages" className="flex-1">
-            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#1a56f0]" : "text-gray-400"}`}>
+            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#004B49]" : "text-gray-400"}`}>
               <MessageCircle size={22} strokeWidth={isActive("/messages") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Chat</span>
             </div>
           </Link>
 
           <Link to="/profile/$id" params={{ id: "me" }} className="flex-1">
-            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#1a56f0]" : "text-gray-400"}`}>
+            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#004B49]" : "text-gray-400"}`}>
               <User size={22} strokeWidth={isActive("/profile") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Profile</span>
             </div>
