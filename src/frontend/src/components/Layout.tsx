@@ -29,7 +29,6 @@ export function Layout({ children }: LayoutProps) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Reload profile every time the drawer opens, so it's never stale
   useEffect(() => {
     if (menuOpen) void loadProfile();
   }, [menuOpen]);
@@ -63,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
 
   const isAdmin = profile?.role === "admin";
 
-  const sideMenuLinks = [
+  const sideMenuLinks: { to: "/" | "/ads" | "/my-ads" | "/messages" | "/wallet" | "/transactions" | "/kyc" | "/disputes" | "/notifications" | "/settings" | "/help" | "/admin"; label: string }[] = [
     { to: "/", label: "🏠 Home" },
     { to: "/ads", label: "🔍 Browse Visa Ads" },
     { to: "/my-ads", label: "📋 My Listings" },
@@ -75,7 +74,7 @@ export function Layout({ children }: LayoutProps) {
     { to: "/notifications", label: "🔔 Notifications" },
     { to: "/settings", label: "⚙️ Settings" },
     { to: "/help", label: "🆘 Help & Safety" },
-    ...(isAdmin ? [{ to: "/admin", label: "🛡️ Admin Dashboard" }] : []),
+    ...(isAdmin ? [{ to: "/admin" as const, label: "🛡️ Admin Dashboard" }] : []),
   ];
 
   const isActive = (to: string) => {
@@ -156,7 +155,7 @@ export function Layout({ children }: LayoutProps) {
 
             <nav className="flex-1 px-3 py-3">
               {sideMenuLinks.map((link) => (
-                <Link key={link.to} to={link.to as "/"} onClick={() => setMenuOpen(false)}>
+                <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}>
                   <div className={`flex items-center px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-colors ${
                     isActive(link.to) ? "bg-[#1a56f0]/10 text-[#1a56f0]" : "text-gray-600 hover:bg-gray-100"
                   }`}>
@@ -218,7 +217,8 @@ export function Layout({ children }: LayoutProps) {
               <span className="text-[10px] font-semibold">Chat</span>
             </div>
           </Link>
-<Link to="/profile/$id" params={{ id: "me" }} className="flex-1">
+
+          <Link to="/profile/$id" params={{ id: "me" }} className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <User size={22} strokeWidth={isActive("/profile") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Profile</span>
