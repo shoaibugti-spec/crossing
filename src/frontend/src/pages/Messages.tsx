@@ -1,7 +1,8 @@
-import { Search, CheckCheck } from "lucide-react";
+import { Search, CheckCheck, Lock } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
+// صرف وہ conversations جن کا order/escrow ہے — باقی سب locked
 const CONVERSATIONS = [
   {
     id: "1",
@@ -13,6 +14,7 @@ const CONVERSATIONS = [
     unread: 3,
     online: true,
     verified: true,
+    hasOrder: true,
     escrowActive: true,
     escrowAmount: 499,
   },
@@ -26,6 +28,7 @@ const CONVERSATIONS = [
     unread: 0,
     online: true,
     verified: true,
+    hasOrder: true,
     escrowActive: false,
     escrowAmount: 0,
   },
@@ -39,34 +42,9 @@ const CONVERSATIONS = [
     unread: 1,
     online: false,
     verified: true,
+    hasOrder: true,
     escrowActive: true,
     escrowAmount: 199,
-  },
-  {
-    id: "4",
-    name: "EuroPath Immigration",
-    avatar: "EP",
-    role: "Germany Work Visa",
-    lastMsg: "I need your educational certificates translated to German",
-    time: "Mon",
-    unread: 0,
-    online: false,
-    verified: true,
-    escrowActive: false,
-    escrowAmount: 0,
-  },
-  {
-    id: "5",
-    name: "AusImmigration Pro",
-    avatar: "AP",
-    role: "Australia PR",
-    lastMsg: "Your skills assessment has been approved! 🎉",
-    time: "Sun",
-    unread: 0,
-    online: false,
-    verified: true,
-    escrowActive: false,
-    escrowAmount: 0,
   },
 ];
 
@@ -74,15 +52,16 @@ const AVATAR_COLORS = [
   "from-[#1a56f0] to-purple-600",
   "from-green-500 to-teal-600",
   "from-amber-500 to-orange-600",
-  "from-blue-500 to-indigo-600",
-  "from-rose-500 to-pink-600",
 ];
 
 export function Messages() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "active">("all");
 
-  const filtered = CONVERSATIONS.filter((c) => {
+  // صرف order والی conversations دکھیں
+  const orderedConvs = CONVERSATIONS.filter((c) => c.hasOrder);
+
+  const filtered = orderedConvs.filter((c) => {
     const matchSearch = !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.role.toLowerCase().includes(search.toLowerCase());
@@ -106,38 +85,48 @@ export function Messages() {
           />
         </div>
 
-        {/* TABS */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
           {(["all", "active"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
+            <button key={t} onClick={() => setTab(t)}
               className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
                 tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
-              }`}
-            >
+              }`}>
               {t === "all" ? "All Messages" : "🔒 Escrow Active"}
             </button>
           ))}
         </div>
       </div>
 
+      {/* INFO BANNER */}
+      <div className="mx-4 mt-3">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 flex gap-2">
+          <Lock size={13} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
+          <span className="text-[11px] text-blue-700">
+            Chat unlocks only after placing an order. This protects both buyers and providers from outside-app fraud.
+          </span>
+        </div>
+      </div>
+
       {/* CONVERSATION LIST */}
-      <div className="flex flex-col">
+      <div className="flex flex-col mt-3">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-3xl mb-3">💬</div>
+            <Lock size={32} className="text-gray-200 mx-auto mb-3" />
             <div className="text-sm font-bold text-gray-400">No conversations yet</div>
-            <div className="text-xs text-gray-300 mt-1">
-              Message a provider from their listing
+            <div className="text-xs text-gray-300 mt-1 px-8">
+              Browse listings and place an order to unlock chat with a provider
             </div>
+            <Link to="/ads" search={{ q: "", country: "", type: "" }}>
+              <button className="mt-4 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+                Browse Visa Listings
+              </button>
+            </Link>
           </div>
         ) : (
           filtered.map((conv, i) => (
             <Link key={conv.id} to="/messages/$id" params={{ id: conv.id }}>
               <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-50 hover:bg-gray-50 transition-all">
 
-                {/* AVATAR */}
                 <div className="relative flex-shrink-0">
                   <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white font-black text-sm`}>
                     {conv.avatar}
@@ -147,14 +136,11 @@ export function Messages() {
                   )}
                 </div>
 
-                {/* CONTENT */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-gray-800 text-sm">{conv.name}</span>
-                      {conv.verified && (
-                        <span className="text-[#1a56f0] text-[10px]">✓</span>
-                      )}
+                      {conv.verified && <span className="text-[#1a56f0] text-[10px]">✓</span>}
                     </div>
                     <span className="text-[10px] text-gray-400 flex-shrink-0">{conv.time}</span>
                   </div>
@@ -163,9 +149,7 @@ export function Messages() {
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1 flex-1 min-w-0">
-                      {conv.unread === 0 && (
-                        <CheckCheck size={12} className="text-[#1a56f0] flex-shrink-0" />
-                      )}
+                      {conv.unread === 0 && <CheckCheck size={12} className="text-[#1a56f0] flex-shrink-0" />}
                       <span className={`text-xs truncate ${conv.unread > 0 ? "text-gray-700 font-semibold" : "text-gray-400"}`}>
                         {conv.lastMsg}
                       </span>
