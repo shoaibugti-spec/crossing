@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Star, Lock, Users, ArrowRight, CheckCircle, Loader2, Plane, Briefcase } from "lucide-react";
+import { Search, Shield, Star, Lock, Users, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -15,6 +15,8 @@ interface AdRow {
   provider_name: string | null;
   provider_kyc_status: string | null;
 }
+
+const VISA_TYPES = ["All", "Work Visa", "Study Visa", "Tourist", "Sponsorship", "Immigration"];
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -71,7 +73,6 @@ export function LandingPage() {
   const hotAds = ads.slice(0, 3);
   const featuredAds = ads.slice(3, 7);
 
-  // Wait until we know whether the visitor is logged in before rendering either version
   if (!checked) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -80,78 +81,169 @@ export function LandingPage() {
     );
   }
 
-  // ── LOGGED-OUT VISITOR: simple welcome screen with two clear paths ──
+  // ── LOGGED-OUT VISITOR: own header, search, categories, listings, and signup CTAs ──
   if (!loggedIn) {
     return (
-      <div className="flex flex-col min-h-[calc(100vh-56px)]">
-        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 pt-12 pb-10 flex flex-col items-center text-center">
-          <svg width="52" height="52" viewBox="0 0 80 80" fill="none">
+      <div className="flex flex-col min-h-screen bg-[#F2F3F7]">
+
+        {/* SELF-CONTAINED HEADER (Layout hides its own header when logged out) */}
+        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 pt-10 pb-8 flex flex-col items-center text-center">
+          <svg width="48" height="48" viewBox="0 0 80 80" fill="none">
             <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
             <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
             <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
             <circle cx="40" cy="40" r="7" fill="white" />
           </svg>
-          <div className="text-white font-black text-2xl tracking-wider mt-3">CROSSING</div>
-          <div className="text-white/70 text-sm mt-1.5 max-w-xs">
+          <div className="text-white font-black text-2xl tracking-wider mt-2">CROSSING</div>
+          <div className="text-white/70 text-xs mt-1.5 max-w-xs">
             The trusted Escrow-protected marketplace connecting visa seekers with verified providers.
           </div>
         </div>
 
-        <div className="flex-1 px-5 -mt-6 flex flex-col gap-4">
+        {/* SEARCH BAR */}
+        <div className="px-5 -mt-5">
+          <div className="bg-white rounded-2xl shadow-md px-4 py-3 flex items-center gap-2">
+            <Search size={18} className="text-gray-400 flex-shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Search visa, country, service..."
+              className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+            />
+            {search && (
+              <button onClick={() => setSearch("")}><X size={14} className="text-gray-400" /></button>
+            )}
+            <button onClick={handleSearch} className="bg-[#1a56f0] text-white text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0">
+              Go
+            </button>
+          </div>
 
+          {/* CATEGORY CHIPS */}
+          <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-none">
+            {VISA_TYPES.map((t) => (
+              <button key={t}
+                onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: t === "All" ? "" : t } })}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  t === "All" ? "bg-[#1a1a2e] text-white border-[#1a1a2e]" : "bg-white text-gray-600 border-gray-200 hover:border-[#1a56f0] hover:text-[#1a56f0]"
+                }`}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* TWO PATHS */}
+        <div className="px-5 mt-5 flex flex-col gap-3">
           <Link to="/signup" search={{ role: "seeker" }}>
-            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-50 flex items-center gap-4 hover:border-[#1a56f0]/30 transition-all">
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <Plane size={26} className="text-[#1a56f0]" />
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-50 flex items-center gap-3 hover:border-[#1a56f0]/30 transition-all">
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <Plane size={22} className="text-[#1a56f0]" />
               </div>
               <div className="flex-1">
-                <div className="font-black text-gray-800 text-base">I Need a Visa</div>
-                <div className="text-xs text-gray-500 mt-0.5">Find a verified provider and apply with Escrow protection</div>
+                <div className="font-black text-gray-800 text-sm">I Need a Visa</div>
+                <div className="text-xs text-gray-500 mt-0.5">Find a verified provider with Escrow protection</div>
               </div>
-              <ArrowRight size={18} className="text-gray-300 flex-shrink-0" />
+              <ArrowRight size={16} className="text-gray-300 flex-shrink-0" />
             </div>
           </Link>
 
           <Link to="/signup" search={{ role: "provider" }}>
-            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-50 flex items-center gap-4 hover:border-[#1a56f0]/30 transition-all">
-              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <Briefcase size={26} className="text-amber-500" />
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-50 flex items-center gap-3 hover:border-[#1a56f0]/30 transition-all">
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <Briefcase size={22} className="text-amber-500" />
               </div>
               <div className="flex-1">
-                <div className="font-black text-gray-800 text-base">I Provide Visa Services</div>
+                <div className="font-black text-gray-800 text-sm">I Provide Visa Services</div>
                 <div className="text-xs text-gray-500 mt-0.5">List your services and reach thousands of seekers</div>
               </div>
-              <ArrowRight size={18} className="text-gray-300 flex-shrink-0" />
+              <ArrowRight size={16} className="text-gray-300 flex-shrink-0" />
             </div>
           </Link>
+        </div>
 
-          <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })}
-            className="text-center text-sm font-semibold text-[#1a56f0] py-2">
-            Just browse listings →
-          </button>
-
-          <div className="mt-auto">
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm mb-4">
-              <div className="grid grid-cols-3 divide-x divide-gray-100">
-                {[
-                  { icon: Shield, value: "KYC", label: "Verified" },
-                  { icon: Lock, value: "Escrow", label: "Protected" },
-                  { icon: Star, value: "New", label: "Marketplace" },
-                ].map(({ icon: Icon, value, label }) => (
-                  <div key={label} className="flex flex-col items-center py-3 gap-0.5">
-                    <Icon size={16} className="text-[#1a56f0]" />
-                    <span className="text-xs font-bold text-gray-800">{value}</span>
-                    <span className="text-[10px] text-gray-400">{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="text-center text-sm text-gray-500 pb-4">
-              Already have an account?{" "}
-              <Link to="/login"><span className="font-bold text-[#1a56f0]">Login</span></Link>
+        {/* TRUST STATS */}
+        <div className="mx-5 mt-4">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div className="grid grid-cols-3 divide-x divide-gray-100">
+              {[
+                { icon: Shield, value: "KYC", label: "Verified" },
+                { icon: Lock, value: "Escrow", label: "Protected" },
+                { icon: Star, value: "New", label: "Marketplace" },
+              ].map(({ icon: Icon, value, label }) => (
+                <div key={label} className="flex flex-col items-center py-3 gap-0.5">
+                  <Icon size={16} className="text-[#1a56f0]" />
+                  <span className="text-xs font-bold text-gray-800">{value}</span>
+                  <span className="text-[10px] text-gray-400">{label}</span>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+
+        {/* LISTINGS — visible even to logged-out visitors, so the platform feels active */}
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-gray-300" size={28} />
+          </div>
+        ) : ads.length > 0 ? (
+          <div className="mt-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-base font-black text-gray-800">Live Listings 🔥</div>
+              <Link to="/ads" search={{ q: "", country: "", type: "" }}>
+                <span className="text-xs font-semibold text-[#1a56f0] flex items-center gap-1">See all <ArrowRight size={12} /></span>
+              </Link>
+            </div>
+            <div className="flex flex-col gap-3">
+              {ads.slice(0, 4).map((ad) => <HomeAdCard key={ad.id} ad={ad} />)}
+            </div>
+          </div>
+        ) : null}
+
+        {/* POPULAR DESTINATIONS */}
+        <div className="mt-5 px-5">
+          <div className="text-base font-black text-gray-800 mb-3">Popular Destinations</div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { flag: "🇸🇦", c: "Saudi Arabia" },
+              { flag: "🇦🇪", c: "UAE" },
+              { flag: "🇬🇧", c: "United Kingdom" },
+              { flag: "🇩🇪", c: "Germany" },
+              { flag: "🇨🇦", c: "Canada" },
+              { flag: "🇦🇺", c: "Australia" },
+            ].map(({ flag, c }) => (
+              <Link key={c} to="/ads" search={{ q: "", country: c, type: "" }}>
+                <button className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-100 rounded-full text-xs font-medium shadow-sm hover:border-[#1a56f0]/40 transition-all">
+                  <span>{flag}</span><span className="text-gray-700">{c}</span>
+                </button>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* SAFETY */}
+        <div className="mx-5 mt-5 mb-3">
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3">Why Crossing is Safe</div>
+            <div className="flex flex-col gap-2">
+              {[
+                "Funds held in Escrow — released only after visa confirmed",
+                "KYC-verified providers only",
+                "Full refund if fraud detected",
+                "Step-by-step case tracking for both parties",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2">
+                  <CheckCircle size={14} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-gray-600">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center text-sm text-gray-500 pb-8">
+          Already have an account?{" "}
+          <Link to="/login"><span className="font-bold text-[#1a56f0]">Login</span></Link>
         </div>
       </div>
     );
@@ -177,7 +269,7 @@ export function LandingPage() {
           </button>
         </div>
         <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-none">
-          {["All", "Work Visa", "Study Visa", "Tourist", "Sponsorship", "Immigration"].map((t) => (
+          {VISA_TYPES.map((t) => (
             <button key={t}
               onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: t === "All" ? "" : t } })}
               className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
@@ -259,9 +351,6 @@ export function LandingPage() {
             <div className="text-2xl mb-2">📋</div>
             <div className="text-sm font-bold text-gray-400">No listings on Crossing yet</div>
             <div className="text-xs text-gray-300 mt-1">Be the first verified provider to post a listing</div>
-            <Link to="/post-ad">
-              <button className="mt-3 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2.5 rounded-xl">Post a Listing</button>
-            </Link>
           </div>
         </div>
       ) : (
@@ -324,8 +413,8 @@ export function LandingPage() {
             <div className="text-white text-sm font-bold mb-1">Are you a Visa Agent?</div>
             <div className="text-white/70 text-xs">Post your listing — reach thousands</div>
           </div>
-          <Link to="/post-ad">
-            <button className="bg-white text-[#1a56f0] text-xs font-bold px-3 py-2 rounded-xl">Post Ad</button>
+          <Link to="/profile/$id" params={{ id: "me" }}>
+            <button className="bg-white text-[#1a56f0] text-xs font-bold px-3 py-2 rounded-xl">Learn More</button>
           </Link>
         </div>
       </div>
