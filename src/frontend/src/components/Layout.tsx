@@ -16,37 +16,52 @@ interface ProfileInfo {
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
+  const [checked, setChecked] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
 
   useEffect(() => {
-    loadProfile();
+    void loadProfile();
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      loadProfile();
+      void loadProfile();
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Reload profile every time the drawer opens, so it's never stale
+  useEffect(() => {
+    if (menuOpen) void loadProfile();
+  }, [menuOpen]);
+
   async function loadProfile() {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
       setProfile(null);
+      setChecked(true);
       return;
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("full_name, role, kyc_status")
       .eq("id", userData.user.id)
       .single();
-    if (data) setProfile(data);
+    if (error) {
+      setProfile(null);
+    } else {
+      setProfile(data);
+    }
+    setChecked(true);
   }
 
   async function handleLogout() {
     await supabase.auth.signOut();
+    setProfile(null);
     setMenuOpen(false);
     void navigate({ to: "/login" });
   }
+
+  const isAdmin = profile?.role === "admin";
 
   const sideMenuLinks = [
     { to: "/", label: "🏠 Home" },
@@ -60,7 +75,7 @@ export function Layout({ children }: LayoutProps) {
     { to: "/notifications", label: "🔔 Notifications" },
     { to: "/settings", label: "⚙️ Settings" },
     { to: "/help", label: "🆘 Help & Safety" },
-    { to: "/admin", label: "🛡️ Admin Dashboard" },
+    ...(isAdmin ? [{ to: "/admin", label: "🛡️ Admin Dashboard" }] : []),
   ];
 
   const isActive = (to: string) => {
@@ -71,8 +86,8 @@ export function Layout({ children }: LayoutProps) {
   const initial = profile?.full_name?.[0]?.toUpperCase() ?? "?";
   const displayName = profile?.full_name || "Guest";
   const roleLabel = profile
-    ? `${profile.kyc_status === "approved" ? "✅ Verified" : "⏳ Unverified"} · ${profile.role === "provider" ? "Provider" : "Seeker"}`
-    : "Not logged in";
+    ? `${profile.kyc_status === "approved" ? "✅ Verified" : "⏳ Unverified"} · ${profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Provider" : "Seeker"}`
+    : checked ? "Not logged in" : "Loading...";
 
   return (
     <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
