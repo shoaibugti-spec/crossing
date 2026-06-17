@@ -1,6 +1,6 @@
-import { ArrowLeft, Shield, Camera, CheckCircle, Clock, AlertTriangle, Upload, Video } from "lucide-react";
+import { ArrowLeft, Shield, Camera, CheckCircle, Clock, Video } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const LEVELS = [
   { level: 1, title: "Email Verification", desc: "Verify your email address", status: "completed" },
@@ -17,89 +17,145 @@ export function KYCFlow() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Photo states
+  // Captured media — stored once, never cleared accidentally
   const [docFront, setDocFront] = useState<string | null>(null);
   const [docBack, setDocBack] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<string | null>(null);
-
-  // Video states
   const [videoBlob, setVideoBlob] = useState<string | null>(null);
+
+  // Recording state
   const [videoRecording, setVideoRecording] = useState(false);
   const [videoTimer, setVideoTimer] = useState(0);
 
-  // Camera
+  // Camera overlay state — null means closed
   const [activeCamera, setActiveCamera] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Always clean up camera on unmount
   useEffect(() => {
-    return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
-  }, [stream]);
+    return () => {
+      stopStream();
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    };
+  }, []);
 
-  // ── START PHOTO CAMERA ──
-  async function startCamera(target: string) {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: target === "selfie" ? "user" : "environment" }
-      });
-      setStream(s);
-      setActiveCamera(target);
-      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = s; }, 100);
-    } catch {
-      alert("Camera access denied. Please allow camera permission.");
+  function stopStream() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
   }
 
+  // ── START PHOTO CAMERA ──
+  const startCamera = useCallback(async (target: string) => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: target === "selfie" ? "user" : "environment" },
+      });
+      streamRef.current = s;
+      setActiveCamera(target);
+      // wait a tick for the video element to mount, then attach stream
+      requestAnimationFrame(() => {
+        if (videoElRef.current) {
+          videoElRef.current.srcObject = s;
+          videoElRef.current.play().catch(() => {});
+        }
+      });
+    } catch {
+      alert("Camera access denied. Please allow camera permission in your browser settings.");
+    }
+  }, []);
+
   // ── CAPTURE PHOTO ──
-  function capturePhoto() {
-    if (!videoRef.current || !canvasRef.current || !activeCamera) return;
+  const capturePhoto = useCallback(() => {
+    const videoEl = videoElRef.current;
     const canvas = canvasRef.current;
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
-    const dataUrl = canvas.toDataURL("image/jpeg");
-    if (activeCamera === "front") setDocFront(dataUrl);
-    else if (activeCamera === "back") setDocBack(dataUrl);
-    else if (activeCamera === "selfie") setSelfie(dataUrl);
-    stream?.getTracks().forEach(t => t.stop());
-    setStream(null);
+    if (!videoEl || !canvas || !activeCamera) return;
+
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+
+    const target = activeCamera;
+
+    // Stop camera FIRST, then close overlay, then save image
+    stopStream();
+    if (videoElRef.current) videoElRef.current.srcObject = null;
     setActiveCamera(null);
-  }
+
+    if (target === "front") setDocFront(dataUrl);
+    else if (target === "back") setDocBack(dataUrl);
+    else if (target === "selfie") setSelfie(dataUrl);
+  }, [activeCamera]);
+
+  const cancelCamera = useCallback(() => {
+    stopStream();
+    if (videoElRef.current) videoElRef.current.srcObject = null;
+    setActiveCamera(null);
+  }, []);
 
   // ── START VIDEO RECORDING ──
-  async function startVideoRecording() {
+  const startVideoRecording = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-      setStream(s);
+      streamRef.current = s;
       setVideoRecording(true);
       setVideoTimer(0);
-      setTimeout(() => { if (liveVideoRef.current) liveVideoRef.current.srcObject = s; }, 100);
+
+      requestAnimationFrame(() => {
+        if (liveVideoRef.current) {
+          liveVideoRef.current.srcObject = s;
+          liveVideoRef.current.play().catch(() => {});
+        }
+      });
+
       const recorder = new MediaRecorder(s);
       mediaRecorderRef.current = recorder;
       videoChunksRef.current = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) videoChunksRef.current.push(e.data);
+      };
+
       recorder.onstop = () => {
         const blob = new Blob(videoChunksRef.current, { type: "video/webm" });
         setVideoBlob(URL.createObjectURL(blob));
-        s.getTracks().forEach(t => t.stop());
+        stopStream();
+        if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
         setVideoRecording(false);
-        setStream(null);
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
       };
+
       recorder.start();
+
       let sec = 0;
-      const interval = setInterval(() => {
+      timerIntervalRef.current = setInterval(() => {
         sec++;
         setVideoTimer(sec);
-        if (sec >= 15) { clearInterval(interval); recorder.stop(); }
+        if (sec >= 15) {
+          if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          }
+        }
       }, 1000);
     } catch {
-      alert("Camera/microphone access denied. Please allow permissions.");
+      alert("Camera/microphone access denied. Please allow permissions in your browser settings.");
     }
-  }
+  }, []);
 
   // ── SUBMIT ──
   async function handleSubmit() {
@@ -108,34 +164,43 @@ export function KYCFlow() {
     if (!selfie) { alert("Please take a selfie"); return; }
     if (!videoBlob) { alert("Please record a 15-second face video"); return; }
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
     setSubmitted(true);
     setSubmitting(false);
   }
 
-  // ── CAMERA OVERLAY ──
+  // ── CAMERA OVERLAY (full screen, isolated) ──
   if (activeCamera) {
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col">
-        <div className="flex items-center gap-3 px-4 py-4 bg-black">
-          <button onClick={() => { stream?.getTracks().forEach(t => t.stop()); setActiveCamera(null); setStream(null); }}
-            className="text-white text-2xl">‹</button>
-          <span className="text-white font-bold">
+      <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ touchAction: "none" }}>
+        <div className="flex items-center gap-3 px-4 py-4 bg-black flex-shrink-0">
+          <button onClick={cancelCamera} className="text-white text-2xl leading-none">‹</button>
+          <span className="text-white font-bold text-sm">
             {activeCamera === "front" ? `Capture ${docType === "passport" ? "Passport" : "ID"} Front`
               : activeCamera === "back" ? `Capture ${docType === "passport" ? "Passport" : "ID"} Back`
               : "Take Selfie with Document"}
           </span>
         </div>
-        <video ref={videoRef} autoPlay playsInline className="flex-1 w-full object-cover" />
+        <div className="flex-1 relative bg-black overflow-hidden">
+          <video
+            ref={videoElRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
         <canvas ref={canvasRef} className="hidden" />
-        <div className="p-6 bg-black">
+        <div className="p-6 bg-black flex-shrink-0">
           <div className="text-center text-white/60 text-xs mb-4">
             {activeCamera === "selfie"
               ? "Hold your document next to your face — make sure both are clearly visible"
               : "Make sure all text is clearly readable — good lighting required"}
           </div>
-          <button onClick={capturePhoto}
-            className="w-full bg-white text-black font-black py-4 rounded-2xl text-base flex items-center justify-center gap-2">
+          <button
+            onClick={capturePhoto}
+            className="w-full bg-white text-black font-black py-4 rounded-2xl text-base flex items-center justify-center gap-2"
+          >
             <Camera size={20} /> Capture Photo
           </button>
         </div>
@@ -162,12 +227,7 @@ export function KYCFlow() {
             <span className="text-white font-bold text-sm">Why Verify?</span>
           </div>
           <div className="flex flex-col gap-1.5">
-            {[
-              "Unlock Escrow payments",
-              "Get verified badge on listings",
-              "Higher trust = more clients",
-              "Required to withdraw funds",
-            ].map((item) => (
+            {["Unlock Escrow payments", "Get verified badge on listings", "Higher trust = more clients", "Required to withdraw funds"].map((item) => (
               <div key={item} className="flex items-center gap-2">
                 <CheckCircle size={11} className="text-white/60" />
                 <span className="text-white/80 text-xs">{item}</span>
@@ -180,10 +240,14 @@ export function KYCFlow() {
       {/* LEVEL LIST */}
       <div className="mx-4 mt-4 flex flex-col gap-3">
         {LEVELS.map((l) => (
-          <div key={l.level} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${l.status === "locked" ? "opacity-50" : "cursor-pointer"}`}
-            onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}>
+          <div key={l.level} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${l.status === "locked" ? "opacity-50" : ""}`}>
 
-            <div className="flex items-center gap-3 px-4 py-3.5">
+            <button
+              type="button"
+              onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+              disabled={l.status === "locked"}
+            >
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                 l.status === "completed" ? "bg-green-50" : l.status === "pending" ? "bg-amber-50" : "bg-gray-50"
               }`}>
@@ -195,16 +259,14 @@ export function KYCFlow() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-gray-800">Level {l.level} — {l.title}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    l.status === "completed" ? "bg-green-50 text-green-500"
-                      : l.status === "pending" ? "bg-amber-50 text-amber-500"
-                      : "bg-gray-50 text-gray-400"
+                    l.status === "completed" ? "bg-green-50 text-green-500" : l.status === "pending" ? "bg-amber-50 text-amber-500" : "bg-gray-50 text-gray-400"
                   }`}>
                     {l.status === "completed" ? "✓ Done" : l.status === "pending" ? "Required" : "Locked"}
                   </span>
                 </div>
                 <div className="text-xs text-gray-400 mt-0.5">{l.desc}</div>
               </div>
-            </div>
+            </button>
 
             {/* LEVEL 3 FORM */}
             {activeLevel === 3 && l.level === 3 && (
@@ -225,16 +287,16 @@ export function KYCFlow() {
                       <div className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">Document Type</div>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { key: "passport", label: "📘 Passport", desc: "International" },
-                          { key: "nid", label: "🆔 National ID", desc: "Local Gov ID" },
-                          { key: "license", label: "🪪 Driving License", desc: "Gov Issued" },
+                          { key: "passport", emoji: "📘", label: "Passport", desc: "International" },
+                          { key: "nid", emoji: "🆔", label: "National ID", desc: "Local Gov ID" },
+                          { key: "license", emoji: "🪪", label: "Driving License", desc: "Gov Issued" },
                         ].map((d) => (
-                          <button key={d.key} onClick={() => setDocType(d.key as any)}
+                          <button key={d.key} type="button" onClick={() => setDocType(d.key as "passport" | "nid" | "license")}
                             className={`border-2 rounded-xl py-2.5 px-1 text-center transition-all ${
                               docType === d.key ? "border-[#1a56f0] bg-blue-50" : "border-gray-100 bg-gray-50"
                             }`}>
-                            <div className="text-base">{d.label.split(" ")[0]}</div>
-                            <div className="text-[10px] font-bold text-gray-700 mt-0.5">{d.label.split(" ").slice(1).join(" ")}</div>
+                            <div className="text-base">{d.emoji}</div>
+                            <div className="text-[10px] font-bold text-gray-700 mt-0.5">{d.label}</div>
                             <div className="text-[9px] text-gray-400">{d.desc}</div>
                           </button>
                         ))}
@@ -247,19 +309,19 @@ export function KYCFlow() {
                       <div className="flex flex-col gap-2">
                         <div>
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Full Name (as on document) *</label>
-                          <input value={form.fullName} onChange={e => setForm(p => ({...p, fullName: e.target.value}))}
+                          <input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
                             placeholder="Ahmad Khan"
                             className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Date of Birth</label>
-                            <input type="date" value={form.dob} onChange={e => setForm(p => ({...p, dob: e.target.value}))}
+                            <input type="date" value={form.dob} onChange={(e) => setForm((p) => ({ ...p, dob: e.target.value }))}
                               className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Nationality</label>
-                            <input value={form.nationality} onChange={e => setForm(p => ({...p, nationality: e.target.value}))}
+                            <input value={form.nationality} onChange={(e) => setForm((p) => ({ ...p, nationality: e.target.value }))}
                               placeholder="Pakistani"
                               className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                           </div>
@@ -268,7 +330,7 @@ export function KYCFlow() {
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
                             {docType === "passport" ? "Passport Number" : docType === "nid" ? "ID Number" : "License Number"} *
                           </label>
-                          <input value={form.docNumber} onChange={e => setForm(p => ({...p, docNumber: e.target.value}))}
+                          <input value={form.docNumber} onChange={(e) => setForm((p) => ({ ...p, docNumber: e.target.value }))}
                             placeholder={docType === "passport" ? "AB1234567" : docType === "nid" ? "00000-0000000-0" : "DL-123456"}
                             className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
                         </div>
@@ -279,8 +341,6 @@ export function KYCFlow() {
                     <div>
                       <div className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">Document Photos</div>
                       <div className="flex flex-col gap-2">
-
-                        {/* FRONT */}
                         <div>
                           <div className="text-[10px] text-gray-400 font-semibold mb-1">
                             {docType === "passport" ? "Passport Photo Page" : "Front Side"} *
@@ -288,14 +348,14 @@ export function KYCFlow() {
                           {docFront ? (
                             <div className="relative">
                               <img src={docFront} alt="Doc Front" className="w-full rounded-xl border border-gray-100 max-h-32 object-cover" />
-                              <button onClick={() => setDocFront(null)}
+                              <button type="button" onClick={() => setDocFront(null)}
                                 className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
                                 Retake
                               </button>
                               <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓ Captured</div>
                             </div>
                           ) : (
-                            <button onClick={() => startCamera("front")}
+                            <button type="button" onClick={() => void startCamera("front")}
                               className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
                               <Camera size={22} className="text-gray-300" />
                               <span className="text-xs font-semibold text-gray-400">Tap to capture with camera</span>
@@ -303,21 +363,20 @@ export function KYCFlow() {
                           )}
                         </div>
 
-                        {/* BACK (not for passport) */}
                         {docType !== "passport" && (
                           <div>
                             <div className="text-[10px] text-gray-400 font-semibold mb-1">Back Side *</div>
                             {docBack ? (
                               <div className="relative">
                                 <img src={docBack} alt="Doc Back" className="w-full rounded-xl border border-gray-100 max-h-32 object-cover" />
-                                <button onClick={() => setDocBack(null)}
+                                <button type="button" onClick={() => setDocBack(null)}
                                   className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
                                   Retake
                                 </button>
                                 <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓ Captured</div>
                               </div>
                             ) : (
-                              <button onClick={() => startCamera("back")}
+                              <button type="button" onClick={() => void startCamera("back")}
                                 className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
                                 <Camera size={22} className="text-gray-300" />
                                 <span className="text-xs font-semibold text-gray-400">Tap to capture back side</span>
@@ -328,21 +387,21 @@ export function KYCFlow() {
                       </div>
                     </div>
 
-                    {/* SELFIE WITH DOCUMENT */}
+                    {/* SELFIE */}
                     <div>
                       <div className="text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Selfie with Document *</div>
                       <div className="text-[10px] text-gray-400 mb-2">Hold your document next to your face — both must be clearly visible</div>
                       {selfie ? (
                         <div className="relative">
                           <img src={selfie} alt="Selfie" className="w-full rounded-xl border border-gray-100 max-h-40 object-cover" />
-                          <button onClick={() => setSelfie(null)}
+                          <button type="button" onClick={() => setSelfie(null)}
                             className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
                             Retake
                           </button>
                           <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">✓ Captured</div>
                         </div>
                       ) : (
-                        <button onClick={() => startCamera("selfie")}
+                        <button type="button" onClick={() => void startCamera("selfie")}
                           className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
                           <Camera size={22} className="text-gray-300" />
                           <span className="text-xs font-semibold text-gray-400">Take selfie holding your document</span>
@@ -359,7 +418,7 @@ export function KYCFlow() {
                       {videoBlob ? (
                         <div>
                           <video src={videoBlob} controls className="w-full rounded-xl border border-gray-100 max-h-40" />
-                          <button onClick={() => setVideoBlob(null)}
+                          <button type="button" onClick={() => setVideoBlob(null)}
                             className="w-full mt-2 border border-gray-200 bg-gray-50 text-gray-500 text-xs font-semibold py-2 rounded-xl">
                             Re-record Video
                           </button>
@@ -367,18 +426,17 @@ export function KYCFlow() {
                         </div>
                       ) : videoRecording ? (
                         <div>
-                          <video ref={liveVideoRef} autoPlay playsInline muted className="w-full rounded-xl border border-red-200 max-h-48" />
+                          <video ref={liveVideoRef} autoPlay playsInline muted className="w-full rounded-xl border border-red-200 max-h-48 object-cover" />
                           <div className="flex items-center justify-between mt-2 px-1">
                             <span className="text-xs font-bold text-red-500">● Recording... {videoTimer}s / 15s</span>
                             <span className="text-[10px] text-gray-400">Auto-stops at 15s</span>
                           </div>
                           <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
-                            <div className="bg-red-500 h-2 rounded-full transition-all duration-1000"
-                              style={{ width: `${(videoTimer / 15) * 100}%` }} />
+                            <div className="bg-red-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${(videoTimer / 15) * 100}%` }} />
                           </div>
                         </div>
                       ) : (
-                        <button onClick={startVideoRecording}
+                        <button type="button" onClick={() => void startVideoRecording()}
                           className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
                           <Video size={22} className="text-gray-300" />
                           <span className="text-xs font-semibold text-gray-400">🎥 Record 15-Second Face Video</span>
@@ -396,7 +454,7 @@ export function KYCFlow() {
                     </div>
 
                     {/* SUBMIT */}
-                    <button onClick={handleSubmit} disabled={submitting}
+                    <button type="button" onClick={() => void handleSubmit()} disabled={submitting}
                       className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
                       {submitting ? "Submitting..." : "Submit for Review"}
                     </button>
@@ -406,12 +464,9 @@ export function KYCFlow() {
               </div>
             )}
 
-            {/* LEVEL 4 */}
             {activeLevel === 4 && l.level === 4 && (
               <div className="px-4 pb-4 border-t border-gray-50">
-                <div className="mt-3 text-xs text-gray-500">
-                  Complete Level 3 first to unlock Business Verification.
-                </div>
+                <div className="mt-3 text-xs text-gray-500">Complete Level 3 first to unlock Business Verification.</div>
               </div>
             )}
           </div>
