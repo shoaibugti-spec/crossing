@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag } from "lucide-react";
+import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -61,6 +61,8 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const isAdmin = profile?.role === "admin";
+  const isProvider = profile?.role === "provider";
+  const loggedIn = !!profile;
 
   const sideMenuLinks: { to: "/" | "/ads" | "/my-ads" | "/messages" | "/wallet" | "/transactions" | "/kyc" | "/disputes" | "/notifications" | "/settings" | "/help" | "/admin"; label: string }[] = [
     { to: "/", label: "🏠 Home" },
@@ -87,6 +89,16 @@ export function Layout({ children }: LayoutProps) {
   const roleLabel = profile
     ? `${profile.kyc_status === "approved" ? "✅ Verified" : "⏳ Unverified"} · ${profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Provider" : "Seeker"}`
     : checked ? "Not logged in" : "Loading...";
+
+  // ── LOGGED-OUT: bare page, no header, no bottom nav ──
+  if (checked && !loggedIn) {
+    return <div className="min-h-screen bg-[#F2F3F7]">{children}</div>;
+  }
+
+  // While we haven't checked auth yet, avoid flashing the wrong layout
+  if (!checked) {
+    return <div className="min-h-screen bg-[#F2F3F7]" />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
@@ -166,15 +178,9 @@ export function Layout({ children }: LayoutProps) {
             </nav>
 
             <div className="px-5 py-4 border-t border-gray-100">
-              {profile ? (
-                <button onClick={() => void handleLogout()} className="w-full text-center text-sm font-semibold text-red-500">
-                  Logout
-                </button>
-              ) : (
-                <Link to="/login" onClick={() => setMenuOpen(false)}>
-                  <div className="text-center text-sm font-semibold text-[#1a56f0]">Login</div>
-                </Link>
-              )}
+              <button onClick={() => void handleLogout()} className="w-full text-center text-sm font-semibold text-red-500">
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -202,14 +208,25 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          <Link to="/post-ad" className="flex-1">
-            <div className="flex flex-col items-center gap-0.5 py-2.5">
-              <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
-                <Plus size={22} className="text-white" />
+          {isProvider ? (
+            <Link to="/post-ad" className="flex-1">
+              <div className="flex flex-col items-center gap-0.5 py-2.5">
+                <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
+                  <Plus size={22} className="text-white" />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400 mt-0.5">Post</span>
               </div>
-              <span className="text-[10px] font-semibold text-gray-400 mt-0.5">Post</span>
-            </div>
-          </Link>
+            </Link>
+          ) : (
+            <Link to="/wallet" className="flex-1">
+              <div className="flex flex-col items-center gap-0.5 py-2.5">
+                <div className="w-11 h-11 rounded-full bg-[#1a56f0] flex items-center justify-center shadow-lg -mt-5 border-4 border-white">
+                  <WalletIcon size={20} className="text-white" />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400 mt-0.5">Wallet</span>
+              </div>
+            </Link>
+          )}
 
           <Link to="/messages" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#1a56f0]" : "text-gray-400"}`}>
