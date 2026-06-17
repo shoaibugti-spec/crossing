@@ -106,8 +106,7 @@ export function ProfilePage() {
         <div className="text-2xl mb-2">👤</div>
         <div className="font-bold text-gray-700">Profile not found</div>
         <div className="text-xs text-gray-400 mt-1">This user may not exist or hasn't completed signup.</div>
-        <div className="text-xs text-red-500 mt-4 font-mono break-all px-4 bg-red-50 py-2 rounded-lg">{debugInfo}</div>
-      </div>
+          </div>
     );
   }
 
