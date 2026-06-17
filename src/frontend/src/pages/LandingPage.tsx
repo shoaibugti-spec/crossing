@@ -29,9 +29,16 @@ const VISA_TYPES = ["Work Visa", "Study Visa", "Tourist Visa", "Sponsorship", "P
 const CATEGORY_TILES = [
   { emoji: "💼", label: "Work Visa" },
   { emoji: "🎓", label: "Study Visa" },
-  { emoji: "🧳", label: "Tourist" },
-  { emoji: "🤝", label: "Sponsorship" },
-  { emoji: "🏛️", label: "Immigration" },
+  { emoji: "💰", label: "Business & Investor" },
+  { emoji: "👨‍👩‍👧", label: "Family Visa" },
+  { emoji: "🏛️", label: "Immigration & Residency" },
+  { emoji: "💻", label: "Digital Nomad" },
+  { emoji: "🏥", label: "Medical Visa" },
+  { emoji: "⛪", label: "Religious Visa" },
+  { emoji: "🎭", label: "Cultural Exchange" },
+  { emoji: "⚽", label: "Special Talent" },
+  { emoji: "✈️", label: "Transit Visa" },
+  { emoji: "🧳", label: "Tourist Visa" },
 ];
 
 export function LandingPage() {
@@ -82,7 +89,6 @@ export function LandingPage() {
       }));
       setAds(mapped);
 
-      // Build a unique list of verified providers from the active ads
       const seen = new Set<string>();
       const providers: ProviderSummary[] = [];
       for (const ad of mapped) {
@@ -111,7 +117,6 @@ export function LandingPage() {
     );
   }
 
-  // ── SHARED: the floating search card used on both logged-out and logged-in views ──
   const SearchCard = (
     <div className="bg-white rounded-3xl shadow-xl shadow-[#004B49]/20 overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50">
@@ -143,7 +148,6 @@ export function LandingPage() {
     </div>
   );
 
-  // ── LOGGED-OUT VISITOR ──
   if (!loggedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F4F6F6]">
@@ -173,7 +177,6 @@ export function LandingPage() {
           </p>
         </div>
 
-        {/* FLOATING SEARCH CARD */}
         <div className="px-5 -mt-10 relative z-10">
           {SearchCard}
           <button onClick={handleSearch}
@@ -182,7 +185,6 @@ export function LandingPage() {
           </button>
         </div>
 
-        {/* TWO PATHS */}
         <div className="px-5 mt-5 flex gap-3">
           <Link to="/signup" search={{ role: "seeker" }} className="flex-1">
             <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 h-full">
@@ -204,7 +206,6 @@ export function LandingPage() {
           </Link>
         </div>
 
-        {/* VERIFIED PROVIDERS STRIP */}
         {verifiedProviders.length > 0 && (
           <div className="mt-7 px-5">
             <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Handpicked</span>
@@ -230,7 +231,6 @@ export function LandingPage() {
           </div>
         )}
 
-        {/* VISA CATEGORY GRID */}
         <div className="mt-7 px-5">
           <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Browse by</span>
           <h2 className="font-black text-gray-800 text-base mb-3">Visa Category</h2>
@@ -239,18 +239,12 @@ export function LandingPage() {
               <button key={c.label} onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: c.label } })}
                 className="bg-white rounded-2xl py-4 px-2 text-center border border-gray-100 shadow-sm">
                 <div className="text-xl">{c.emoji}</div>
-                <div className="text-[10px] font-bold text-gray-700 mt-1.5">{c.label}</div>
+                <div className="text-[10px] font-bold text-gray-700 mt-1.5 leading-tight">{c.label}</div>
               </button>
             ))}
-            <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })}
-              className="bg-white rounded-2xl py-4 px-2 text-center border border-gray-100 shadow-sm">
-              <div className="text-xl text-gray-300">+</div>
-              <div className="text-[10px] font-bold text-gray-700 mt-1.5">More</div>
-            </button>
           </div>
         </div>
 
-        {/* LIVE LISTINGS */}
         {loading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="animate-spin text-gray-300" size={28} />
@@ -272,7 +266,6 @@ export function LandingPage() {
           </div>
         )}
 
-        {/* TRUST BAR */}
         <div className="mx-5 mt-7">
           <div className="bg-[#11201f] rounded-2xl p-4 grid grid-cols-3 divide-x divide-white/10">
             {[
@@ -297,7 +290,6 @@ export function LandingPage() {
     );
   }
 
-  // ── LOGGED-IN USER ──
   return (
     <div className="flex flex-col bg-[#F4F6F6]">
 
@@ -315,16 +307,6 @@ export function LandingPage() {
           className="w-full mt-3 bg-gradient-to-r from-[#004B49] to-[#00342f] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#004B49]/30">
           <Search size={16} /> Find Verified Providers
         </button>
-      </div>
-
-      <div className="flex gap-2 mt-4 px-4 overflow-x-auto pb-1 scrollbar-none">
-        {["All", ...VISA_TYPES].map((t) => (
-          <button key={t}
-            onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: t === "All" ? "" : t } })}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border bg-white text-gray-600 border-gray-200">
-            {t}
-          </button>
-        ))}
       </div>
 
       {verifiedProviders.length > 0 && (
@@ -360,14 +342,9 @@ export function LandingPage() {
             <button key={c.label} onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: c.label } })}
               className="bg-white rounded-2xl py-4 px-2 text-center border border-gray-100 shadow-sm">
               <div className="text-xl">{c.emoji}</div>
-              <div className="text-[10px] font-bold text-gray-700 mt-1.5">{c.label}</div>
+              <div className="text-[10px] font-bold text-gray-700 mt-1.5 leading-tight">{c.label}</div>
             </button>
           ))}
-          <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })}
-            className="bg-white rounded-2xl py-4 px-2 text-center border border-gray-100 shadow-sm">
-            <div className="text-xl text-gray-300">+</div>
-            <div className="text-[10px] font-bold text-gray-700 mt-1.5">More</div>
-          </button>
         </div>
       </div>
 
