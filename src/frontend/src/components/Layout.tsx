@@ -218,8 +218,7 @@ export function Layout({ children }: LayoutProps) {
               <span className="text-[10px] font-semibold">Chat</span>
             </div>
           </Link>
-
-          <Link to="/profile/me" className="flex-1">
+<Link to="/profile/$id" params={{ id: "me" }} className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#1a56f0]" : "text-gray-400"}`}>
               <User size={22} strokeWidth={isActive("/profile") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Profile</span>
