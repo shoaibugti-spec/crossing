@@ -1,10 +1,13 @@
 import { useParams, useNavigate, Link } from "@tanstack/react-router";
 import {
   ArrowLeft, Shield, Clock, CheckCircle, Lock,
-  MessageCircle, Star, AlertTriangle, ChevronDown, ChevronUp,
+  MessageCircle, Star, AlertTriangle, ChevronDown, ChevronUp, Wallet as WalletIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { MOCK_ADS } from "../lib/mockData";
+
+// Mock wallet balance — real app میں backend سے آئے گا
+const WALLET_BALANCE = 150; // USDT
 
 export function AdDetail() {
   const { id } = useParams({ from: "/ads/$id" });
@@ -14,6 +17,11 @@ export function AdDetail() {
   const [showEscrow, setShowEscrow] = useState(false);
   const [escrowStep, setEscrowStep] = useState(0);
   const [openStep, setOpenStep] = useState<number | null>(0);
+  const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
+
+  const totalRequired = Number(ad.price) * 1.03 + 36; // service fee + 3% platform + $36 Crossing fee
+  const hasEnoughBalance = WALLET_BALANCE >= totalRequired;
 
   const steps = [
     { title: "Submit Your Documents", desc: "Provider will tell you exactly which documents are needed. You upload them through the app." },
@@ -23,9 +31,21 @@ export function AdDetail() {
     { title: "Case Closed & Payment Released", desc: "You confirm receipt of visa. Crossing releases Escrow funds to provider." },
   ];
 
-  const handleEscrowDeposit = () => {
+  const handleBuyClick = () => {
+    if (!hasEnoughBalance) {
+      setShowInsufficientFunds(true);
+      return;
+    }
     setShowEscrow(true);
     setEscrowStep(1);
+  };
+
+  const handleMessageClick = () => {
+    if (!orderPlaced) {
+      alert("You can only message the provider after placing an order. This protects both parties from fraud outside Escrow.");
+      return;
+    }
+    void navigate({ to: "/messages" });
   };
 
   return (
@@ -40,8 +60,29 @@ export function AdDetail() {
         <span className="font-bold text-gray-800 text-sm">Listing Detail</span>
       </div>
 
+      {/* WALLET BALANCE STRIP */}
+      <div className="mx-4 mt-3">
+        <Link to="/wallet">
+          <div className={`rounded-xl p-3 flex items-center justify-between border ${
+            hasEnoughBalance ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"
+          }`}>
+            <div className="flex items-center gap-2">
+              <WalletIcon size={14} className={hasEnoughBalance ? "text-green-500" : "text-amber-500"} />
+              <span className={`text-xs font-semibold ${hasEnoughBalance ? "text-green-600" : "text-amber-600"}`}>
+                Wallet Balance: ${WALLET_BALANCE} USDT
+              </span>
+            </div>
+            {!hasEnoughBalance && (
+              <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                Top Up →
+              </span>
+            )}
+          </div>
+        </Link>
+      </div>
+
       {/* PROVIDER CARD */}
-      <div className="mx-4 mt-4">
+      <div className="mx-4 mt-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-black text-lg flex-shrink-0">
@@ -133,6 +174,12 @@ export function AdDetail() {
       <div className="mx-4 mt-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3">📄 Required Documents</div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-2.5 mb-3 flex gap-2">
+            <Clock size={13} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
+            <span className="text-[11px] text-blue-700">
+              Provider must review each document within 24 hours of submission — guaranteed.
+            </span>
+          </div>
           <div className="flex flex-col gap-2">
             {(ad.requirements ?? [
               "Valid Passport (min 6 months validity)",
@@ -163,6 +210,7 @@ export function AdDetail() {
               "Provider never receives money until visa is confirmed",
               "If visa fails or fraud — full refund guaranteed",
               "Case closes only after YOU confirm visa received",
+              "Chat unlocks only after you place this order",
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-2">
                 <Lock size={11} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
@@ -172,6 +220,47 @@ export function AdDetail() {
           </div>
         </div>
       </div>
+
+      {/* INSUFFICIENT FUNDS MODAL */}
+      {showInsufficientFunds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowInsufficientFunds(false)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <WalletIcon size={26} className="text-amber-500" />
+              </div>
+              <div className="font-black text-gray-800 text-lg mb-1">Insufficient Balance</div>
+              <div className="text-sm text-gray-500 leading-relaxed">
+                You need <span className="font-bold text-gray-800">${totalRequired.toFixed(2)} USDT</span> to place this order. Your current balance is <span className="font-bold text-gray-800">${WALLET_BALANCE} USDT</span>.
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+              <div className="flex justify-between text-sm mb-1.5">
+                <span className="text-gray-500">Required</span>
+                <span className="font-bold text-gray-800">${totalRequired.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1.5">
+                <span className="text-gray-500">Your Balance</span>
+                <span className="font-bold text-gray-800">${WALLET_BALANCE}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-1.5 flex justify-between text-sm">
+                <span className="text-gray-500 font-bold">Top Up Needed</span>
+                <span className="font-black text-amber-500">${(totalRequired - WALLET_BALANCE).toFixed(2)}</span>
+              </div>
+            </div>
+            <Link to="/wallet">
+              <button className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm mb-2">
+                Add Funds to Wallet
+              </button>
+            </Link>
+            <button onClick={() => setShowInsufficientFunds(false)}
+              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ESCROW FLOW MODAL */}
       {showEscrow && (
@@ -198,19 +287,23 @@ export function AdDetail() {
                     <span className="text-sm text-gray-500">Platform Fee (3%)</span>
                     <span className="font-bold text-gray-800">${(Number(ad.price) * 0.03).toFixed(2)} USDT</span>
                   </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-500">Crossing Fee (Buyer)</span>
+                    <span className="font-bold text-gray-800">$36.00 USDT</span>
+                  </div>
                   <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between items-center">
                     <span className="text-sm font-bold text-gray-700">Total Deposit</span>
-                    <span className="font-black text-[#1a56f0] text-lg">${(Number(ad.price) * 1.03).toFixed(2)} USDT</span>
+                    <span className="font-black text-[#1a56f0] text-lg">${totalRequired.toFixed(2)} USDT</span>
                   </div>
                 </div>
 
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 flex gap-2">
                   <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-xs text-amber-700">Funds will be locked until you confirm visa receipt. Provider cannot access them before that.</span>
+                  <span className="text-xs text-amber-700">Funds will be locked until you confirm visa receipt. Chat with provider unlocks immediately after this order.</span>
                 </div>
 
                 <button
-                  onClick={() => setEscrowStep(2)}
+                  onClick={() => { setEscrowStep(2); setOrderPlaced(true); }}
                   className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm"
                 >
                   Confirm & Lock Funds in Escrow
@@ -228,15 +321,15 @@ export function AdDetail() {
                     <CheckCircle size={24} className="text-green-500" />
                   </div>
                   <div className="font-black text-gray-800 text-lg">Escrow Active! 🔒</div>
-                  <div className="text-sm text-gray-500 mt-1">Your ${(Number(ad.price) * 1.03).toFixed(2)} USDT is safely locked</div>
+                  <div className="text-sm text-gray-500 mt-1">Your ${totalRequired.toFixed(2)} USDT is safely locked</div>
                 </div>
 
                 <div className="flex flex-col gap-3 mb-6">
                   {[
                     { done: true, t: "Payment locked in Escrow" },
                     { done: true, t: "Provider notified" },
+                    { done: true, t: "Chat with provider unlocked ✓" },
                     { done: false, t: "Awaiting document submission" },
-                    { done: false, t: "Visa processing" },
                     { done: false, t: "Visa confirmed → Payment released" },
                   ].map((s, i) => (
                     <div key={i} className="flex items-center gap-3">
@@ -270,14 +363,20 @@ export function AdDetail() {
       {/* BOTTOM ACTIONS */}
       <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30">
         <div className="max-w-lg mx-auto flex gap-3">
-          <Link to="/messages" className="flex-1">
-            <button className="w-full border-2 border-[#1a56f0] text-[#1a56f0] font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
-              <MessageCircle size={16} />
-              Message
-            </button>
-          </Link>
           <button
-            onClick={handleEscrowDeposit}
+            onClick={handleMessageClick}
+            className={`flex-1 font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 ${
+              orderPlaced
+                ? "border-2 border-[#1a56f0] text-[#1a56f0]"
+                : "border-2 border-gray-200 text-gray-400"
+            }`}
+          >
+            {!orderPlaced && <Lock size={14} />}
+            <MessageCircle size={16} />
+            Message
+          </button>
+          <button
+            onClick={handleBuyClick}
             className="flex-2 flex-1 bg-[#1a56f0] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2"
           >
             <Lock size={16} />
