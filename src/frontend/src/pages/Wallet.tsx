@@ -1,14 +1,17 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
-// Mock data — real app میں backend سے
 const USER_ROLE = "provider"; // seeker | provider
 const SECURITY_DEPOSIT = 2000;
 const ACTIVE_ADS = 3;
 const ACTIVE_DISPUTES = 1;
 const PENDING_ORDERS = 2;
 const AVAILABLE_BALANCE = 1247;
+
+// Mock — real app میں backend سے unique generate ہوگا
+const DEPOSIT_ADDRESS = "TQn9Y2khEsLMG6Wg3KqkPFRYz5UY8gh3xZ";
+const REFERENCE_CODE = "CRX-8841";
 
 const TRANSACTIONS = [
   { id: 1, type: "deposit", title: "Security Deposit — Provider Account", amount: 2000, date: "June 1, 2026", status: "locked", icon: Lock },
@@ -28,10 +31,16 @@ export function Wallet() {
   const [depositStep, setDepositStep] = useState(0);
   const [closeStep, setCloseStep] = useState(0);
   const [confirmText, setConfirmText] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  // Withdrawal checks
   const canWithdraw = ACTIVE_DISPUTES === 0 && PENDING_ORDERS === 0;
   const canCloseAccount = ACTIVE_ADS === 0 && ACTIVE_DISPUTES === 0 && PENDING_ORDERS === 0;
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(DEPOSIT_ADDRESS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="flex flex-col pb-8">
@@ -61,13 +70,11 @@ export function Wallet() {
             <span className="text-white/40 text-xs">Security Deposit Locked: ${SECURITY_DEPOSIT} USDT</span>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
-            <button onClick={() => setShowDeposit(true)}
-              className="bg-white/15 rounded-2xl py-2.5 flex flex-col items-center gap-1">
+            <button onClick={() => setShowDeposit(true)} className="bg-white/15 rounded-2xl py-2.5 flex flex-col items-center gap-1">
               <ArrowDownLeft size={18} className="text-white" />
               <span className="text-white text-xs font-semibold">Deposit</span>
             </button>
-            <button onClick={() => setShowWithdraw(true)}
-              className="bg-white/15 rounded-2xl py-2.5 flex flex-col items-center gap-1">
+            <button onClick={() => setShowWithdraw(true)} className="bg-white/15 rounded-2xl py-2.5 flex flex-col items-center gap-1">
               <ArrowUpRight size={18} className="text-white" />
               <span className="text-white text-xs font-semibold">Withdraw</span>
             </button>
@@ -75,7 +82,7 @@ export function Wallet() {
         </div>
       </div>
 
-      {/* SECURITY DEPOSIT CARD — Provider only */}
+      {/* SECURITY DEPOSIT — Provider only */}
       {USER_ROLE === "provider" && (
         <div className="mx-4 mt-3">
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100">
@@ -88,46 +95,28 @@ export function Wallet() {
                 <div className="text-xs text-amber-500 font-semibold mt-0.5">🔒 Locked — $2,000 USDT</div>
               </div>
             </div>
-
             <div className="flex flex-col gap-1.5 text-xs text-gray-500 mb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                Protects buyers if you fail to deliver
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                Dispute refunds deducted from this deposit
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                Released only when account is fully closed
-              </div>
+              <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />Protects buyers if you fail to deliver</div>
+              <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />Dispute refunds deducted from this deposit</div>
+              <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />Released only when account is fully closed</div>
             </div>
-
-            {/* STATUS CHECK */}
             <div className="bg-gray-50 rounded-xl p-3 mb-3">
-              <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2">
-                Deposit Release Status
-              </div>
+              <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2">Deposit Release Status</div>
               {[
-                { label: "Active Listings", value: ACTIVE_ADS, ok: ACTIVE_ADS === 0, bad: `${ACTIVE_ADS} active` },
-                { label: "Active Disputes", value: ACTIVE_DISPUTES, ok: ACTIVE_DISPUTES === 0, bad: `${ACTIVE_DISPUTES} dispute` },
-                { label: "Pending Orders", value: PENDING_ORDERS, ok: PENDING_ORDERS === 0, bad: `${PENDING_ORDERS} pending` },
+                { label: "Active Listings", ok: ACTIVE_ADS === 0, bad: `${ACTIVE_ADS} active` },
+                { label: "Active Disputes", ok: ACTIVE_DISPUTES === 0, bad: `${ACTIVE_DISPUTES} dispute` },
+                { label: "Pending Orders", ok: PENDING_ORDERS === 0, bad: `${PENDING_ORDERS} pending` },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
                   <span className="text-xs text-gray-500">{item.label}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    item.ok ? "bg-green-50 text-green-500" : "bg-red-50 text-red-400"
-                  }`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.ok ? "bg-green-50 text-green-500" : "bg-red-50 text-red-400"}`}>
                     {item.ok ? "✓ Clear" : item.bad}
                   </span>
                 </div>
               ))}
             </div>
-
             {canCloseAccount ? (
-              <button onClick={() => setShowCloseAccount(true)}
-                className="w-full bg-red-500 text-white font-bold py-3 rounded-xl text-sm">
+              <button onClick={() => setShowCloseAccount(true)} className="w-full bg-red-500 text-white font-bold py-3 rounded-xl text-sm">
                 Close Account & Withdraw Deposit
               </button>
             ) : (
@@ -168,6 +157,30 @@ export function Wallet() {
         </div>
       </div>
 
+      {/* FEE TRANSPARENCY CARD */}
+      <div className="mx-4 mt-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-2">💰 How Crossing Fees Work</div>
+          <div className="text-xs text-gray-500 leading-relaxed mb-2">
+            On every confirmed visa case, Crossing charges a flat <span className="font-bold text-gray-800">$36 USDT</span> fee from the Buyer and a separate <span className="font-bold text-gray-800">$36 USDT</span> fee from the Seller — total $72 per deal. No deposit or withdrawal fees right now.
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-500">Example: $400 listing</span>
+              <span></span>
+            </div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-400">Buyer pays</span>
+              <span className="font-bold text-gray-700">$400 + $36 = $436</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-400">Seller receives</span>
+              <span className="font-bold text-gray-700">$400 − $36 = $364</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* TRANSACTIONS */}
       <div className="mx-4 mt-4">
         <div className="text-sm font-bold text-gray-800 mb-3">Transaction History</div>
@@ -175,14 +188,10 @@ export function Wallet() {
           {TRANSACTIONS.map((tx, i) => (
             <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < TRANSACTIONS.length - 1 ? "border-b border-gray-50" : ""}`}>
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                tx.type === "earning" ? "bg-green-50" :
-                tx.type === "fee" ? "bg-red-50" :
-                tx.status === "locked" ? "bg-amber-50" : "bg-blue-50"
+                tx.type === "earning" ? "bg-green-50" : tx.type === "fee" ? "bg-red-50" : tx.status === "locked" ? "bg-amber-50" : "bg-blue-50"
               }`}>
                 <tx.icon size={16} className={
-                  tx.type === "earning" ? "text-green-500" :
-                  tx.type === "fee" ? "text-red-400" :
-                  tx.status === "locked" ? "text-amber-500" : "text-[#1a56f0]"
+                  tx.type === "earning" ? "text-green-500" : tx.type === "fee" ? "text-red-400" : tx.status === "locked" ? "text-amber-500" : "text-[#1a56f0]"
                 } />
               </div>
               <div className="flex-1 min-w-0">
@@ -190,19 +199,11 @@ export function Wallet() {
                 <div className="text-xs text-gray-400">{tx.date}</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className={`font-bold text-sm ${
-                  tx.status === "locked" ? "text-amber-500" :
-                  tx.amount > 0 ? "text-green-500" : "text-red-400"
-                }`}>
-                  {tx.status === "locked" ? "🔒 Locked" :
-                    tx.amount > 0 ? `+$${tx.amount}` : `-$${Math.abs(tx.amount)}`}
+                <div className={`font-bold text-sm ${tx.status === "locked" ? "text-amber-500" : tx.amount > 0 ? "text-green-500" : "text-red-400"}`}>
+                  {tx.status === "locked" ? "🔒 Locked" : tx.amount > 0 ? `+$${tx.amount}` : `-$${Math.abs(tx.amount)}`}
                 </div>
-                <div className={`text-[10px] font-semibold ${
-                  tx.status === "locked" ? "text-amber-400" :
-                  tx.status === "completed" ? "text-green-400" : "text-gray-400"
-                }`}>
-                  {tx.status === "locked" ? "Security Deposit" :
-                    tx.status === "completed" ? "Completed" : "Pending"}
+                <div className={`text-[10px] font-semibold ${tx.status === "locked" ? "text-amber-400" : tx.status === "completed" ? "text-green-400" : "text-gray-400"}`}>
+                  {tx.status === "locked" ? "Security Deposit" : tx.status === "completed" ? "Completed" : "Pending"}
                 </div>
               </div>
             </div>
@@ -250,24 +251,44 @@ export function Wallet() {
             {depositStep === 1 && (
               <>
                 <div className="text-center mb-5">
-                  <div className="font-black text-gray-800 text-lg">Send USDT (TRC-20)</div>
-                  <div className="text-sm text-gray-500 mt-1">Send exactly ${amount} USDT to this address</div>
+                  <div className="font-black text-gray-800 text-lg">Send USDT</div>
+                  <div className="text-sm text-gray-500 mt-1">Send exactly <span className="font-bold text-gray-800">${amount} USDT</span> to your deposit address below</div>
                 </div>
-                <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+
+                <div className="bg-gray-50 rounded-2xl p-4 mb-3">
                   <div className="w-32 h-32 bg-gray-200 rounded-xl mx-auto mb-3 flex items-center justify-center">
                     <span className="text-xs text-gray-400">QR Code</span>
                   </div>
-                  <div className="bg-white rounded-xl p-3 border border-gray-100">
-                    <div className="text-[10px] text-gray-400 mb-1">Wallet Address (TRC-20)</div>
-                    <div className="text-xs font-mono text-gray-700 break-all">TXxxx...crossingescrow...xxx</div>
+                  <div className="bg-white rounded-xl p-3 border border-gray-100 mb-2">
+                    <div className="text-[10px] text-gray-400 mb-1">Your USDT Deposit Address</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-mono text-gray-700 break-all flex-1">{DEPOSIT_ADDRESS}</div>
+                      <button onClick={copyAddress} className="flex-shrink-0 bg-blue-50 text-[#1a56f0] p-1.5 rounded-lg">
+                        <Copy size={13} />
+                      </button>
+                    </div>
+                    {copied && <div className="text-[10px] text-green-500 font-bold mt-1">✓ Copied to clipboard</div>}
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    <div className="text-[10px] text-amber-600 mb-1 font-bold">⚠️ Important — Add this reference in your transaction memo:</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-mono font-black text-amber-700 flex-1">{REFERENCE_CODE}</div>
+                      <button onClick={() => navigator.clipboard.writeText(REFERENCE_CODE)} className="flex-shrink-0 bg-amber-100 text-amber-700 p-1.5 rounded-lg">
+                        <Copy size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
+
                 <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
-                  <div className="text-xs text-red-600 font-semibold">⚠️ Send only USDT TRC-20. Other tokens will be lost permanently.</div>
+                  <div className="text-xs text-red-600 font-semibold">⚠️ Send only USDT (any network) to this address. Always include your reference code so we can credit your account correctly.</div>
                 </div>
-                <button onClick={() => setDepositStep(2)}
-                  className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
+
+                <button onClick={() => setDepositStep(2)} className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
                   I've Sent the Payment
+                </button>
+                <button onClick={() => setDepositStep(0)} className="w-full mt-2 text-gray-400 text-sm py-2">
+                  Back
                 </button>
               </>
             )}
@@ -279,12 +300,12 @@ export function Wallet() {
                     <CheckCircle size={26} className="text-green-500" />
                   </div>
                   <div className="font-black text-gray-800 text-lg">Payment Submitted!</div>
-                  <div className="text-sm text-gray-500 mt-1">Confirmed within 10-30 minutes</div>
+                  <div className="text-sm text-gray-500 mt-1">Your balance will update within 10–30 minutes once confirmed</div>
                 </div>
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4 flex flex-col gap-2">
                   <div className="flex justify-between text-sm"><span className="text-gray-500">Amount</span><span className="font-bold">${amount} USDT</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-gray-500">Network</span><span className="font-bold">TRC-20</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-bold text-amber-500">Pending</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-gray-500">Reference</span><span className="font-bold font-mono">{REFERENCE_CODE}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-bold text-amber-500">Pending Confirmation</span></div>
                 </div>
                 <button onClick={() => { setShowDeposit(false); setDepositStep(0); setAmount(""); }}
                   className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
@@ -320,20 +341,10 @@ export function Wallet() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
-                  <div className="text-[11px] text-amber-700">
-                    This policy protects buyers. Withdrawals are only allowed when your account is in good standing with no active disputes or pending orders.
-                  </div>
-                </div>
                 <Link to="/disputes">
-                  <button className="w-full bg-[#1a56f0] text-white font-bold py-3.5 rounded-2xl text-sm mb-2">
-                    View & Resolve Disputes
-                  </button>
+                  <button className="w-full bg-[#1a56f0] text-white font-bold py-3.5 rounded-2xl text-sm mb-2">View & Resolve Disputes</button>
                 </Link>
-                <button onClick={() => setShowWithdraw(false)}
-                  className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
-                  Close
-                </button>
+                <button onClick={() => setShowWithdraw(false)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Close</button>
               </>
             ) : (
               <>
@@ -341,20 +352,18 @@ export function Wallet() {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Amount (USDT)</label>
                   <div className="flex items-center gap-2 bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
                     <span className="text-gray-400 font-bold">$</span>
-                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                      placeholder="0.00" max={AVAILABLE_BALANCE}
+                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" max={AVAILABLE_BALANCE}
                       className="flex-1 bg-transparent text-xl font-black text-gray-800 outline-none" />
-                    <button onClick={() => setAmount(String(AVAILABLE_BALANCE))}
-                      className="text-[10px] font-bold text-[#1a56f0] bg-blue-50 px-2 py-1 rounded-lg">MAX</button>
+                    <button onClick={() => setAmount(String(AVAILABLE_BALANCE))} className="text-[10px] font-bold text-[#1a56f0] bg-blue-50 px-2 py-1 rounded-lg">MAX</button>
                   </div>
                 </div>
                 <div className="mb-4">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Your USDT Wallet Address (TRC-20)</label>
-                  <input placeholder="Enter your TRC-20 wallet address"
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Your USDT Wallet Address</label>
+                  <input placeholder="Enter your wallet address"
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-mono text-gray-700 outline-none focus:border-[#1a56f0]" />
                 </div>
                 <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-4">
-                  <div className="text-[11px] text-green-700 font-semibold">✓ Account in good standing — withdrawal available</div>
+                  <div className="text-[11px] text-green-700 font-semibold">✓ Account in good standing — withdrawal available. No fees right now.</div>
                 </div>
                 <button onClick={() => { alert("Withdrawal request submitted! Processed within 24 hours."); setShowWithdraw(false); setAmount(""); }}
                   className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
@@ -379,33 +388,10 @@ export function Wallet() {
                     <AlertTriangle size={26} className="text-red-500" />
                   </div>
                   <div className="font-black text-gray-800 text-lg mb-1">Close Provider Account?</div>
-                  <div className="text-sm text-gray-500 leading-relaxed">
-                    This will permanently close your provider account and release your $2,000 USDT security deposit.
-                  </div>
+                  <div className="text-sm text-gray-500 leading-relaxed">This will permanently close your provider account and release your $2,000 USDT security deposit.</div>
                 </div>
-                <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <div className="text-xs font-black text-gray-600 mb-2">What happens:</div>
-                  <div className="flex flex-col gap-1.5 text-xs text-gray-500">
-                    <div className="flex items-center gap-2"><CheckCircle size={11} className="text-green-500" /> All active listings removed</div>
-                    <div className="flex items-center gap-2"><CheckCircle size={11} className="text-green-500" /> $2,000 deposit returned to wallet</div>
-                    <div className="flex items-center gap-2"><CheckCircle size={11} className="text-green-500" /> No active disputes or pending orders</div>
-                    <div className="flex items-center gap-2"><AlertTriangle size={11} className="text-red-400" /> Provider account permanently closed</div>
-                    <div className="flex items-center gap-2"><AlertTriangle size={11} className="text-red-400" /> Cannot reopen — must re-apply</div>
-                  </div>
-                </div>
-                <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
-                  <div className="text-xs text-red-600 font-semibold">
-                    ⚠️ If any fraud is later discovered, remaining funds may still be seized. All transaction history is permanently recorded.
-                  </div>
-                </div>
-                <button onClick={() => setCloseStep(1)}
-                  className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2">
-                  I Understand — Continue
-                </button>
-                <button onClick={() => setShowCloseAccount(false)}
-                  className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
-                  Cancel
-                </button>
+                <button onClick={() => setCloseStep(1)} className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2">I Understand — Continue</button>
+                <button onClick={() => setShowCloseAccount(false)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Cancel</button>
               </>
             )}
 
@@ -415,34 +401,15 @@ export function Wallet() {
                   <div className="font-black text-gray-800 text-lg mb-1">Final Confirmation</div>
                   <div className="text-sm text-gray-500">Type <span className="font-black text-red-500">CLOSE MY ACCOUNT</span> to confirm</div>
                 </div>
-                <input
-                  value={confirmText}
-                  onChange={e => setConfirmText(e.target.value)}
-                  placeholder="Type: CLOSE MY ACCOUNT"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-red-400 font-mono mb-4"
-                />
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
-                  <div className="text-[11px] text-amber-700">
-                    After closing: $2,000 USDT will be credited to your wallet balance. You can withdraw after 72-hour security hold.
-                  </div>
-                </div>
+                <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type: CLOSE MY ACCOUNT"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-red-400 font-mono mb-4" />
                 <button
-                  onClick={() => {
-                    if (confirmText !== "CLOSE MY ACCOUNT") {
-                      alert("Please type exactly: CLOSE MY ACCOUNT");
-                      return;
-                    }
-                    setCloseStep(2);
-                  }}
+                  onClick={() => { if (confirmText !== "CLOSE MY ACCOUNT") { alert("Please type exactly: CLOSE MY ACCOUNT"); return; } setCloseStep(2); }}
                   disabled={confirmText !== "CLOSE MY ACCOUNT"}
-                  className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-40"
-                >
+                  className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-40">
                   Permanently Close Account
                 </button>
-                <button onClick={() => setShowCloseAccount(false)}
-                  className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
-                  Cancel
-                </button>
+                <button onClick={() => setShowCloseAccount(false)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Cancel</button>
               </>
             )}
 
@@ -453,14 +420,7 @@ export function Wallet() {
                     <CheckCircle size={26} className="text-green-500" />
                   </div>
                   <div className="font-black text-gray-800 text-lg mb-1">Account Closed</div>
-                  <div className="text-sm text-gray-500">
-                    $2,000 USDT will be available for withdrawal after 72-hour security hold.
-                  </div>
-                </div>
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-4">
-                  <div className="text-xs text-green-700 font-semibold">
-                    ✓ Security deposit of $2,000 USDT added to your wallet balance. Withdrawal available after June 19, 2026.
-                  </div>
+                  <div className="text-sm text-gray-500">$2,000 USDT will be available for withdrawal after 72-hour security hold.</div>
                 </div>
                 <button onClick={() => { setShowCloseAccount(false); setCloseStep(0); void navigate({ to: "/" }); }}
                   className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
