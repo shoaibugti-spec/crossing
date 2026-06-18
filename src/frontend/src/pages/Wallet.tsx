@@ -249,11 +249,11 @@ export function Wallet() {
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-2">💰 How Crossing Fees Work</div>
           <div className="text-xs text-gray-500 leading-relaxed mb-2">
-            On every confirmed visa case, Crossing charges a flat <span className="font-bold text-gray-800">$36 USDT</span> fee from the Buyer and a separate <span className="font-bold text-gray-800">$36 USDT</span> fee from the Seller — total $72 per deal. No deposit or withdrawal fees right now.
+            Buyers always pay exactly the listed price — no hidden charges. On every confirmed visa case, Crossing deducts a flat <span className="font-bold text-gray-800">$36 USDT</span> fee from the Seller's payout only. No deposit or withdrawal fees right now.
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
             <div className="flex justify-between text-xs mb-1"><span className="text-gray-500">Example: $400 listing</span><span></span></div>
-            <div className="flex justify-between text-xs mb-1"><span className="text-gray-400">Buyer pays</span><span className="font-bold text-gray-700">$400 + $36 = $436</span></div>
+            <div className="flex justify-between text-xs mb-1"><span className="text-gray-400">Buyer pays</span><span className="font-bold text-gray-700">$400 (exact price)</span></div>
             <div className="flex justify-between text-xs"><span className="text-gray-400">Seller receives</span><span className="font-bold text-gray-700">$400 − $36 = $364</span></div>
           </div>
         </div>
