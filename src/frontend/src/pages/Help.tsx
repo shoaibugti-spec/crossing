@@ -111,7 +111,7 @@ export function Help() {
       </div>
 
       {/* HERO */}
-      <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 py-6 text-center">
+      <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] px-6 py-6 text-center">
         <div className="text-2xl mb-2">🎧</div>
         <div className="text-white font-black text-lg mb-1">How can we help?</div>
         <div className="text-white/60 text-xs mb-4">Find answers to common questions</div>
@@ -193,8 +193,8 @@ export function Help() {
           <div className="text-sm font-black text-gray-800 mb-3">Still need help?</div>
           <div className="flex flex-col gap-2">
             <Link to="/messages">
-              <button className="w-full flex items-center gap-3 bg-[#1a56f0]/5 border border-[#1a56f0]/20 rounded-xl px-4 py-3">
-                <MessageCircle size={18} className="text-[#1a56f0]" />
+              <button className="w-full flex items-center gap-3 bg-[#004B49]/5 border border-[#004B49]/20 rounded-xl px-4 py-3">
+                <MessageCircle size={18} className="text-[#004B49]" />
                 <div className="text-left">
                   <div className="text-sm font-bold text-gray-800">Live Chat Support</div>
                   <div className="text-xs text-gray-500">Available 24/7 · Usually replies in minutes</div>
