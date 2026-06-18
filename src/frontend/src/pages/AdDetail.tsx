@@ -6,6 +6,8 @@ import {
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+const CROSSING_FEE = 72;
+
 interface AdData {
   id: string;
   title: string;
@@ -120,9 +122,10 @@ export function AdDetail() {
     );
   }
 
-  // Buyer pays EXACTLY the listed price — no extra fee on top.
-  // Crossing's $36 fee is deducted only from the Seller's payout, not added to the Buyer's cost.
-  const totalRequired = ad.price;
+  // ad.price = provider's own asking price (what they receive).
+  // Buyer always sees and pays ad.price + CROSSING_FEE, shown as a single plain number — no breakdown.
+  const buyerPrice = ad.price + CROSSING_FEE;
+  const totalRequired = buyerPrice;
   const hasEnoughBalance = walletBalance >= totalRequired;
   const verified = ad.provider_kyc_status === "approved";
   const orderPlaced = !!existingTxId;
@@ -164,7 +167,7 @@ export function AdDetail() {
         ad_id: ad.id,
         amount: ad.price,
         buyer_fee: 0,
-        seller_fee: 36,
+        seller_fee: CROSSING_FEE,
         status: "escrow_active",
         current_step: 1,
       })
@@ -183,7 +186,7 @@ export function AdDetail() {
       type: "fee",
       amount: -totalRequired,
       status: "completed",
-      notes: `Escrow deposit for order on "${ad.title}"`,
+      notes: `Order placed: "${ad.title}"`,
     });
 
     if (ad.requirements.length > 0) {
@@ -266,7 +269,7 @@ export function AdDetail() {
           <div className="flex items-start justify-between gap-2 mb-3">
             <h1 className="font-black text-gray-800 text-base leading-snug flex-1">{ad.title}</h1>
             <div className="text-right flex-shrink-0">
-              <div className="text-xl font-black text-[#004B49]">${ad.price}</div>
+              <div className="text-xl font-black text-[#004B49]">${buyerPrice.toFixed(2)}</div>
               <div className="text-[10px] text-gray-400">{ad.currency}</div>
             </div>
           </div>
@@ -400,12 +403,10 @@ export function AdDetail() {
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-500">Service Price</span><span className="font-bold text-gray-800">${ad.price} USDT</span></div>
-                  <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between items-center">
+                  <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-gray-700">Total Deposit</span>
                     <span className="font-black text-[#004B49] text-lg">${totalRequired.toFixed(2)} USDT</span>
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-2">No extra fees — you pay exactly the listed price.</div>
                 </div>
 
                 <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
@@ -472,7 +473,7 @@ export function AdDetail() {
           <button onClick={handleBuyClick}
             className="flex-1 bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
             <Lock size={16} />
-            {orderPlaced ? "View Order" : `Buy — $${ad.price} USDT`}
+            {orderPlaced ? "View Order" : `Buy — $${buyerPrice.toFixed(2)} USDT`}
           </button>
         </div>
       </div>
