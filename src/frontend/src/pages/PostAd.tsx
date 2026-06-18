@@ -152,7 +152,7 @@ export function PostAd() {
             </div>
             {status.kycLevel < 3 && (
               <Link to="/kyc">
-                <button className="w-full bg-[#1a56f0] text-white font-bold py-3 rounded-xl text-sm">
+                <button className="w-full bg-[#004B49] text-white font-bold py-3 rounded-xl text-sm">
                   Complete KYC →
                 </button>
               </Link>
@@ -160,16 +160,16 @@ export function PostAd() {
           </div>
 
           {/* DEPOSIT CARD */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.deposit >= 2000 ? "border-green-200" : "border-amber-200"}`}>
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.deposit >= 2000 ? "border-green-200" : "border-[#D4AF37]/40"}`}>
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.deposit >= 2000 ? "bg-green-50" : "bg-amber-50"}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.deposit >= 2000 ? "bg-green-50" : "bg-[#FBF3E1]"}`}>
                 {status.deposit >= 2000
                   ? <CheckCircle size={20} className="text-green-500" />
-                  : <Shield size={20} className="text-amber-500" />}
+                  : <Shield size={20} className="text-[#9c7a1f]" />}
               </div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
-                <div className={`text-xs font-semibold mt-0.5 ${status.deposit >= 2000 ? "text-green-500" : "text-amber-500"}`}>
+                <div className={`text-xs font-semibold mt-0.5 ${status.deposit >= 2000 ? "text-green-500" : "text-[#9c7a1f]"}`}>
                   {status.deposit >= 2000 ? "✓ $2,000 USDT Deposited" : `⚠ $${status.deposit} / $2,000 USDT deposited`}
                 </div>
               </div>
@@ -184,14 +184,14 @@ export function PostAd() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">Remaining</span>
-                    <span className="font-bold text-amber-500">${2000 - status.deposit} USDT</span>
+                    <span className="font-bold text-[#9c7a1f]">${2000 - status.deposit} USDT</span>
                   </div>
                   <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(status.deposit / 2000) * 100}%` }} />
+                    <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${(status.deposit / 2000) * 100}%` }} />
                   </div>
                 </div>
                 <Link to="/wallet">
-                  <button className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl text-sm">
+                  <button className="w-full bg-[#D4AF37] text-white font-bold py-3 rounded-xl text-sm">
                     Deposit $2,000 USDT →
                   </button>
                 </Link>
@@ -216,11 +216,11 @@ export function PostAd() {
           <span className="text-xs text-gray-400">{step}/{totalSteps}</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full bg-[#1a56f0] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[#004B49] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex justify-between mt-1.5">
           {["Basic","Details","Pricing","Process","Review"].map((l, i) => (
-            <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#1a56f0]" : "text-gray-300"}`}>{l}</span>
+            <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#004B49]" : "text-gray-300"}`}>{l}</span>
           ))}
         </div>
       </div>
@@ -234,12 +234,12 @@ export function PostAd() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Listing Title *</label>
                 <input value={form.title} onChange={(e) => set("title", e.target.value)}
                   placeholder="e.g. Canada Work Permit for Engineers"
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Destination Country *</label>
                 <select value={form.country} onChange={(e) => set("country", e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]">
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
                   <option value="">Select country...</option>
                   {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -249,7 +249,7 @@ export function PostAd() {
                 <div className="flex flex-wrap gap-2">
                   {VISA_TYPES.map((v) => (
                     <button key={v} onClick={() => set("visaType", v)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${form.visaType === v ? "bg-[#1a56f0] text-white border-[#1a56f0]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${form.visaType === v ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
                       {v}
                     </button>
                   ))}
@@ -267,33 +267,33 @@ export function PostAd() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Processing Time *</label>
                 <input value={form.processingTime} onChange={(e) => set("processingTime", e.target.value)}
                   placeholder="e.g. 4-6 weeks"
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Description *</label>
                 <textarea value={form.description} onChange={(e) => set("description", e.target.value)}
                   placeholder="Describe your service in detail..." rows={5}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0] resize-none" />
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49] resize-none" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Required Documents</label>
                 <div className="flex gap-2 mb-2">
                   <input value={req} onChange={(e) => setReq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addReq()}
                     placeholder="e.g. Valid Passport"
-                    className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#1a56f0]" />
-                  <button onClick={addReq} className="w-10 h-10 bg-[#1a56f0] rounded-xl flex items-center justify-center flex-shrink-0">
+                    className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#004B49]" />
+                  <button onClick={addReq} className="w-10 h-10 bg-[#004B49] rounded-xl flex items-center justify-center flex-shrink-0">
                     <Plus size={18} className="text-white" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {["Valid Passport","Bank Statements","Employment Letter","Photographs","Travel Insurance","Educational Certificates","Police Clearance","Medical Certificate"].map((s) => (
                     <button key={s} onClick={() => setForm((f) => ({ ...f, requirements: [...f.requirements, s] }))}
-                      className="text-[10px] bg-blue-50 border border-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">+ {s}</button>
+                      className="text-[10px] bg-[#E8F0EF] border border-[#004B49]/15 text-[#004B49] px-2 py-1 rounded-full font-medium">+ {s}</button>
                   ))}
                 </div>
                 {form.requirements.map((r, i) => (
                   <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 mb-1.5">
-                    <span className="w-4 h-4 rounded-full bg-[#1a56f0]/10 text-[#1a56f0] text-[9px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                    <span className="w-4 h-4 rounded-full bg-[#004B49]/10 text-[#004B49] text-[9px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                     <span className="flex-1 text-sm text-gray-700">{r}</span>
                     <button onClick={() => removeReq(i)}><X size={13} className="text-gray-400" /></button>
                   </div>
@@ -324,9 +324,9 @@ export function PostAd() {
                   </select>
                 </div>
               </div>
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                <div className="text-xs font-black text-[#1a56f0] mb-1">Crossing Fee Structure</div>
-                <div className="text-[11px] text-blue-700 flex flex-col gap-0.5">
+              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
+                <div className="text-xs font-black text-[#004B49] mb-1">Crossing Fee Structure</div>
+                <div className="text-[11px] text-[#004B49] flex flex-col gap-0.5">
                   <div>• Buyer pays: Your fee + $36 Crossing fee</div>
                   <div>• You receive: Your fee − $36 Crossing fee</div>
                   <div>• Payment released only after visa confirmed</div>
@@ -343,10 +343,10 @@ export function PostAd() {
             <div className="flex flex-col gap-3">
               {form.steps.map((s, i) => (
                 <div key={i} className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-[#1a56f0] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">{i + 1}</div>
+                  <div className="w-7 h-7 rounded-full bg-[#004B49] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">{i + 1}</div>
                   <input value={s} onChange={(e) => setStepText(i, e.target.value)}
                     placeholder={["Documents collection from buyer","Document verification & preparation","Embassy application submission","Interview scheduling (if required)","Visa delivery & case closure"][i]}
-                    className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                    className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                 </div>
               ))}
             </div>
@@ -363,19 +363,19 @@ export function PostAd() {
                   <div className="text-xs text-gray-500 mt-0.5">{form.country} · {form.visaType}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-black text-[#1a56f0] text-lg">${form.price}</div>
+                  <div className="font-black text-[#004B49] text-lg">${form.price}</div>
                   <div className="text-[10px] text-gray-400">{form.currency}</div>
                 </div>
               </div>
               <div className="flex gap-2 mb-3">
-                <span className="bg-blue-50 text-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold">⏱ {form.processingTime || "TBD"}</span>
+                <span className="bg-[#E8F0EF] text-[#004B49] text-xs px-2.5 py-1 rounded-full font-semibold">⏱ {form.processingTime || "TBD"}</span>
               </div>
               {form.requirements.length > 0 && (
                 <div className="mb-2">
                   <div className="text-xs font-bold text-gray-600 mb-1.5">📄 Required Docs ({form.requirements.length})</div>
                   {form.requirements.map((r, i) => (
                     <div key={i} className="text-xs text-gray-500 flex items-center gap-1.5 mb-1">
-                      <span className="w-1 h-1 rounded-full bg-[#1a56f0] flex-shrink-0" />{r}
+                      <span className="w-1 h-1 rounded-full bg-[#004B49] flex-shrink-0" />{r}
                     </div>
                   ))}
                 </div>
@@ -391,7 +391,7 @@ export function PostAd() {
         <button
           onClick={() => step < totalSteps ? setStep(step + 1) : void handleSubmit()}
           disabled={submitting}
-          className="w-full mt-4 bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+          className="w-full mt-4 bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
           {submitting ? "Submitting..." : step < totalSteps ? <><span>Continue</span><ChevronRight size={16} /></> : <span>Submit Listing 🚀</span>}
         </button>
       </div>
