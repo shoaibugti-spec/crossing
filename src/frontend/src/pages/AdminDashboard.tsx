@@ -1,292 +1,461 @@
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, MessageCircle, Upload, ChevronDown, ChevronUp } from "lucide-react";
-import { useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle,
+  FileText,
+  Loader2,
+  Lock,
+  Shield,
+  Users,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { supabase } from "../lib/supabaseClient";
 
-const DISPUTES = [
-  {
-    id: "DSP-001",
-    txnId: "TXN-003",
-    title: "UAE Work Visa — IT Sector",
-    provider: "Dubai Visa Center",
-    amount: 199,
-    status: "under_review",
-    reason: "Provider stopped responding after document submission",
-    filedDate: "May 15, 2026",
-    updates: [
-      { date: "May 15", text: "Dispute filed by buyer", by: "You" },
-      { date: "May 16", text: "Admin notified provider — awaiting response", by: "Crossing" },
-      { date: "May 18", text: "Provider responded — case under review", by: "Crossing" },
-    ],
-  },
-];
-
-const REASONS = [
-  "Provider stopped responding",
-  "Documents submitted but no update",
-  "Visa rejected — provider promised refund",
-  "Fake or misleading listing",
-  "Provider requested extra payment",
-  "Other fraud or scam",
-];
-
-export function Disputes() {
+export function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"active" | "new">("active");
-  const [openId, setOpenId] = useState<string | null>("DSP-001");
-  const [reason, setReason] = useState("");
-  const [details, setDetails] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const STATUS = {
-    under_review: { label: "Under Review", color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
-    resolved:     { label: "Resolved",     color: "text-green-500", bg: "bg-green-50",  border: "border-green-100" },
-    closed:       { label: "Closed",       color: "text-gray-400",  bg: "bg-gray-50",   border: "border-gray-100" },
+  const [kycUsers, setKycUsers] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminAds, setAdminAds] = useState<any[]>([]);
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
+  const [selectedDispute, setSelectedDispute] = useState<string | null>(null);
+  const [disputeStatus, setDisputeStatus] = useState("under_review");
+  const [disputeNotes, setDisputeNotes] = useState("");
+
+  // ── ACCESS CONTROL ──
+  useEffect(() => {
+    void checkAccess();
+  }, []);
+
+  async function checkAccess() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setAccessChecked(true);
+      void navigate({ to: "/login" });
+      return;
+    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profile?.role === "admin") {
+      setIsAdmin(true);
+      void loadAllData();
+    }
+    setAccessChecked(true);
+  }
+
+  async function loadAllData() {
+    setLoadingData(true);
+
+    const { data: kyc } = await supabase
+      .from("kyc_submissions")
+      .select("id, user_id, full_name, document_type, submitted_at, status, profiles:user_id(full_name)")
+      .order("submitted_at", { ascending: false });
+    setKycUsers(kyc ?? []);
+
+    const { data: users } = await supabase
+      .from("profiles")
+      .select("id, full_name, role, kyc_status, trust_score, is_suspended, created_at, country")
+      .order("created_at", { ascending: false });
+    setAdminUsers(users ?? []);
+
+    const { data: ads } = await supabase
+      .from("ads")
+      .select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)")
+      .order("created_at", { ascending: false });
+    setAdminAds(ads ?? []);
+
+    const { data: disputesData } = await supabase
+      .from("disputes")
+      .select("id, transaction_id, reason, status, created_at, filed_by")
+      .order("created_at", { ascending: false });
+    setDisputes(disputesData ?? []);
+
+    setLoadingData(false);
+  }
+
+  const stats = [
+    { label: "Total Users", value: adminUsers.length.toString(), icon: Users, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
+    { label: "Active Ads", value: adminAds.filter((a) => a.status === "active").length.toString(), icon: FileText, color: "text-green-600", bg: "bg-green-50" },
+    { label: "Pending KYC", value: kycUsers.filter((u) => u.status === "pending").length.toString(), icon: Shield, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
+    { label: "Open Disputes", value: disputes.filter((d) => d.status === "open" || d.status === "under_review").length.toString(), icon: AlertTriangle, color: "text-red-600", bg: "bg-red-50" },
+  ];
+
+  const handleApproveKYC = async (kycId: string, userId: string) => {
+    setProcessingId(kycId);
+    await supabase.from("kyc_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", kycId);
+    await supabase.from("profiles").update({ kyc_status: "approved", kyc_level: 3 }).eq("id", userId);
+    setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "approved" } : u)));
+    setProcessingId(null);
+    toast.success("KYC approved");
   };
 
-  return (
-    <div className="flex flex-col pb-8">
+  const handleRejectKYC = async (kycId: string, userId: string) => {
+    setProcessingId(kycId);
+    await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString() }).eq("id", kycId);
+    await supabase.from("profiles").update({ kyc_status: "rejected" }).eq("id", userId);
+    setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "rejected" } : u)));
+    setProcessingId(null);
+    toast.success("KYC rejected");
+  };
 
-      {/* BACK */}
-      <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
-          <ArrowLeft size={20} className="text-gray-600" />
-        </button>
-        <span className="font-bold text-gray-800 text-sm">Dispute Center</span>
+  const handleSuspendUser = async (userId: string) => {
+    await supabase.from("profiles").update({ is_suspended: true }).eq("id", userId);
+    setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: true } : u)));
+    toast.success("User suspended");
+  };
+
+  const handleSuspendAd = async (id: string) => {
+    await supabase.from("ads").update({ status: "suspended" }).eq("id", id);
+    setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "suspended" } : a)));
+    toast.success("Ad suspended");
+  };
+
+  const handleUpdateDispute = async () => {
+    if (!selectedDispute) return;
+    await supabase.from("disputes").update({ status: disputeStatus, admin_notes: disputeNotes }).eq("id", selectedDispute);
+    setDisputes((prev) => prev.map((d) => (d.id === selectedDispute ? { ...d, status: disputeStatus } : d)));
+    setDisputeDialogOpen(false);
+    toast.success("Dispute status updated");
+  };
+
+  const kycStatusBadge = (status: string) => {
+    if (status === "pending") return <Badge variant="outline" className="text-xs bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30">Pending</Badge>;
+    if (status === "approved") return <Badge variant="outline" className="text-xs badge-success">Approved</Badge>;
+    return <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
+  };
+
+  // ── ACCESS GATES ──
+  if (!accessChecked) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
       </div>
+    );
+  }
 
-      {/* TABS */}
-      <div className="bg-white px-4 pb-3 border-b border-gray-100">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
-          {(["active", "new"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
-              }`}>
-              {t === "active" ? "My Disputes" : "File New Dispute"}
-            </button>
-          ))}
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+          <Lock size={28} className="text-red-400" />
         </div>
+        <div className="font-black text-gray-800 text-lg mb-1">Access Denied</div>
+        <div className="text-sm text-gray-500">This area is restricted to Crossing administrators only.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <h1 className="font-display text-2xl font-bold text-foreground mb-6">
+        Admin Dashboard
+      </h1>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        {stats.map(({ label, value, icon: Icon, color, bg }) => (
+          <Card key={label} className="border-border/60 shadow-card">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
+                  <Icon size={18} className={color} />
+                </div>
+              </div>
+              <p className="font-display font-bold text-2xl text-foreground">{value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* ACTIVE DISPUTES */}
-      {tab === "active" && (
-        <div className="mx-4 mt-4 flex flex-col gap-3">
+      {loadingData ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="animate-spin text-gray-300" size={28} />
+        </div>
+      ) : (
+        <Tabs defaultValue="kyc">
+          <TabsList className="mb-6">
+            <TabsTrigger value="kyc">
+              KYC Queue
+              {kycUsers.filter((u) => u.status === "pending").length > 0 && (
+                <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">
+                  {kycUsers.filter((u) => u.status === "pending").length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="ads">Ads</TabsTrigger>
+            <TabsTrigger value="disputes">Disputes</TabsTrigger>
+          </TabsList>
 
-          {/* INFO BOX */}
-          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-2xl p-4">
-            <div className="text-xs font-bold text-[#004B49] mb-1">🛡️ Escrow Protection Active</div>
-            <div className="text-xs text-[#004B49]">
-              Your funds are safely held in Escrow. They will not be released to the provider until your dispute is resolved.
+          {/* KYC Queue */}
+          <TabsContent value="kyc">
+            <Card className="border-border/60 shadow-card">
+              <CardContent className="p-0">
+                {kycUsers.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Document Type</TableHead>
+                        <TableHead>Submitted</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {kycUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium text-sm">{user.full_name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground capitalize">{user.document_type}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(user.submitted_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>{kycStatusBadge(user.status)}</TableCell>
+                          <TableCell className="text-right">
+                            {user.status === "pending" ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <Button size="sm" onClick={() => void handleApproveKYC(user.id, user.user_id)}
+                                  disabled={processingId === user.id}
+                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
+                                  {processingId === user.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />}
+                                  Approve
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => void handleRejectKYC(user.id, user.user_id)}
+                                  disabled={processingId === user.id}
+                                  className="gap-1 text-xs text-destructive border-destructive/30 h-7">
+                                  <XCircle size={11} /> Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Users */}
+          <TabsContent value="users">
+            <Card className="border-border/60 shadow-card">
+              <CardContent className="p-0">
+                {adminUsers.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>KYC</TableHead>
+                        <TableHead>Trust Score</TableHead>
+                        <TableHead>Joined</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium text-sm">{user.full_name || "—"}</TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs capitalize">{user.role}</Badge></TableCell>
+                          <TableCell className="text-xs capitalize text-muted-foreground">{user.kyc_status}</TableCell>
+                          <TableCell className="text-sm font-medium">{user.trust_score}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!user.is_suspended && user.role !== "admin" && (
+                              <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)}
+                                className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
+                                <Ban size={11} /> Suspend
+                              </Button>
+                            )}
+                            {user.is_suspended && <span className="text-xs text-red-500 font-bold">Suspended</span>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Ads */}
+          <TabsContent value="ads">
+            <Card className="border-border/60 shadow-card">
+              <CardContent className="p-0">
+                {adminAds.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Country</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminAds.map((ad) => (
+                        <TableRow key={ad.id}>
+                          <TableCell className="font-medium text-sm max-w-xs"><span className="line-clamp-1">{ad.title}</span></TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{ad.country}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs capitalize ${
+                              ad.status === "active" ? "bg-green-50 text-green-700 border-green-200"
+                                : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200"
+                                : "bg-gray-100 text-gray-600 border-gray-200"
+                            }`}>
+                              {ad.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{new Date(ad.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            {ad.status !== "suspended" && (
+                              <Button size="sm" variant="outline" onClick={() => void handleSuspendAd(ad.id)}
+                                className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
+                                <Ban size={11} /> Suspend
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Disputes */}
+          <TabsContent value="disputes">
+            <Card className="border-border/60 shadow-card">
+              <CardContent className="p-0">
+                {disputes.length === 0 ? (
+                  <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Transaction</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Filed</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {disputes.map((dispute) => (
+                        <TableRow key={dispute.id}>
+                          <TableCell className="font-mono text-xs">{dispute.transaction_id}</TableCell>
+                          <TableCell className="text-sm max-w-xs"><span className="line-clamp-1">{dispute.reason}</span></TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs capitalize ${
+                              dispute.status === "open" ? "bg-[#E8F0EF] text-[#004B49] border-[#004B49]/20"
+                                : dispute.status === "under_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
+                                : "bg-green-50 text-green-700 border-green-200"
+                            }`}>
+                              {dispute.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" className="text-xs h-7"
+                              onClick={() => { setSelectedDispute(dispute.id); setDisputeStatus(dispute.status); setDisputeDialogOpen(true); }}>
+                              Update Status
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {/* Dispute Update Dialog */}
+      <Dialog open={disputeDialogOpen} onOpenChange={setDisputeDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Update Dispute Status</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label>New Status</Label>
+              <Select value={disputeStatus} onValueChange={setDisputeStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="resolved_buyer">Resolved (Buyer)</SelectItem>
+                  <SelectItem value="resolved_seller">Resolved (Seller)</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Resolution Notes</Label>
+              <Textarea placeholder="Add resolution notes for both parties..." rows={4} value={disputeNotes} onChange={(e) => setDisputeNotes(e.target.value)} />
             </div>
           </div>
-
-          {DISPUTES.map((d) => {
-            const s = STATUS[d.status as keyof typeof STATUS];
-            const isOpen = openId === d.id;
-
-            return (
-              <div key={d.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-
-                {/* HEADER */}
-                <button
-                  onClick={() => setOpenId(isOpen ? null : d.id)}
-                  className="w-full px-4 py-4 flex items-start gap-3 text-left"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle size={18} className="text-red-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 text-sm truncate">{d.title}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{d.provider}</div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color} ${s.border}`}>
-                        {s.label}
-                      </span>
-                      <span className="text-[10px] text-gray-400">Filed {d.filedDate}</span>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-black text-gray-800">${d.amount}</div>
-                    <div className="text-[10px] text-gray-400">Locked</div>
-                    <div className="mt-1">
-                      {isOpen
-                        ? <ChevronUp size={14} className="text-gray-400 ml-auto" />
-                        : <ChevronDown size={14} className="text-gray-400 ml-auto" />}
-                    </div>
-                  </div>
-                </button>
-
-                {/* EXPANDED */}
-                {isOpen && (
-                  <div className="px-4 pb-4 border-t border-gray-50">
-
-                    {/* REASON */}
-                    <div className="mt-3 bg-gray-50 rounded-xl p-3 mb-3">
-                      <div className="text-[10px] font-bold text-gray-400 mb-1">Dispute Reason</div>
-                      <div className="text-xs text-gray-700">{d.reason}</div>
-                    </div>
-
-                    {/* TIMELINE */}
-                    <div className="mb-3">
-                      <div className="text-xs font-bold text-gray-600 mb-2">Case Timeline</div>
-                      <div className="flex flex-col gap-2">
-                        {d.updates.map((u, i) => (
-                          <div key={i} className="flex gap-2.5 items-start">
-                            <div className="flex flex-col items-center">
-                              <div className="w-5 h-5 rounded-full bg-[#004B49]/10 flex items-center justify-center flex-shrink-0">
-                                <div className="w-2 h-2 rounded-full bg-[#004B49]" />
-                              </div>
-                              {i < d.updates.length - 1 && (
-                                <div className="w-px h-4 bg-gray-100 mt-0.5" />
-                              )}
-                            </div>
-                            <div className="pb-1">
-                              <div className="text-xs text-gray-700 font-medium">{u.text}</div>
-                              <div className="text-[10px] text-gray-400 mt-0.5">{u.date} · {u.by}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* UPLOAD EVIDENCE */}
-                    <div className="mb-3">
-                      <div className="text-xs font-bold text-gray-600 mb-2">Add Evidence</div>
-                      <button
-                        onClick={() => alert("File picker opening...")}
-                        className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 flex items-center justify-center gap-2 hover:border-[#004B49]/40 transition-all"
-                      >
-                        <Upload size={16} className="text-gray-300" />
-                        <span className="text-xs text-gray-400">Upload screenshots or documents</span>
-                      </button>
-                    </div>
-
-                    {/* ACTIONS */}
-                    <div className="flex gap-2">
-                      <Link to="/messages" className="flex-1">
-                        <button className="w-full border border-[#004B49] text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                          <MessageCircle size={14} />
-                          Message Admin
-                        </button>
-                      </Link>
-                      <button
-                        onClick={() => alert("Escalation request sent to senior admin.")}
-                        className="flex-1 bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl"
-                      >
-                        Escalate Case
-                      </button>
-                    </div>
-
-                    <div className="mt-2 text-center">
-                      <span className="text-[10px] text-gray-400">Case ID: {d.id} · Transaction: {d.txnId}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {DISPUTES.length === 0 && (
-            <div className="text-center py-12">
-              <CheckCircle size={36} className="text-gray-200 mx-auto mb-3" />
-              <div className="text-sm font-bold text-gray-400">No active disputes</div>
-              <div className="text-xs text-gray-300 mt-1">All your transactions are running smoothly</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* FILE NEW DISPUTE */}
-      {tab === "new" && (
-        <div className="mx-4 mt-4">
-          {submitted ? (
-            <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
-              <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-3">
-                <CheckCircle size={26} className="text-green-500" />
-              </div>
-              <div className="font-black text-gray-800 text-lg mb-1">Dispute Filed!</div>
-              <div className="text-sm text-gray-500 mb-4">
-                Admin will review your case within 24 hours. Your Escrow funds remain locked and safe.
-              </div>
-              <button
-                onClick={() => { setSubmitted(false); setTab("active"); }}
-                className="bg-[#004B49] text-white font-bold py-3 px-6 rounded-2xl text-sm"
-              >
-                View My Disputes
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-
-              <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-2xl p-4 flex gap-2">
-                <AlertTriangle size={16} className="text-[#9c7a1f] flex-shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-bold text-[#9c7a1f] mb-0.5">Before filing a dispute</div>
-                  <div className="text-xs text-[#9c7a1f]">Try messaging the provider first. Most issues are resolved through direct communication.</div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="text-sm font-bold text-gray-800 mb-4">File a Dispute</div>
-
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Select Transaction</label>
-                  <select className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
-                    <option>TXN-003 — UAE Work Visa ($199)</option>
-                    <option>TXN-001 — Canada PR ($499)</option>
-                  </select>
-                </div>
-
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Reason</label>
-                  <div className="flex flex-col gap-2">
-                    {REASONS.map((r) => (
-                      <button key={r} onClick={() => setReason(r)}
-                        className={`text-left px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
-                          reason === r
-                            ? "bg-[#004B49]/5 border-[#004B49] text-[#004B49]"
-                            : "bg-gray-50 border-gray-100 text-gray-600"
-                        }`}>
-                        {reason === r ? "✓ " : ""}{r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Details</label>
-                  <textarea
-                    value={details}
-                    onChange={(e) => setDetails(e.target.value)}
-                    placeholder="Describe exactly what happened, when it happened, and what you expect..."
-                    rows={4}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49] resize-none"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Evidence (Optional)</label>
-                  <button
-                    onClick={() => alert("File picker opening...")}
-                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40"
-                  >
-                    <Upload size={20} className="text-gray-300" />
-                    <span className="text-xs text-gray-400">Upload screenshots or documents</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => reason && details ? setSubmitted(true) : alert("Please select a reason and add details")}
-                  className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm"
-                >
-                  Submit Dispute
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisputeDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleUpdateDispute()} className="bg-[#004B49] hover:bg-[#00302e] text-white">Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
