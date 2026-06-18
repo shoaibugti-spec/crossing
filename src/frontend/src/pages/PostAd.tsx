@@ -327,8 +327,8 @@ export function PostAd() {
               <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
                 <div className="text-xs font-black text-[#004B49] mb-1">Crossing Fee Structure</div>
                 <div className="text-[11px] text-[#004B49] flex flex-col gap-0.5">
-                  <div>• Buyer pays: Your fee + $36 Crossing fee</div>
-                  <div>• You receive: Your fee − $36 Crossing fee</div>
+                  <div>• Buyer pays exactly the price you set — no extra fee added</div>
+                  <div>• You receive: Your price − $36 Crossing fee</div>
                   <div>• Payment released only after visa confirmed</div>
                 </div>
               </div>
