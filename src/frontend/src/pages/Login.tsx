@@ -37,15 +37,15 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
+    <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
       {/* TOP BRAND HEADER */}
-      <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 pt-16 pb-10 flex flex-col items-center">
+      <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-16 pb-10 flex flex-col items-center">
         <svg width="56" height="56" viewBox="0 0 80 80" fill="none">
           <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
           <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
           <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-          <circle cx="40" cy="40" r="7" fill="white" />
+          <circle cx="40" cy="40" r="7" fill="#D4AF37" />
         </svg>
         <div className="text-white font-black text-2xl tracking-wider mt-3">CROSSING</div>
         <div className="text-white/60 text-xs mt-1">World's Trusted Visa Marketplace</div>
@@ -83,7 +83,7 @@ export function Login() {
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Password</label>
                 <Link to="/forgot-password">
-                  <span className="text-[10px] font-bold text-[#1a56f0]">Forgot Password?</span>
+                  <span className="text-[10px] font-bold text-[#004B49]">Forgot Password?</span>
                 </Link>
               </div>
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
@@ -106,14 +106,14 @@ export function Login() {
           <button
             onClick={() => void handleLogin()}
             disabled={loading}
-            className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60"
+            className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
 
           <div className="text-center text-sm text-gray-500 mt-5">
             Don't have an account?{" "}
-            <Link to="/signup"><span className="font-bold text-[#1a56f0]">Sign Up</span></Link>
+            <Link to="/signup"><span className="font-bold text-[#004B49]">Sign Up</span></Link>
           </div>
         </div>
 
