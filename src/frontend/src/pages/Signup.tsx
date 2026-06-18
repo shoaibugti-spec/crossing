@@ -97,7 +97,6 @@ export function Signup() {
         return;
       }
 
-      // Update profile with extra fields (trigger already created the base row)
       await supabase
         .from("profiles")
         .update({
@@ -106,7 +105,6 @@ export function Signup() {
         })
         .eq("id", userId);
 
-      // If provider, save business info
       if (role === "provider") {
         await supabase.from("provider_business_info").insert({
           user_id: userId,
@@ -137,15 +135,15 @@ export function Signup() {
     : ["Role", "Details", "Password"];
 
   return (
-    <div className="min-h-screen bg-[#F2F3F7] flex flex-col">
+    <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
-      <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] px-6 pt-14 pb-6">
+      <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-14 pb-6">
         <div className="flex justify-center mb-3">
           <svg width="44" height="44" viewBox="0 0 80 80" fill="none">
             <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
             <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
             <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-            <circle cx="40" cy="40" r="7" fill="white" />
+            <circle cx="40" cy="40" r="7" fill="#D4AF37" />
           </svg>
         </div>
         <div className="text-white font-black text-xl tracking-wider text-center mb-4">CROSSING</div>
@@ -154,11 +152,11 @@ export function Signup() {
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                i + 1 < step ? "bg-green-400 text-white" : i + 1 === step ? "bg-white text-[#1a56f0]" : "bg-white/20 text-white/50"
+                i + 1 < step ? "bg-[#D4AF37] text-white" : i + 1 === step ? "bg-white text-[#004B49]" : "bg-white/20 text-white/50"
               }`}>
                 {i + 1 < step ? "✓" : i + 1}
               </div>
-              {i < totalSteps - 1 && <div className={`w-5 h-0.5 ${i + 1 < step ? "bg-green-400" : "bg-white/20"}`} />}
+              {i < totalSteps - 1 && <div className={`w-5 h-0.5 ${i + 1 < step ? "bg-[#D4AF37]" : "bg-white/20"}`} />}
             </div>
           ))}
         </div>
@@ -180,14 +178,14 @@ export function Signup() {
               <div className="text-sm text-gray-500 mb-5">Select your role to get started</div>
 
               <div onClick={() => setRole("seeker")}
-                className={`border-2 rounded-2xl p-4 mb-3 cursor-pointer transition-all ${role === "seeker" ? "border-[#1a56f0] bg-blue-50" : "border-gray-100"}`}>
+                className={`border-2 rounded-2xl p-4 mb-3 cursor-pointer transition-all ${role === "seeker" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">🔎</span>
                   <div style={{ flex: 1 }}>
                     <div className="font-bold text-gray-800">Visa Seeker</div>
                     <div className="text-xs text-gray-500">I want to find & buy visa services</div>
                   </div>
-                  {role === "seeker" && <span className="text-[#1a56f0] font-bold text-lg">✓</span>}
+                  {role === "seeker" && <span className="text-[#004B49] font-bold text-lg">✓</span>}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {["Work Visa", "Study Visa", "Immigration", "Sponsorship"].map((t) => (
@@ -197,14 +195,14 @@ export function Signup() {
               </div>
 
               <div onClick={() => setRole("provider")}
-                className={`border-2 rounded-2xl p-4 cursor-pointer transition-all ${role === "provider" ? "border-[#1a56f0] bg-blue-50" : "border-gray-100"}`}>
+                className={`border-2 rounded-2xl p-4 cursor-pointer transition-all ${role === "provider" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">🏢</span>
                   <div style={{ flex: 1 }}>
                     <div className="font-bold text-gray-800">Visa Provider</div>
                     <div className="text-xs text-gray-500">I offer visa & immigration services</div>
                   </div>
-                  {role === "provider" && <span className="text-[#1a56f0] font-bold text-lg">✓</span>}
+                  {role === "provider" && <span className="text-[#004B49] font-bold text-lg">✓</span>}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {["Licensed Agent", "Immigration Consultant", "Recruitment Agency", "Travel Agency"].map((t) => (
@@ -212,9 +210,9 @@ export function Signup() {
                   ))}
                 </div>
                 {role === "provider" && (
-                  <div className="mt-3 bg-amber-50 border border-amber-100 rounded-xl p-2.5 flex gap-2">
-                    <span className="text-amber-500 text-xs flex-shrink-0">⚠️</span>
-                    <span className="text-[11px] text-amber-700">Provider accounts require business license verification. Review takes 3-5 business days.</span>
+                  <div className="mt-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-2.5 flex gap-2">
+                    <span className="text-[#9c7a1f] text-xs flex-shrink-0">⚠️</span>
+                    <span className="text-[11px] text-[#9c7a1f]">Provider accounts require business license verification. Review takes 3-5 business days.</span>
                   </div>
                 )}
               </div>
@@ -290,8 +288,8 @@ export function Signup() {
                       className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
                   </div>
                 </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <div className="text-xs text-blue-700">
+                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
+                  <div className="text-xs text-[#004B49]">
                     By creating an account you agree to our <span className="font-bold">Terms of Service</span> and <span className="font-bold">Privacy Policy</span>.
                   </div>
                 </div>
@@ -309,7 +307,7 @@ export function Signup() {
                   <div className="grid grid-cols-2 gap-2">
                     {BUSINESS_TYPES.map((b) => (
                       <button key={b.key} onClick={() => set("businessType", b.key)}
-                        className={`border-2 rounded-xl p-2.5 text-left transition-all ${form.businessType === b.key ? "border-[#1a56f0] bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+                        className={`border-2 rounded-xl p-2.5 text-left transition-all ${form.businessType === b.key ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100 bg-gray-50"}`}>
                         <div className="text-sm font-bold text-gray-700">{b.label}</div>
                         <div className="text-[10px] text-gray-400 mt-0.5">{b.desc}</div>
                       </button>
@@ -344,12 +342,12 @@ export function Signup() {
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">City *</label>
                     <input value={form.officeCity} onChange={(e) => set("officeCity", e.target.value)} placeholder="Karachi"
-                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#1a56f0]" />
+                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49]" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Country *</label>
                     <select value={form.officeCountry} onChange={(e) => set("officeCountry", e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#1a56f0]">
+                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49]">
                       <option value="">Select...</option>
                       {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -371,9 +369,9 @@ export function Signup() {
             <>
               <div className="font-black text-gray-800 text-xl mb-1">License Verification</div>
               <div className="text-sm text-gray-500 mb-4">Your license details for verification</div>
-              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 flex gap-2">
-                <span className="text-amber-500 flex-shrink-0">⚠️</span>
-                <span className="text-[11px] text-amber-700">
+              <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
+                <span className="text-[#9c7a1f] flex-shrink-0">⚠️</span>
+                <span className="text-[11px] text-[#9c7a1f]">
                   Only licensed and registered professionals can operate as Visa Providers on Crossing. Fake or expired licenses result in permanent ban.
                 </span>
               </div>
@@ -389,7 +387,7 @@ export function Signup() {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Issuing Authority *</label>
                   <select value={form.licenseBody} onChange={(e) => set("licenseBody", e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]">
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
                     <option value="">Select authority...</option>
                     {LICENSE_BODIES.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
@@ -397,11 +395,11 @@ export function Signup() {
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">License Expiry Date *</label>
                   <input type="date" value={form.licenseExpiry} onChange={(e) => set("licenseExpiry", e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload License Document *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#1a56f0]/40 transition-all"
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40 transition-all"
                     onClick={() => alert("File upload will be wired to Supabase Storage in the next step.")}>
                     <div className="text-2xl mb-1">📄</div>
                     <div className="text-xs font-semibold text-gray-500">Tap to upload license</div>
@@ -410,16 +408,16 @@ export function Signup() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload Company Registration *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#1a56f0]/40 transition-all"
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40 transition-all"
                     onClick={() => alert("File upload will be wired to Supabase Storage in the next step.")}>
                     <div className="text-2xl mb-1">🏢</div>
                     <div className="text-xs font-semibold text-gray-500">Company registration certificate</div>
                     <div className="text-[10px] text-gray-400">PDF or Image · Max 5MB</div>
                   </div>
                 </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex gap-2">
-                  <span className="text-[#1a56f0] flex-shrink-0">ℹ️</span>
-                  <div className="text-[11px] text-blue-700">
+                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
+                  <span className="text-[#004B49] flex-shrink-0">ℹ️</span>
+                  <div className="text-[11px] text-[#004B49]">
                     <div className="font-black mb-0.5">What happens after submission?</div>
                     <div>1. Admin verifies your license with issuing authority</div>
                     <div>2. Office address is verified</div>
@@ -464,8 +462,8 @@ export function Signup() {
                     <div>Location: {form.officeCity}, {form.officeCountry}</div>
                   </div>
                 </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <div className="text-[11px] text-blue-700">
+                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
+                  <div className="text-[11px] text-[#004B49]">
                     By submitting you agree to our <span className="font-bold">Terms of Service</span>, <span className="font-bold">Privacy Policy</span>, and <span className="font-bold">Provider Agreement</span>.
                   </div>
                 </div>
@@ -474,14 +472,14 @@ export function Signup() {
           )}
 
           <button onClick={() => void handleNext()} disabled={loading}
-            className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60 flex items-center justify-center gap-2">
+            className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60 flex items-center justify-center gap-2">
             {loading ? "Creating account..." : (step === totalSteps ? (role === "provider" ? "Submit for Review 🚀" : "Create Account 🚀") : (<><span>Continue</span><ChevronRight size={16} /></>))}
           </button>
 
           {step === 1 && (
             <div className="text-center text-sm text-gray-500 mt-4">
               Already have an account?{" "}
-              <Link to="/login"><span className="font-bold text-[#1a56f0]">Login</span></Link>
+              <Link to="/login"><span className="font-bold text-[#004B49]">Login</span></Link>
             </div>
           )}
 
