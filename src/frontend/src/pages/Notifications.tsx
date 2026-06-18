@@ -7,7 +7,7 @@ const NOTIFICATIONS = [
     id: 1,
     type: "message",
     icon: MessageCircle,
-    color: "bg-blue-50 text-blue-500",
+    color: "bg-[#E8F0EF] text-[#004B49]",
     title: "New message from ImmigrationPro",
     desc: "Please send your passport copy and IELTS result to proceed.",
     time: "2 minutes ago",
@@ -18,7 +18,7 @@ const NOTIFICATIONS = [
     id: 2,
     type: "escrow",
     icon: Lock,
-    color: "bg-amber-50 text-amber-500",
+    color: "bg-[#FBF3E1] text-[#9c7a1f]",
     title: "Escrow Payment Locked",
     desc: "$499 USDT successfully locked for Canada PR service. Case #TXN-001 started.",
     time: "1 hour ago",
@@ -40,7 +40,7 @@ const NOTIFICATIONS = [
     id: 4,
     type: "review",
     icon: Star,
-    color: "bg-amber-50 text-amber-500",
+    color: "bg-[#FBF3E1] text-[#9c7a1f]",
     title: "New Review Received",
     desc: "Ahmad M. gave you 5 stars — 'Excellent service! Very professional.'",
     time: "Yesterday",
@@ -73,7 +73,7 @@ const NOTIFICATIONS = [
     id: 7,
     type: "message",
     icon: MessageCircle,
-    color: "bg-blue-50 text-blue-500",
+    color: "bg-[#E8F0EF] text-[#004B49]",
     title: "New message from Global Edu",
     desc: "Application submitted to university ✓ Awaiting their response.",
     time: "4 days ago",
@@ -129,7 +129,7 @@ export function Notifications() {
         {unreadCount > 0 && (
           <button
             onClick={markAllRead}
-            className="text-xs font-semibold text-[#1a56f0]"
+            className="text-xs font-semibold text-[#004B49]"
           >
             Mark all read
           </button>
@@ -169,7 +169,7 @@ export function Notifications() {
               onClick={() => markRead(n.id)}
             >
               <div className={`flex items-start gap-3 px-4 py-4 border-b border-gray-50 transition-all ${
-                !n.read ? "bg-blue-50/30" : "bg-white"
+                !n.read ? "bg-[#E8F0EF]/40" : "bg-white"
               }`}>
                 <div className={`w-10 h-10 rounded-2xl ${n.color} flex items-center justify-center flex-shrink-0`}>
                   <n.icon size={18} />
@@ -180,7 +180,7 @@ export function Notifications() {
                       {n.title}
                     </span>
                     {!n.read && (
-                      <div className="w-2 h-2 bg-[#1a56f0] rounded-full flex-shrink-0 mt-1" />
+                      <div className="w-2 h-2 bg-[#D4AF37] rounded-full flex-shrink-0 mt-1" />
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.desc}</p>
