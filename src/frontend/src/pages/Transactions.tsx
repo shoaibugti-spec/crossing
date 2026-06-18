@@ -31,8 +31,8 @@ interface TxRow {
 }
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  escrow_active: { label: "Escrow Active", color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
-  in_progress:   { label: "In Progress",   color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
+  escrow_active: { label: "Escrow Active", color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
+  in_progress:   { label: "In Progress",   color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
   completed:     { label: "Completed",     color: "text-green-500", bg: "bg-green-50", border: "border-green-100" },
   disputed:      { label: "Disputed",      color: "text-red-500",   bg: "bg-red-50",   border: "border-red-100" },
   cancelled:     { label: "Cancelled",     color: "text-gray-400",  bg: "bg-gray-50",  border: "border-gray-200" },
@@ -157,7 +157,6 @@ export function Transactions() {
       completed_at: new Date().toISOString(),
     }).eq("id", tx.id);
 
-    // Release funds to seller's wallet balance (minus their $36 fee)
     const { data: sellerProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", tx.seller_id).single();
     const sellerNewBalance = Number(sellerProfile?.wallet_balance ?? 0) + (tx.amount - 36);
     await supabase.from("profiles").update({ wallet_balance: sellerNewBalance }).eq("id", tx.seller_id);
@@ -219,8 +218,8 @@ export function Transactions() {
       <div className="mx-4 mt-4">
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: "Total Spent", value: `$${totalSpent.toFixed(0)}`, icon: Lock, color: "text-[#1a56f0]", bg: "bg-blue-50" },
-            { label: "In Escrow", value: `$${inEscrow.toFixed(0)}`, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+            { label: "Total Spent", value: `$${totalSpent.toFixed(0)}`, icon: Lock, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
+            { label: "In Escrow", value: `$${inEscrow.toFixed(0)}`, icon: Clock, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
             { label: "Completed", value: `$${completedTotal.toFixed(0)}`, icon: CheckCircle, color: "text-green-500", bg: "bg-green-50" },
           ].map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className={`${bg} rounded-2xl p-3 flex flex-col gap-1`}>
@@ -287,7 +286,7 @@ export function Transactions() {
                         { key: "progress", label: "📊 Progress" },
                       ].map((t) => (
                         <button key={t.key} onClick={() => setTabForTx(tx.id, t.key)}
-                          className={`flex-1 py-2.5 text-xs font-bold transition-all ${currentTab === t.key ? "text-[#1a56f0] border-b-2 border-[#1a56f0]" : "text-gray-400"}`}>
+                          className={`flex-1 py-2.5 text-xs font-bold transition-all ${currentTab === t.key ? "text-[#004B49] border-b-2 border-[#004B49]" : "text-gray-400"}`}>
                           {t.label}
                         </button>
                       ))}
@@ -297,9 +296,9 @@ export function Transactions() {
 
                       {currentTab === "docs" && (
                         <div>
-                          <div className="bg-blue-50 border border-blue-100 rounded-xl p-2.5 mb-3 flex gap-2">
-                            <Timer size={13} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
-                            <span className="text-[11px] text-blue-700">Provider must review each document within <span className="font-bold">24 hours</span> of submission.</span>
+                          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 mb-3 flex gap-2">
+                            <Timer size={13} className="text-[#004B49] flex-shrink-0 mt-0.5" />
+                            <span className="text-[11px] text-[#004B49]">Provider must review each document within <span className="font-bold">24 hours</span> of submission.</span>
                           </div>
 
                           {tx.docs.length === 0 ? (
@@ -311,13 +310,13 @@ export function Transactions() {
                                 const timeLeft = doc.review_deadline ? new Date(doc.review_deadline).getTime() - now : 0;
                                 return (
                                   <div key={doc.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${isOverdue ? "bg-red-50 border border-red-200" : "bg-gray-50"}`}>
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isOverdue ? "bg-red-100" : "bg-blue-50"}`}>
-                                      <FileText size={13} className={isOverdue ? "text-red-500" : "text-[#1a56f0]"} />
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isOverdue ? "bg-red-100" : "bg-[#E8F0EF]"}`}>
+                                      <FileText size={13} className={isOverdue ? "text-red-500" : "text-[#004B49]"} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
                                       <div className={`text-[10px] font-semibold mt-0.5 ${
-                                        doc.status === "verified" ? "text-green-500" : isOverdue ? "text-red-500" : doc.status === "submitted" ? "text-amber-500" : "text-red-400"
+                                        doc.status === "verified" ? "text-green-500" : isOverdue ? "text-red-500" : doc.status === "submitted" ? "text-[#9c7a1f]" : "text-red-400"
                                       }`}>
                                         {doc.status === "verified" ? "✓ Verified"
                                           : isOverdue ? "⚠ Review overdue — file dispute"
@@ -327,7 +326,7 @@ export function Transactions() {
                                     </div>
                                     {doc.status === "not_submitted" && isBuyer && (
                                       <button onClick={() => void submitDoc(tx.id, doc.id)}
-                                        className="bg-[#1a56f0] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
+                                        className="bg-[#004B49] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
                                         <Upload size={10} /> Upload
                                       </button>
                                     )}
@@ -345,17 +344,17 @@ export function Transactions() {
                                 <>
                                   <div className="text-xs font-bold text-gray-600 mt-2 mb-1">Additional (Requested by Provider)</div>
                                   {tx.docs.filter((d) => d.is_additional).map((doc) => (
-                                    <div key={doc.id} className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-                                      <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <Plus size={13} className="text-amber-600" />
+                                    <div key={doc.id} className="flex items-center gap-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl px-3 py-2.5">
+                                      <div className="w-7 h-7 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <Plus size={13} className="text-[#9c7a1f]" />
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
-                                        <div className="text-[10px] text-amber-500 font-semibold mt-0.5">{doc.status === "submitted" ? "✓ Submitted" : "⚠ Requested by provider"}</div>
+                                        <div className="text-[10px] text-[#9c7a1f] font-semibold mt-0.5">{doc.status === "submitted" ? "✓ Submitted" : "⚠ Requested by provider"}</div>
                                       </div>
                                       {doc.status === "not_submitted" && isBuyer && (
                                         <button onClick={() => void submitDoc(tx.id, doc.id)}
-                                          className="bg-amber-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
+                                          className="bg-[#D4AF37] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
                                           <Upload size={10} /> Upload
                                         </button>
                                       )}
@@ -372,10 +371,10 @@ export function Transactions() {
                         <div>
                           {tx.appointment_date ? (
                             <>
-                              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-3">
+                              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-2xl p-4 mb-3">
                                 <div className="flex items-center gap-2 mb-3">
-                                  <Calendar size={16} className="text-[#1a56f0]" />
-                                  <span className="text-sm font-bold text-[#1a56f0]">Embassy Appointment</span>
+                                  <Calendar size={16} className="text-[#004B49]" />
+                                  <span className="text-sm font-bold text-[#004B49]">Embassy Appointment</span>
                                 </div>
                                 <div className="flex flex-col gap-2">
                                   <div className="flex justify-between"><span className="text-xs text-gray-500">Date</span><span className="text-xs font-bold text-gray-800">{tx.appointment_date}</span></div>
@@ -396,12 +395,12 @@ export function Transactions() {
                                 showVoucherInput === tx.id ? (
                                   <div className="flex gap-2">
                                     <input value={voucherInput} onChange={(e) => setVoucherInput(e.target.value)} placeholder="Enter voucher/reference number"
-                                      className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#1a56f0]" />
-                                    <button onClick={() => void submitVoucher(tx.id)} className="bg-[#1a56f0] text-white text-xs font-bold px-3 py-2.5 rounded-xl">Submit</button>
+                                      className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#004B49]" />
+                                    <button onClick={() => void submitVoucher(tx.id)} className="bg-[#004B49] text-white text-xs font-bold px-3 py-2.5 rounded-xl">Submit</button>
                                   </div>
                                 ) : (
                                   <button onClick={() => setShowVoucherInput(tx.id)}
-                                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 font-semibold hover:border-[#1a56f0]/40 transition-all">
+                                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 font-semibold hover:border-[#004B49]/40 transition-all">
                                     + Add Appointment Voucher
                                   </button>
                                 )
@@ -423,13 +422,13 @@ export function Transactions() {
                         <div>
                           <div className="flex gap-1 mb-4">
                             {PROGRESS_STEPS.map((_, i) => (
-                              <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.current_step ? "bg-[#1a56f0]" : "bg-gray-100"}`} />
+                              <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.current_step ? "bg-[#004B49]" : "bg-gray-100"}`} />
                             ))}
                           </div>
                           <div className="flex flex-col gap-3">
                             {PROGRESS_STEPS.map((title, i) => (
                               <div key={i} className="flex items-start gap-3">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${i < tx.current_step ? "bg-[#1a56f0]" : "bg-gray-100"}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${i < tx.current_step ? "bg-[#004B49]" : "bg-gray-100"}`}>
                                   {i < tx.current_step ? <CheckCircle size={13} className="text-white" /> : <span className="text-[9px] text-gray-400 font-bold">{i + 1}</span>}
                                 </div>
                                 <div className={`text-xs font-semibold ${i < tx.current_step ? "text-gray-800" : "text-gray-400"}`}>{title}</div>
@@ -441,7 +440,7 @@ export function Transactions() {
 
                       <div className="flex gap-2 mt-4">
                         <Link to="/messages" className="flex-1">
-                          <button className="w-full border border-[#1a56f0] text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                          <button className="w-full border border-[#004B49] text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                             <MessageCircle size={14} /> Chat
                           </button>
                         </Link>
@@ -456,7 +455,7 @@ export function Transactions() {
                           </Link>
                         )}
                         {tx.status === "completed" && isBuyer && (
-                          <button onClick={() => alert("Review system coming soon")} className="flex-1 bg-amber-400 text-white text-xs font-bold py-2.5 rounded-xl">⭐ Leave Review</button>
+                          <button onClick={() => alert("Review system coming soon")} className="flex-1 bg-[#D4AF37] text-white text-xs font-bold py-2.5 rounded-xl">⭐ Leave Review</button>
                         )}
                       </div>
                       <div className="mt-2 text-center"><span className="text-[10px] text-gray-400 font-mono">ID: {tx.id.slice(0, 8)}</span></div>
