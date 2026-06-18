@@ -1,21 +1,24 @@
-import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, X, Shield, Lock, CheckCircle, Loader2, Globe } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const CROSSING_FEE = 72;
 
-const VISA_TYPES = [
-  "Work Visa","Study Visa","Tourist Visa","Business Visa","Family Visa",
-  "Sponsorship","PR / Immigration","Transit Visa","Medical Visa",
-  "Religious Visa","Diplomatic Visa","Seasonal Work","Working Holiday",
-];
-
-const COUNTRY_LIST = ["Saudi Arabia","UAE","United Kingdom","Germany","Canada","Australia","USA","Turkey","Malaysia","Pakistan","Romania","Poland","Portugal","Spain","France","Italy","Netherlands","Sweden","Norway","Denmark","Finland","Ireland","Switzerland","Austria","Belgium","Czech Republic","Hungary","Bulgaria","Croatia","Greece","Cyprus","Malta","Slovakia","Slovenia","Estonia","Latvia","Lithuania","Iceland","Luxembourg","Serbia","Albania","Bosnia","Kosovo","Montenegro","North Macedonia","Moldova","Ukraine","Russia","Georgia","Armenia","Azerbaijan","Kazakhstan","Uzbekistan","China","Japan","South Korea","Vietnam","Thailand","Indonesia","Philippines","Bangladesh","Nepal","Sri Lanka","Singapore","Taiwan","Mongolia","India","Egypt","Morocco","Tunisia","Algeria","Libya","Sudan","Ethiopia","Kenya","Nigeria","Ghana","South Africa","Tanzania","Uganda","Rwanda","Senegal","Cameroon","Mozambique","Zambia","Zimbabwe","Angola","Somalia","Mauritius","Seychelles","Brazil","Argentina","Colombia","Chile","Peru","Venezuela","Ecuador","Bolivia","Mexico","Panama","Costa Rica","Guatemala","Honduras","El Salvador","Nicaragua","Cuba","Dominican Republic","Jamaica","Trinidad and Tobago","Bahamas","Barbados","New Zealand","Fiji","Papua New Guinea"];
-
 interface UserStatus {
   kycLevel: number;
   deposit: number;
+}
+
+interface ServiceRow {
+  id: string;
+  origin_country: string;
+  destination_country: string;
+  visa_category: string;
+  min_price: number;
+  max_price: number;
+  capacity: number;
+  active_count: number;
 }
 
 export function PostAd() {
@@ -26,9 +29,11 @@ export function PostAd() {
   const [submitting, setSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>({ kycLevel: 0, deposit: 0 });
+  const [services, setServices] = useState<ServiceRow[]>([]);
+  const [selectedService, setSelectedService] = useState<ServiceRow | null>(null);
 
   const [form, setForm] = useState({
-    title: "", country: "", visaType: "", price: "",
+    title: "", price: "",
     currency: "USDT", processingTime: "", description: "",
     requirements: [] as string[],
     steps: ["", "", "", "", ""],
@@ -57,6 +62,14 @@ export function PostAd() {
       kycLevel: profile?.kyc_level ?? 0,
       deposit: Number(profile?.security_deposit ?? 0),
     });
+
+    const { data: svcRows } = await supabase
+      .from("provider_services")
+      .select("id, origin_country, destination_country, visa_category, min_price, max_price, capacity, active_count")
+      .eq("provider_id", userData.user.id)
+      .eq("status", "approved");
+
+    setServices(svcRows ?? []);
     setLoading(false);
   }
 
@@ -75,18 +88,16 @@ export function PostAd() {
   };
 
   async function handleSubmit() {
-    if (!userId) return;
+    if (!userId || !selectedService) return;
     setSubmitting(true);
 
-    // form.price = provider's own asking price (what THEY receive).
-    // We store the provider's price as-is in `price`. The buyer-facing display price
-    // (price + CROSSING_FEE) is computed everywhere it's shown to a buyer.
     const { error } = await supabase.from("ads").insert({
       provider_id: userId,
+      provider_service_id: selectedService.id,
       title: form.title,
       description: form.description,
-      country: form.country,
-      visa_type: form.visaType,
+      country: selectedService.destination_country,
+      visa_type: selectedService.visa_category,
       price: Number(form.price) || 0,
       currency: form.currency,
       processing_time: form.processingTime,
@@ -118,8 +129,8 @@ export function PostAd() {
     );
   }
 
-  // ── GATE: KYC + DEPOSIT ──
-  if (status.kycLevel < 3 || status.deposit < 2000) {
+  // ── GATE 1: KYC ──
+  if (status.kycLevel < 3) {
     return (
       <div className="flex flex-col pb-8">
         <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
@@ -128,84 +139,127 @@ export function PostAd() {
           </button>
           <span className="font-bold text-gray-800 text-sm">Post a Listing</span>
         </div>
-
         <div className="mx-4 mt-5 flex flex-col gap-3">
-
           <div className="text-center py-2">
             <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-2">
               <Lock size={26} className="text-red-400" />
             </div>
-            <div className="font-black text-gray-800 text-lg">Two Requirements Needed</div>
-            <div className="text-xs text-gray-500 mt-1">Complete both to start posting listings</div>
+            <div className="font-black text-gray-800 text-lg">KYC Required</div>
+            <div className="text-xs text-gray-500 mt-1">Complete identity verification before posting</div>
           </div>
-
-          {/* KYC CARD */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.kycLevel >= 3 ? "border-green-200" : "border-red-100"}`}>
+          <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-red-100">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.kycLevel >= 3 ? "bg-green-50" : "bg-red-50"}`}>
-                {status.kycLevel >= 3
-                  ? <CheckCircle size={20} className="text-green-500" />
-                  : <Lock size={20} className="text-red-400" />}
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                <Lock size={20} className="text-red-400" />
               </div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Identity Verification (KYC)</div>
-                <div className={`text-xs font-semibold mt-0.5 ${status.kycLevel >= 3 ? "text-green-500" : "text-red-400"}`}>
-                  {status.kycLevel >= 3 ? "✓ Completed" : "⚠ Not completed — Required"}
+                <div className="text-xs font-semibold mt-0.5 text-red-400">⚠ Not completed — Required</div>
+              </div>
+            </div>
+            <Link to="/kyc">
+              <button className="w-full bg-[#004B49] text-white font-bold py-3 rounded-xl text-sm">
+                Complete KYC →
+              </button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── GATE 2: No services set up yet ──
+  if (services.length === 0) {
+    return (
+      <div className="flex flex-col pb-8">
+        <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
+          <span className="font-bold text-gray-800 text-sm">Post a Listing</span>
+        </div>
+        <div className="mx-4 mt-5 flex flex-col gap-3">
+          <div className="text-center py-2">
+            <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-2">
+              <Globe size={26} className="text-[#9c7a1f]" />
+            </div>
+            <div className="font-black text-gray-800 text-lg">Setup Your Services First</div>
+            <div className="text-xs text-gray-500 mt-1">Define your visa routes, prices and capacity — your security deposit is calculated automatically</div>
+          </div>
+
+          {status.deposit > 0 ? (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-[#FBF3E1]">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-[#FBF3E1] flex items-center justify-center flex-shrink-0">
+                  <Shield size={20} className="text-[#9c7a1f]" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-gray-800 text-sm">Services Pending Admin Review</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Your services were submitted and are being reviewed. Once approved you can post ads.</div>
                 </div>
               </div>
-              {status.kycLevel >= 3 && (
-                <span className="text-[10px] font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Done ✓</span>
-              )}
             </div>
-            {status.kycLevel < 3 && (
-              <Link to="/kyc">
+          ) : (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-[#D4AF37]/40">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-[#FBF3E1] flex items-center justify-center flex-shrink-0">
+                  <Shield size={20} className="text-[#9c7a1f]" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-gray-800 text-sm">Service Setup Required</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Tell us what visa services you offer so we can calculate your security deposit</div>
+                </div>
+              </div>
+              <Link to="/setup-services">
                 <button className="w-full bg-[#004B49] text-white font-bold py-3 rounded-xl text-sm">
-                  Complete KYC →
+                  Setup My Services →
                 </button>
               </Link>
-            )}
-          </div>
-
-          {/* DEPOSIT CARD */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${status.deposit >= 2000 ? "border-green-200" : "border-[#D4AF37]/40"}`}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${status.deposit >= 2000 ? "bg-green-50" : "bg-[#FBF3E1]"}`}>
-                {status.deposit >= 2000
-                  ? <CheckCircle size={20} className="text-green-500" />
-                  : <Shield size={20} className="text-[#9c7a1f]" />}
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
-                <div className={`text-xs font-semibold mt-0.5 ${status.deposit >= 2000 ? "text-green-500" : "text-[#9c7a1f]"}`}>
-                  {status.deposit >= 2000 ? "✓ $2,000 USDT Deposited" : `⚠ $${status.deposit} / $2,000 USDT deposited`}
-                </div>
-              </div>
             </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-            {status.deposit < 2000 && (
-              <>
-                <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-xs text-gray-500">Required Deposit</span>
-                    <span className="font-black text-gray-800">$2,000 USDT</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Remaining</span>
-                    <span className="font-bold text-[#9c7a1f]">${2000 - status.deposit} USDT</span>
-                  </div>
-                  <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${(status.deposit / 2000) * 100}%` }} />
-                  </div>
-                </div>
-                <Link to="/wallet">
-                  <button className="w-full bg-[#D4AF37] text-white font-bold py-3 rounded-xl text-sm">
-                    Deposit $2,000 USDT →
-                  </button>
-                </Link>
-              </>
-            )}
+  // ── GATE 3: Deposit not yet paid ──
+  if (status.deposit <= 0) {
+    const requiredDeposit = services.reduce((sum, s) => sum + s.max_price * 2 * s.capacity, 0);
+    return (
+      <div className="flex flex-col pb-8">
+        <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
+          <span className="font-bold text-gray-800 text-sm">Post a Listing</span>
+        </div>
+        <div className="mx-4 mt-5 flex flex-col gap-3">
+          <div className="text-center py-2">
+            <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-2">
+              <Shield size={26} className="text-[#9c7a1f]" />
+            </div>
+            <div className="font-black text-gray-800 text-lg">Security Deposit Required</div>
+            <div className="text-xs text-gray-500 mt-1">Based on your services, your required deposit is:</div>
           </div>
-
+          <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-[#D4AF37]/40">
+            <div className="text-center mb-4">
+              <div className="text-3xl font-black text-[#004B49]">${requiredDeposit.toFixed(2)}</div>
+              <div className="text-xs text-gray-400 mt-1">USDT · Security Deposit</div>
+            </div>
+            {services.map((s) => (
+              <div key={s.id} className="flex justify-between text-xs text-gray-500 mb-1.5">
+                <span>{s.origin_country} → {s.destination_country} ({s.visa_category}) ×{s.capacity}</span>
+                <span className="font-bold text-gray-700">${(s.max_price * 2 * s.capacity).toFixed(0)}</span>
+              </div>
+            ))}
+            <div className="mt-3">
+              <Link to="/wallet">
+                <button className="w-full bg-[#D4AF37] text-white font-bold py-3 rounded-xl text-sm">
+                  Deposit ${requiredDeposit.toFixed(2)} USDT →
+                </button>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -226,47 +280,83 @@ export function PostAd() {
           <div className="h-full bg-[#004B49] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex justify-between mt-1.5">
-          {["Basic","Details","Pricing","Process","Review"].map((l, i) => (
+          {["Service","Basic","Details","Pricing","Review"].map((l, i) => (
             <span key={l} className={`text-[10px] font-semibold ${i + 1 === step ? "text-[#004B49]" : "text-gray-300"}`}>{l}</span>
           ))}
         </div>
       </div>
 
       <div className="px-4 mt-4">
+
+        {/* STEP 1 — Select Service Slot */}
         {step === 1 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-4">Basic Information</div>
+            <div className="text-sm font-bold text-gray-800 mb-1">Select Service Slot</div>
+            <div className="text-xs text-gray-500 mb-4">Choose which of your approved services this ad will be listed under</div>
+            <div className="flex flex-col gap-3">
+              {services.map((s) => {
+                const available = s.capacity - s.active_count;
+                const isFull = available <= 0;
+                const isSelected = selectedService?.id === s.id;
+                return (
+                  <button key={s.id} type="button" disabled={isFull}
+                    onClick={() => setSelectedService(s)}
+                    className={`border-2 rounded-2xl p-4 text-left transition-all ${isSelected ? "border-[#004B49] bg-[#E8F0EF]" : isFull ? "border-gray-100 bg-gray-50 opacity-50" : "border-gray-100 bg-white"}`}>
+                    <div className="font-bold text-gray-800 text-sm mb-1">
+                      {s.origin_country} → {s.destination_country}
+                    </div>
+                    <div className="text-xs text-gray-500 mb-2">{s.visa_category}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="bg-[#E8F0EF] text-[#004B49] text-[11px] font-semibold px-2.5 py-1 rounded-full">
+                        ${s.min_price}–${s.max_price} per client
+                      </span>
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${isFull ? "bg-red-50 text-red-400" : "bg-green-50 text-green-600"}`}>
+                        {isFull ? "Full" : `${available} slot${available > 1 ? "s" : ""} available`}
+                      </span>
+                    </div>
+                    {isSelected && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <CheckCircle size={12} className="text-[#004B49]" />
+                        <span className="text-[11px] font-bold text-[#004B49]">Selected</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+              <Link to="/setup-services">
+                <button className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-xs font-semibold text-gray-400 flex items-center justify-center gap-2 hover:border-[#004B49]/40">
+                  <Plus size={14} /> Add Another Service
+                </button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2 — Basic Info */}
+        {step === 2 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-1">Basic Information</div>
+            {selectedService && (
+              <div className="bg-[#E8F0EF] rounded-xl p-2.5 mb-4 flex items-center gap-2">
+                <Globe size={13} className="text-[#004B49] flex-shrink-0" />
+                <span className="text-xs text-[#004B49] font-semibold">
+                  {selectedService.origin_country} → {selectedService.destination_country} · {selectedService.visa_category}
+                </span>
+              </div>
+            )}
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Listing Title *</label>
                 <input value={form.title} onChange={(e) => set("title", e.target.value)}
-                  placeholder="e.g. Canada Work Permit for Engineers"
+                  placeholder={`e.g. ${selectedService?.visa_category ?? "Visa"} Service — ${selectedService?.destination_country ?? "Destination"}`}
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Destination Country *</label>
-                <select value={form.country} onChange={(e) => set("country", e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
-                  <option value="">Select country...</option>
-                  {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Visa Type *</label>
-                <div className="flex flex-wrap gap-2">
-                  {VISA_TYPES.map((v) => (
-                    <button key={v} onClick={() => set("visaType", v)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${form.visaType === v ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {/* STEP 3 — Details */}
+        {step === 3 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Service Details</div>
             <div className="flex flex-col gap-3">
@@ -310,19 +400,27 @@ export function PostAd() {
           </div>
         )}
 
-        {step === 3 && (
+        {/* STEP 4 — Pricing */}
+        {step === 4 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Pricing</div>
+            {selectedService && (
+              <div className="bg-gray-50 rounded-xl p-3 mb-3 text-xs text-gray-500">
+                Your approved range for this service: <span className="font-bold text-gray-800">${selectedService.min_price} – ${selectedService.max_price}</span>
+              </div>
+            )}
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Your Asking Price *</label>
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
                     <span className="text-gray-400 font-bold text-sm">$</span>
-                    <input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="400"
+                    <input type="number" value={form.price} onChange={(e) => set("price", e.target.value)}
+                      placeholder={String(selectedService?.min_price ?? "400")}
+                      min={selectedService?.min_price} max={selectedService?.max_price}
                       className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-1">This is exactly what YOU will receive per case.</div>
+                  <div className="text-[10px] text-gray-400 mt-1">This is exactly what YOU receive.</div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Currency</label>
@@ -339,67 +437,42 @@ export function PostAd() {
                     <span className="text-gray-500">You receive</span>
                     <span className="font-bold text-gray-800">${providerPrice.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-500">Crossing service fee</span>
-                    <span className="font-bold text-gray-800">+${CROSSING_FEE.toFixed(2)}</span>
-                  </div>
                   <div className="border-t border-gray-200 pt-1.5 mt-1 flex justify-between text-xs">
-                    <span className="font-bold text-gray-700">Buyer will see & pay</span>
+                    <span className="font-bold text-gray-700">Buyer pays</span>
                     <span className="font-black text-[#004B49]">${buyerPrice.toFixed(2)}</span>
                   </div>
                 </div>
               )}
-
-              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
-                <div className="text-xs font-black text-[#004B49] mb-1">How Crossing Pricing Works</div>
-                <div className="text-[11px] text-[#004B49] flex flex-col gap-0.5">
-                  <div>• You set the price YOU want to receive for this visa service</div>
-                  <div>• Our service fee is a flat $72 USDT per confirmed case</div>
-                  <div>• We automatically add $72 on top — the buyer sees one final price</div>
-                  <div>• Payment released only after visa confirmed</div>
-                </div>
-              </div>
             </div>
           </div>
         )}
 
-        {step === 4 && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-1">Step-by-Step Process</div>
-            <div className="text-xs text-gray-500 mb-4">Explain what will happen at each stage for the buyer</div>
-            <div className="flex flex-col gap-3">
-              {form.steps.map((s, i) => (
-                <div key={i} className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-[#004B49] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">{i + 1}</div>
-                  <input value={s} onChange={(e) => setStepText(i, e.target.value)}
-                    placeholder={["Documents collection from buyer","Document verification & preparation","Embassy application submission","Interview scheduling (if required)","Visa delivery & case closure"][i]}
-                    className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
+        {/* STEP 5 — Review */}
         {step === 5 && (
           <div className="flex flex-col gap-3">
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="text-sm font-bold text-gray-800 mb-3">Review Your Listing</div>
+              {selectedService && (
+                <div className="bg-[#E8F0EF] rounded-xl p-2.5 mb-3 flex items-center gap-2">
+                  <Globe size={13} className="text-[#004B49] flex-shrink-0" />
+                  <span className="text-xs text-[#004B49] font-semibold">
+                    {selectedService.origin_country} → {selectedService.destination_country} · {selectedService.visa_category}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <div className="font-bold text-gray-800">{form.title || "Untitled"}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{form.country} · {form.visaType}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{form.processingTime && `⏱ ${form.processingTime}`}</div>
                 </div>
                 <div className="text-right">
                   <div className="font-black text-[#004B49] text-lg">${buyerPrice.toFixed(2)}</div>
-                  <div className="text-[10px] text-gray-400">Buyer pays · {form.currency}</div>
+                  <div className="text-[10px] text-gray-400">Buyer pays</div>
                 </div>
               </div>
               <div className="bg-gray-50 rounded-xl p-2.5 mb-3 flex justify-between text-xs">
                 <span className="text-gray-500">You receive</span>
                 <span className="font-bold text-gray-700">${providerPrice.toFixed(2)}</span>
-              </div>
-              <div className="flex gap-2 mb-3">
-                <span className="bg-[#E8F0EF] text-[#004B49] text-xs px-2.5 py-1 rounded-full font-semibold">⏱ {form.processingTime || "TBD"}</span>
               </div>
               {form.requirements.length > 0 && (
                 <div className="mb-2">
@@ -420,7 +493,10 @@ export function PostAd() {
         )}
 
         <button
-          onClick={() => step < totalSteps ? setStep(step + 1) : void handleSubmit()}
+          onClick={() => {
+            if (step === 1 && !selectedService) { alert("Please select a service slot first"); return; }
+            step < totalSteps ? setStep(step + 1) : void handleSubmit();
+          }}
           disabled={submitting}
           className="w-full mt-4 bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
           {submitting ? "Submitting..." : step < totalSteps ? <><span>Continue</span><ChevronRight size={16} /></> : <span>Submit Listing 🚀</span>}
