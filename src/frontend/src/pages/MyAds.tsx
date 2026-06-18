@@ -16,7 +16,7 @@ interface AdRow {
 
 const STATUS: Record<string, { label: string; color: string }> = {
   active:         { label: "Active",         color: "bg-green-50 text-green-600 border-green-100" },
-  pending_review: { label: "Pending Review", color: "bg-amber-50 text-amber-600 border-amber-100" },
+  pending_review: { label: "Pending Review", color: "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30" },
   suspended:      { label: "Suspended",       color: "bg-gray-50 text-gray-400 border-gray-100" },
   rejected:       { label: "Rejected",        color: "bg-red-50 text-red-500 border-red-100" },
 };
@@ -69,7 +69,6 @@ export function MyAds() {
     return ad.status === "suspended" || ad.status === "rejected";
   });
 
-  // No real analytics table yet — show 0 honestly rather than fake numbers
   const totalViews = 0;
   const totalMessages = 0;
   const totalOrders = 0;
@@ -92,7 +91,7 @@ export function MyAds() {
         </button>
         <span className="font-bold text-gray-800 text-sm flex-1">My Listings</span>
         <Link to="/post-ad">
-          <button className="flex items-center gap-1.5 bg-[#1a56f0] text-white text-xs font-bold px-3 py-2 rounded-xl">
+          <button className="flex items-center gap-1.5 bg-[#004B49] text-white text-xs font-bold px-3 py-2 rounded-xl">
             <Plus size={14} /> New Ad
           </button>
         </Link>
@@ -100,9 +99,9 @@ export function MyAds() {
 
       {/* STATS */}
       <div className="mx-4 mt-4">
-        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] rounded-2xl p-4">
+        <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp size={16} className="text-white" />
+            <TrendingUp size={16} className="text-[#D4AF37]" />
             <span className="text-white font-bold text-sm">Performance Overview</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -143,7 +142,7 @@ export function MyAds() {
             </div>
             {ads.length === 0 && (
               <Link to="/post-ad">
-                <button className="mt-3 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2 rounded-xl">
+                <button className="mt-3 bg-[#004B49] text-white text-xs font-bold px-4 py-2 rounded-xl">
                   Post Your First Ad
                 </button>
               </Link>
@@ -161,7 +160,7 @@ export function MyAds() {
                     <div className="text-xs text-gray-400 mt-0.5">{ad.country} · {ad.visa_type}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-black text-[#1a56f0]">${ad.price}</div>
+                    <div className="font-black text-[#004B49]">${ad.price}</div>
                     <div className="text-[10px] text-gray-400">{ad.currency}</div>
                   </div>
                 </div>
@@ -193,7 +192,7 @@ export function MyAds() {
                     </button>
                   </Link>
                   <button onClick={() => alert("Editing listings is coming soon")}
-                    className="flex-1 border border-[#1a56f0]/20 bg-[#1a56f0]/5 text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                    className="flex-1 border border-[#004B49]/20 bg-[#004B49]/5 text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                     <Edit3 size={13} /> Edit
                   </button>
                   <button onClick={() => void handleDelete(ad.id)} disabled={deletingId === ad.id}
