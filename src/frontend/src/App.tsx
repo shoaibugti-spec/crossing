@@ -22,6 +22,7 @@ import { Notifications } from "./pages/Notifications";
 import { PostAd } from "./pages/PostAd";
 import { ProfilePage } from "./pages/ProfilePage";
 import { Settings } from "./pages/Settings";
+import { SetupServices } from "./pages/SetupServices";
 import { Signup } from "./pages/Signup";
 import { Transactions } from "./pages/Transactions";
 import { Wallet } from "./pages/Wallet";
@@ -64,6 +65,12 @@ const postAdRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/post-ad",
   component: PostAd,
+});
+
+const setupServicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/setup-services",
+  component: SetupServices,
 });
 
 const myAdsRoute = createRoute({
@@ -155,6 +162,7 @@ const routeTree = rootRoute.addChildren([
   adsRoute,
   adDetailRoute,
   postAdRoute,
+  setupServicesRoute,
   myAdsRoute,
   messagesRoute,
   chatRoute,
