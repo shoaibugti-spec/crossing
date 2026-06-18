@@ -10,7 +10,6 @@ const LEVELS = [
   { level: 4, title: "Business Verification", desc: "Company Registration + Trade License", status: "locked" },
 ];
 
-// Convert a data URL (image) to a Blob for upload
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, base64] = dataUrl.split(",");
   const mimeMatch = meta.match(/:(.*?);/);
@@ -34,18 +33,15 @@ export function KYCFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
 
-  // Captured media — stored once, never cleared accidentally
   const [docFront, setDocFront] = useState<string | null>(null);
   const [docBack, setDocBack] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<string | null>(null);
   const [videoBlob, setVideoBlob] = useState<string | null>(null);
   const [videoRawBlob, setVideoRawBlob] = useState<Blob | null>(null);
 
-  // Recording state
   const [videoRecording, setVideoRecording] = useState(false);
   const [videoTimer, setVideoTimer] = useState(0);
 
-  // Camera overlay state — null means closed
   const [activeCamera, setActiveCamera] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -87,7 +83,6 @@ export function KYCFlow() {
     }
   }
 
-  // ── START PHOTO CAMERA ──
   const startCamera = useCallback(async (target: string) => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({
@@ -106,7 +101,6 @@ export function KYCFlow() {
     }
   }, []);
 
-  // ── CAPTURE PHOTO ──
   const capturePhoto = useCallback(() => {
     const videoEl = videoElRef.current;
     const canvas = canvasRef.current;
@@ -136,7 +130,6 @@ export function KYCFlow() {
     setActiveCamera(null);
   }, []);
 
-  // ── START VIDEO RECORDING ──
   const startVideoRecording = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
@@ -190,7 +183,6 @@ export function KYCFlow() {
     }
   }, []);
 
-  // ── SUBMIT — uploads real files to Supabase Storage and creates a real kyc_submissions row ──
   async function handleSubmit() {
     if (!userId) return;
     if (!form.fullName) { alert("Full name is required"); return; }
@@ -245,7 +237,6 @@ export function KYCFlow() {
       });
       if (insertErr) throw insertErr;
 
-      // Mark profile as pending review
       await supabase.from("profiles").update({ kyc_status: "pending" }).eq("id", userId);
 
       setSubmitted(true);
@@ -265,7 +256,6 @@ export function KYCFlow() {
     );
   }
 
-  // ── CAMERA OVERLAY (full screen, isolated) ──
   if (activeCamera) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ touchAction: "none" }}>
@@ -308,9 +298,9 @@ export function KYCFlow() {
 
       {/* WHY VERIFY BANNER */}
       <div className="mx-4 mt-4">
-        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] rounded-2xl p-4">
+        <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Shield size={18} className="text-white" />
+            <Shield size={18} className="text-[#D4AF37]" />
             <span className="text-white font-bold text-sm">Why Verify?</span>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -336,17 +326,17 @@ export function KYCFlow() {
               <button type="button" onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left" disabled={l.status === "locked"}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  displayStatus === "completed" ? "bg-green-50" : displayStatus === "pending" ? "bg-amber-50" : "bg-gray-50"
+                  displayStatus === "completed" ? "bg-green-50" : displayStatus === "pending" ? "bg-[#FBF3E1]" : "bg-gray-50"
                 }`}>
                   {displayStatus === "completed" ? <CheckCircle size={20} className="text-green-500" />
-                    : displayStatus === "pending" ? <Clock size={20} className="text-amber-500" />
+                    : displayStatus === "pending" ? <Clock size={20} className="text-[#9c7a1f]" />
                     : <Shield size={20} className="text-gray-300" />}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-gray-800">Level {l.level} — {l.title}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      displayStatus === "completed" ? "bg-green-50 text-green-500" : displayStatus === "pending" ? "bg-amber-50 text-amber-500" : "bg-gray-50 text-gray-400"
+                      displayStatus === "completed" ? "bg-green-50 text-green-500" : displayStatus === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]" : "bg-gray-50 text-gray-400"
                     }`}>
                       {l.level === 3 && existingStatus === "approved" ? "✓ Verified"
                         : l.level === 3 && existingStatus === "pending" ? "Under Review"
@@ -363,8 +353,8 @@ export function KYCFlow() {
                 <div className="px-4 pb-4 border-t border-gray-50">
                   {submitted ? (
                     <div className="text-center py-6">
-                      <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Clock size={26} className="text-amber-500" />
+                      <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Clock size={26} className="text-[#9c7a1f]" />
                       </div>
                       <div className="font-black text-gray-800 text-lg mb-1">Documents Submitted!</div>
                       <div className="text-sm text-gray-500">Admin will review within 24-48 hours. You will be notified.</div>
@@ -381,7 +371,7 @@ export function KYCFlow() {
                             { key: "license", emoji: "🪪", label: "Driving License", desc: "Gov Issued" },
                           ].map((d) => (
                             <button key={d.key} type="button" onClick={() => setDocType(d.key as "passport" | "nid" | "license")}
-                              className={`border-2 rounded-xl py-2.5 px-1 text-center transition-all ${docType === d.key ? "border-[#1a56f0] bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+                              className={`border-2 rounded-xl py-2.5 px-1 text-center transition-all ${docType === d.key ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100 bg-gray-50"}`}>
                               <div className="text-base">{d.emoji}</div>
                               <div className="text-[10px] font-bold text-gray-700 mt-0.5">{d.label}</div>
                               <div className="text-[9px] text-gray-400">{d.desc}</div>
@@ -397,19 +387,19 @@ export function KYCFlow() {
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Full Name (as on document) *</label>
                             <input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
                               placeholder="Full Name"
-                              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Date of Birth</label>
                               <input type="date" value={form.dob} onChange={(e) => setForm((p) => ({ ...p, dob: e.target.value }))}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Nationality</label>
                               <input value={form.nationality} onChange={(e) => setForm((p) => ({ ...p, nationality: e.target.value }))}
                                 placeholder="e.g. Pakistani"
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                             </div>
                           </div>
                           <div>
@@ -418,7 +408,7 @@ export function KYCFlow() {
                             </label>
                             <input value={form.docNumber} onChange={(e) => setForm((p) => ({ ...p, docNumber: e.target.value }))}
                               placeholder={docType === "passport" ? "AB1234567" : docType === "nid" ? "00000-0000000-0" : "DL-123456"}
-                              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#1a56f0]" />
+                              className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                           </div>
                         </div>
                       </div>
@@ -436,7 +426,7 @@ export function KYCFlow() {
                               </div>
                             ) : (
                               <button type="button" onClick={() => void startCamera("front")}
-                                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
+                                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40 transition-all">
                                 <Camera size={22} className="text-gray-300" />
                                 <span className="text-xs font-semibold text-gray-400">Tap to capture with camera</span>
                               </button>
@@ -454,7 +444,7 @@ export function KYCFlow() {
                                 </div>
                               ) : (
                                 <button type="button" onClick={() => void startCamera("back")}
-                                  className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
+                                  className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40 transition-all">
                                   <Camera size={22} className="text-gray-300" />
                                   <span className="text-xs font-semibold text-gray-400">Tap to capture back side</span>
                                 </button>
@@ -475,7 +465,7 @@ export function KYCFlow() {
                           </div>
                         ) : (
                           <button type="button" onClick={() => void startCamera("selfie")}
-                            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
+                            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40 transition-all">
                             <Camera size={22} className="text-gray-300" />
                             <span className="text-xs font-semibold text-gray-400">Take selfie holding your document</span>
                           </button>
@@ -509,7 +499,7 @@ export function KYCFlow() {
                           </div>
                         ) : (
                           <button type="button" onClick={() => void startVideoRecording()}
-                            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40 transition-all">
+                            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40 transition-all">
                             <Video size={22} className="text-gray-300" />
                             <span className="text-xs font-semibold text-gray-400">🎥 Record 15-Second Face Video</span>
                             <span className="text-[10px] text-gray-300">Liveness verification</span>
@@ -517,15 +507,15 @@ export function KYCFlow() {
                         )}
                       </div>
 
-                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex gap-2">
-                        <Shield size={14} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
-                        <div className="text-[11px] text-blue-700">
+                      <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
+                        <Shield size={14} className="text-[#004B49] flex-shrink-0 mt-0.5" />
+                        <div className="text-[11px] text-[#004B49]">
                           Your documents are encrypted and stored securely. They are only used for identity verification and are never shared with third parties.
                         </div>
                       </div>
 
                       <button type="button" onClick={() => void handleSubmit()} disabled={submitting}
-                        className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
+                        className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
                         {submitting ? (uploadProgress || "Submitting...") : "Submit for Review"}
                       </button>
 
