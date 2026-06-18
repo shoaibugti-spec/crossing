@@ -3,6 +3,8 @@ import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+const CROSSING_FEE = 72;
+
 const VISA_TYPES = [
   "Work Visa","Study Visa","Tourist Visa","Business Visa","Family Visa",
   "Sponsorship","PR / Immigration","Transit Visa","Medical Visa",
@@ -76,6 +78,9 @@ export function PostAd() {
     if (!userId) return;
     setSubmitting(true);
 
+    // form.price = provider's own asking price (what THEY receive).
+    // We store the provider's price as-is in `price`. The buyer-facing display price
+    // (price + CROSSING_FEE) is computed everywhere it's shown to a buyer.
     const { error } = await supabase.from("ads").insert({
       provider_id: userId,
       title: form.title,
@@ -102,6 +107,8 @@ export function PostAd() {
 
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
+  const providerPrice = Number(form.price) || 0;
+  const buyerPrice = providerPrice + CROSSING_FEE;
 
   if (loading) {
     return (
@@ -309,12 +316,13 @@ export function PostAd() {
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Service Fee *</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Your Asking Price *</label>
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
                     <span className="text-gray-400 font-bold text-sm">$</span>
-                    <input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="499"
+                    <input type="number" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="400"
                       className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
                   </div>
+                  <div className="text-[10px] text-gray-400 mt-1">This is exactly what YOU will receive per case.</div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Currency</label>
@@ -324,11 +332,30 @@ export function PostAd() {
                   </select>
                 </div>
               </div>
+
+              {providerPrice > 0 && (
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-500">You receive</span>
+                    <span className="font-bold text-gray-800">${providerPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-500">Crossing service fee</span>
+                    <span className="font-bold text-gray-800">+${CROSSING_FEE.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-1.5 mt-1 flex justify-between text-xs">
+                    <span className="font-bold text-gray-700">Buyer will see & pay</span>
+                    <span className="font-black text-[#004B49]">${buyerPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
-                <div className="text-xs font-black text-[#004B49] mb-1">Crossing Fee Structure</div>
+                <div className="text-xs font-black text-[#004B49] mb-1">How Crossing Pricing Works</div>
                 <div className="text-[11px] text-[#004B49] flex flex-col gap-0.5">
-                  <div>• Buyer pays exactly the price you set — no extra fee added</div>
-                  <div>• You receive: Your price − $36 Crossing fee</div>
+                  <div>• You set the price YOU want to receive for this visa service</div>
+                  <div>• Our service fee is a flat $72 USDT per confirmed case</div>
+                  <div>• We automatically add $72 on top — the buyer sees one final price</div>
                   <div>• Payment released only after visa confirmed</div>
                 </div>
               </div>
@@ -363,9 +390,13 @@ export function PostAd() {
                   <div className="text-xs text-gray-500 mt-0.5">{form.country} · {form.visaType}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-black text-[#004B49] text-lg">${form.price}</div>
-                  <div className="text-[10px] text-gray-400">{form.currency}</div>
+                  <div className="font-black text-[#004B49] text-lg">${buyerPrice.toFixed(2)}</div>
+                  <div className="text-[10px] text-gray-400">Buyer pays · {form.currency}</div>
                 </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-2.5 mb-3 flex justify-between text-xs">
+                <span className="text-gray-500">You receive</span>
+                <span className="font-bold text-gray-700">${providerPrice.toFixed(2)}</span>
               </div>
               <div className="flex gap-2 mb-3">
                 <span className="bg-[#E8F0EF] text-[#004B49] text-xs px-2.5 py-1 rounded-full font-semibold">⏱ {form.processingTime || "TBD"}</span>
