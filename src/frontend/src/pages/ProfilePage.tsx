@@ -41,7 +41,6 @@ export function ProfilePage() {
   const [listings, setListings] = useState<AdRow[]>([]);
   const [activeTab, setActiveTab] = useState<"reviews" | "listings">("reviews");
   const [isOwnProfile, setIsOwnProfile] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     void loadProfile();
@@ -50,27 +49,22 @@ export function ProfilePage() {
   async function loadProfile() {
     setLoading(true);
 
-    const { data: userData, error: authError } = await supabase.auth.getUser();
+    const { data: userData } = await supabase.auth.getUser();
     const currentUserId = userData.user?.id ?? null;
 
     const targetId = id === "me" ? currentUserId : id;
     setIsOwnProfile(id === "me" || targetId === currentUserId);
 
     if (!targetId) {
-      setDebugInfo(`id param="${id}" | currentUserId=null | authError=${authError?.message ?? "none"}`);
       setLoading(false);
       return;
     }
 
-    const { data: profileData, error: profileError } = await supabase
+    const { data: profileData } = await supabase
       .from("profiles")
       .select("id, full_name, role, country, kyc_level, kyc_status, trust_score, created_at")
       .eq("id", targetId)
       .single();
-
-    if (!profileData) {
-      setDebugInfo(`id param="${id}" | targetId="${targetId}" | profileError=${profileError?.message ?? "none"}`);
-    }
     setProfile(profileData ?? null);
 
     if (profileData?.role === "provider") {
@@ -106,7 +100,7 @@ export function ProfilePage() {
         <div className="text-2xl mb-2">👤</div>
         <div className="font-bold text-gray-700">Profile not found</div>
         <div className="text-xs text-gray-400 mt-1">This user may not exist or hasn't completed signup.</div>
-          </div>
+      </div>
     );
   }
 
@@ -134,7 +128,7 @@ export function ProfilePage() {
         <span className="font-bold text-gray-800 text-sm">{isOwnProfile ? "My Profile" : "Profile"}</span>
         {isOwnProfile && (
           <Link to="/settings" className="ml-auto">
-            <button className="flex items-center gap-1.5 text-xs font-semibold text-[#1a56f0]">
+            <button className="flex items-center gap-1.5 text-xs font-semibold text-[#004B49]">
               <Edit3 size={14} /> Edit
             </button>
           </Link>
@@ -145,11 +139,11 @@ export function ProfilePage() {
       <div className="bg-white px-4 pt-5 pb-4 border-b border-gray-100">
         <div className="flex items-start gap-4 mb-4">
           <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-black text-xl">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white font-black text-xl">
               {initial}
             </div>
             {verified && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#1a56f0] rounded-full flex items-center justify-center border-2 border-white">
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center border-2 border-white">
                 <CheckCircle size={12} className="text-white" />
               </div>
             )}
@@ -168,7 +162,7 @@ export function ProfilePage() {
         {/* BADGES */}
         <div className="flex flex-wrap gap-1.5 mb-3">
           {verified && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-100">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30">
               KYC Verified
             </span>
           )}
@@ -187,7 +181,7 @@ export function ProfilePage() {
 
       {/* TRUST SCORE */}
       <div className="mx-4 mt-4">
-        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] rounded-2xl p-4">
+        <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-white/60 text-xs mb-0.5">Trust Score</div>
@@ -196,7 +190,7 @@ export function ProfilePage() {
             <div className="w-16 h-16 relative">
               <svg viewBox="0 0 60 60" className="w-full h-full -rotate-90">
                 <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="6" />
-                <circle cx="30" cy="30" r="24" fill="none" stroke="white" strokeWidth="6"
+                <circle cx="30" cy="30" r="24" fill="none" stroke="#D4AF37" strokeWidth="6"
                   strokeLinecap="round"
                   strokeDasharray={`${(profile.trust_score / 100) * 150} 150`}
                 />
@@ -241,7 +235,7 @@ export function ProfilePage() {
       {!isOwnProfile && isProvider && (
         <div className="mx-4 mt-3 flex gap-2">
           <Link to="/ads" search={{ q: "", country: "", type: "" }} className="flex-1">
-            <button className="w-full bg-[#1a56f0] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
+            <button className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
               <MessageCircle size={16} />
               View Listings to Order
             </button>
@@ -255,7 +249,7 @@ export function ProfilePage() {
 
       {!isOwnProfile && isProvider && (
         <div className="mx-4 mt-2">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-2.5 text-[11px] text-blue-700">
+          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 text-[11px] text-[#004B49]">
             Chat unlocks automatically once you place an order with this provider.
           </div>
         </div>
@@ -298,7 +292,7 @@ export function ProfilePage() {
                           <div className="text-sm font-bold text-gray-800">{listing.title}</div>
                           <div className="text-xs text-gray-400 mt-0.5">{listing.country}</div>
                         </div>
-                        <div className="font-black text-[#1a56f0]">${listing.price}</div>
+                        <div className="font-black text-[#004B49]">${listing.price}</div>
                       </div>
                       <div className="flex gap-2">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
