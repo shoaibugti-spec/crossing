@@ -120,7 +120,9 @@ export function AdDetail() {
     );
   }
 
-  const totalRequired = ad.price * 1.03 + 36;
+  // Buyer pays EXACTLY the listed price — no extra fee on top.
+  // Crossing's $36 fee is deducted only from the Seller's payout, not added to the Buyer's cost.
+  const totalRequired = ad.price;
   const hasEnoughBalance = walletBalance >= totalRequired;
   const verified = ad.provider_kyc_status === "approved";
   const orderPlaced = !!existingTxId;
@@ -161,7 +163,7 @@ export function AdDetail() {
         seller_id: ad.provider_id,
         ad_id: ad.id,
         amount: ad.price,
-        buyer_fee: 36,
+        buyer_fee: 0,
         seller_fee: 36,
         status: "escrow_active",
         current_step: 1,
@@ -398,13 +400,12 @@ export function AdDetail() {
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-500">Service Fee</span><span className="font-bold text-gray-800">${ad.price} USDT</span></div>
-                  <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-500">Platform Fee (3%)</span><span className="font-bold text-gray-800">${(ad.price * 0.03).toFixed(2)} USDT</span></div>
-                  <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-500">Crossing Fee (Buyer)</span><span className="font-bold text-gray-800">$36.00 USDT</span></div>
+                  <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-500">Service Price</span><span className="font-bold text-gray-800">${ad.price} USDT</span></div>
                   <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between items-center">
                     <span className="text-sm font-bold text-gray-700">Total Deposit</span>
                     <span className="font-black text-[#004B49] text-lg">${totalRequired.toFixed(2)} USDT</span>
                   </div>
+                  <div className="text-[10px] text-gray-400 mt-2">No extra fees — you pay exactly the listed price.</div>
                 </div>
 
                 <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
