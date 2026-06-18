@@ -59,9 +59,9 @@ export function Settings() {
     {
       title: "Account",
       items: [
-        { icon: User, label: "Edit Profile", color: "bg-blue-50 text-blue-500", link: "/profile/me" as const },
+        { icon: User, label: "Edit Profile", color: "bg-[#E8F0EF] text-[#004B49]", link: "/profile/me" as const },
         { icon: Shield, label: "KYC Verification", color: "bg-green-50 text-green-500", link: "/kyc" as const, badge: `L${profile?.kyc_level ?? 0}` },
-        { icon: CreditCard, label: "Wallet & Payments", color: "bg-amber-50 text-amber-500", link: "/wallet" as const },
+        { icon: CreditCard, label: "Wallet & Payments", color: "bg-[#FBF3E1] text-[#9c7a1f]", link: "/wallet" as const },
         { icon: Star, label: "My Reviews", color: "bg-purple-50 text-purple-500", link: "/profile/me" as const },
       ],
     },
@@ -102,7 +102,7 @@ export function Settings() {
       <div className="mx-4 mt-4">
         <Link to="/profile/me">
           <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1a56f0] to-purple-600 flex items-center justify-center text-white font-black text-lg">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white font-black text-lg">
               {initial}
             </div>
             <div className="flex-1">
@@ -114,7 +114,7 @@ export function Settings() {
                 }`}>
                   {verified ? `✓ KYC L${profile?.kyc_level}` : "Unverified"}
                 </span>
-                <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">
+                <span className="bg-[#E8F0EF] text-[#004B49] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#004B49]/15">
                   Trust: {profile?.trust_score ?? 50}
                 </span>
               </div>
@@ -139,7 +139,7 @@ export function Settings() {
                       </div>
                       <span className="flex-1 text-sm font-medium text-gray-700">{item.label}</span>
                       {"badge" in item && item.badge && (
-                        <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full mr-1">{item.badge}</span>
+                        <span className="text-[10px] font-bold bg-[#E8F0EF] text-[#004B49] px-2 py-0.5 rounded-full mr-1">{item.badge}</span>
                       )}
                       <ChevronRight size={16} className="text-gray-300" />
                     </div>
@@ -183,7 +183,7 @@ export function Settings() {
                 <span className="flex-1 text-sm font-medium text-gray-700">{item.label}</span>
                 <button
                   onClick={() => setNotifications((n) => ({ ...n, [item.key]: !n[item.key as keyof typeof n] }))}
-                  className={`w-11 h-6 rounded-full relative transition-all ${notifications[item.key as keyof typeof notifications] ? "bg-[#1a56f0]" : "bg-gray-200"}`}>
+                  className={`w-11 h-6 rounded-full relative transition-all ${notifications[item.key as keyof typeof notifications] ? "bg-[#004B49]" : "bg-gray-200"}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${notifications[item.key as keyof typeof notifications] ? "right-0.5" : "left-0.5"}`} />
                 </button>
               </div>
@@ -212,7 +212,7 @@ export function Settings() {
                 <button key={lang} onClick={() => { setLanguage(lang); setShowLangPicker(false); }}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                   <span className="text-sm text-gray-700">{lang}</span>
-                  {language === lang && <span className="text-[#1a56f0] text-xs font-bold">✓</span>}
+                  {language === lang && <span className="text-[#004B49] text-xs font-bold">✓</span>}
                 </button>
               ))}
             </div>
