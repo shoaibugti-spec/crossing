@@ -38,7 +38,7 @@ export function Disputes() {
   const [submitted, setSubmitted] = useState(false);
 
   const STATUS = {
-    under_review: { label: "Under Review", color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
+    under_review: { label: "Under Review", color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
     resolved:     { label: "Resolved",     color: "text-green-500", bg: "bg-green-50",  border: "border-green-100" },
     closed:       { label: "Closed",       color: "text-gray-400",  bg: "bg-gray-50",   border: "border-gray-100" },
   };
@@ -73,9 +73,9 @@ export function Disputes() {
         <div className="mx-4 mt-4 flex flex-col gap-3">
 
           {/* INFO BOX */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-            <div className="text-xs font-bold text-[#1a56f0] mb-1">🛡️ Escrow Protection Active</div>
-            <div className="text-xs text-blue-700">
+          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-2xl p-4">
+            <div className="text-xs font-bold text-[#004B49] mb-1">🛡️ Escrow Protection Active</div>
+            <div className="text-xs text-[#004B49]">
               Your funds are safely held in Escrow. They will not be released to the provider until your dispute is resolved.
             </div>
           </div>
@@ -133,8 +133,8 @@ export function Disputes() {
                         {d.updates.map((u, i) => (
                           <div key={i} className="flex gap-2.5 items-start">
                             <div className="flex flex-col items-center">
-                              <div className="w-5 h-5 rounded-full bg-[#1a56f0]/10 flex items-center justify-center flex-shrink-0">
-                                <div className="w-2 h-2 rounded-full bg-[#1a56f0]" />
+                              <div className="w-5 h-5 rounded-full bg-[#004B49]/10 flex items-center justify-center flex-shrink-0">
+                                <div className="w-2 h-2 rounded-full bg-[#004B49]" />
                               </div>
                               {i < d.updates.length - 1 && (
                                 <div className="w-px h-4 bg-gray-100 mt-0.5" />
@@ -154,7 +154,7 @@ export function Disputes() {
                       <div className="text-xs font-bold text-gray-600 mb-2">Add Evidence</div>
                       <button
                         onClick={() => alert("File picker opening...")}
-                        className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 flex items-center justify-center gap-2 hover:border-[#1a56f0]/40 transition-all"
+                        className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 flex items-center justify-center gap-2 hover:border-[#004B49]/40 transition-all"
                       >
                         <Upload size={16} className="text-gray-300" />
                         <span className="text-xs text-gray-400">Upload screenshots or documents</span>
@@ -164,7 +164,7 @@ export function Disputes() {
                     {/* ACTIONS */}
                     <div className="flex gap-2">
                       <Link to="/messages" className="flex-1">
-                        <button className="w-full border border-[#1a56f0] text-[#1a56f0] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                        <button className="w-full border border-[#004B49] text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                           <MessageCircle size={14} />
                           Message Admin
                         </button>
@@ -210,7 +210,7 @@ export function Disputes() {
               </div>
               <button
                 onClick={() => { setSubmitted(false); setTab("active"); }}
-                className="bg-[#1a56f0] text-white font-bold py-3 px-6 rounded-2xl text-sm"
+                className="bg-[#004B49] text-white font-bold py-3 px-6 rounded-2xl text-sm"
               >
                 View My Disputes
               </button>
@@ -218,11 +218,11 @@ export function Disputes() {
           ) : (
             <div className="flex flex-col gap-4">
 
-              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-2">
-                <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-2xl p-4 flex gap-2">
+                <AlertTriangle size={16} className="text-[#9c7a1f] flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-xs font-bold text-amber-700 mb-0.5">Before filing a dispute</div>
-                  <div className="text-xs text-amber-600">Try messaging the provider first. Most issues are resolved through direct communication.</div>
+                  <div className="text-xs font-bold text-[#9c7a1f] mb-0.5">Before filing a dispute</div>
+                  <div className="text-xs text-[#9c7a1f]">Try messaging the provider first. Most issues are resolved through direct communication.</div>
                 </div>
               </div>
 
@@ -231,7 +231,7 @@ export function Disputes() {
 
                 <div className="mb-4">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Select Transaction</label>
-                  <select className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0]">
+                  <select className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
                     <option>TXN-003 — UAE Work Visa ($199)</option>
                     <option>TXN-001 — Canada PR ($499)</option>
                   </select>
@@ -244,7 +244,7 @@ export function Disputes() {
                       <button key={r} onClick={() => setReason(r)}
                         className={`text-left px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
                           reason === r
-                            ? "bg-[#1a56f0]/5 border-[#1a56f0] text-[#1a56f0]"
+                            ? "bg-[#004B49]/5 border-[#004B49] text-[#004B49]"
                             : "bg-gray-50 border-gray-100 text-gray-600"
                         }`}>
                         {reason === r ? "✓ " : ""}{r}
@@ -260,7 +260,7 @@ export function Disputes() {
                     onChange={(e) => setDetails(e.target.value)}
                     placeholder="Describe exactly what happened, when it happened, and what you expect..."
                     rows={4}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#1a56f0] resize-none"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49] resize-none"
                   />
                 </div>
 
@@ -268,7 +268,7 @@ export function Disputes() {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Evidence (Optional)</label>
                   <button
                     onClick={() => alert("File picker opening...")}
-                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#1a56f0]/40"
+                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1.5 hover:border-[#004B49]/40"
                   >
                     <Upload size={20} className="text-gray-300" />
                     <span className="text-xs text-gray-400">Upload screenshots or documents</span>
