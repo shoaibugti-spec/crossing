@@ -17,9 +17,9 @@ interface ConversationRow {
 }
 
 const AVATAR_COLORS = [
-  "from-[#1a56f0] to-purple-600",
+  "from-[#004B49] to-[#00746f]",
   "from-green-500 to-teal-600",
-  "from-amber-500 to-orange-600",
+  "from-[#D4AF37] to-[#9c7a1f]",
 ];
 
 export function Messages() {
@@ -43,7 +43,6 @@ export function Messages() {
     }
     const uid = userData.user.id;
 
-    // Only transactions the user is part of unlock a chat — no order, no conversation
     const { data: txs } = await supabase
       .from("transactions")
       .select(`
@@ -65,7 +64,6 @@ export function Messages() {
       const isBuyer = row.buyer_id === uid;
       const counterparty = isBuyer ? row.seller : row.buyer;
 
-      // Fetch the most recent message for a preview line
       const { data: lastMessage } = await supabase
         .from("messages")
         .select("content, created_at, sender_id")
@@ -74,7 +72,6 @@ export function Messages() {
         .limit(1)
         .maybeSingle();
 
-      // Count unread messages sent by the other party
       const { count: unreadCount } = await supabase
         .from("messages")
         .select("id", { count: "exact", head: true })
@@ -119,7 +116,7 @@ export function Messages() {
       {/* SEARCH */}
       <div className="bg-white px-4 pt-4 pb-3 border-b border-gray-100">
         <div className="text-lg font-black text-gray-800 mb-3">Messages</div>
-        <div className="flex items-center gap-2 bg-[#F2F3F7] rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-[#F4F6F6] rounded-2xl px-4 py-3">
           <Search size={16} className="text-gray-400 flex-shrink-0" />
           <input
             value={search}
@@ -141,9 +138,9 @@ export function Messages() {
 
       {/* INFO BANNER */}
       <div className="mx-4 mt-3">
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 flex gap-2">
-          <Lock size={13} className="text-[#1a56f0] flex-shrink-0 mt-0.5" />
-          <span className="text-[11px] text-blue-700">
+        <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl px-3 py-2.5 flex gap-2">
+          <Lock size={13} className="text-[#004B49] flex-shrink-0 mt-0.5" />
+          <span className="text-[11px] text-[#004B49]">
             Chat unlocks only after placing an order. This protects both buyers and providers from outside-app fraud.
           </span>
         </div>
@@ -161,7 +158,7 @@ export function Messages() {
               Browse listings and place an order to unlock chat with a provider
             </div>
             <Link to="/ads" search={{ q: "", country: "", type: "" }}>
-              <button className="mt-4 bg-[#1a56f0] text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+              <button className="mt-4 bg-[#004B49] text-white text-xs font-bold px-4 py-2.5 rounded-xl">
                 Browse Visa Listings
               </button>
             </Link>
@@ -181,7 +178,7 @@ export function Messages() {
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-gray-800 text-sm">{conv.name}</span>
-                      {conv.verified && <span className="text-[#1a56f0] text-[10px]">✓</span>}
+                      {conv.verified && <span className="text-[#D4AF37] text-[10px]">✓</span>}
                     </div>
                     <span className="text-[10px] text-gray-400 flex-shrink-0">{conv.time}</span>
                   </div>
@@ -190,7 +187,7 @@ export function Messages() {
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1 flex-1 min-w-0">
-                      {conv.unread === 0 && <CheckCheck size={12} className="text-[#1a56f0] flex-shrink-0" />}
+                      {conv.unread === 0 && <CheckCheck size={12} className="text-[#004B49] flex-shrink-0" />}
                       <span className={`text-xs truncate ${conv.unread > 0 ? "text-gray-700 font-semibold" : "text-gray-400"}`}>
                         {conv.lastMsg}
                       </span>
@@ -198,12 +195,12 @@ export function Messages() {
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {conv.escrowActive && (
-                        <span className="bg-amber-50 text-amber-500 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-amber-100">
+                        <span className="bg-[#FBF3E1] text-[#9c7a1f] text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-[#D4AF37]/30">
                           🔒 ${conv.escrowAmount}
                         </span>
                       )}
                       {conv.unread > 0 && (
-                        <span className="w-5 h-5 bg-[#1a56f0] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        <span className="w-5 h-5 bg-[#004B49] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                           {conv.unread}
                         </span>
                       )}
