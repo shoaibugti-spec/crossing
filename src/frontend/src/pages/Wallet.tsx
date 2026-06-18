@@ -164,7 +164,7 @@ export function Wallet() {
         </button>
         <span className="font-bold text-gray-800 text-sm">Wallet</span>
         {role === "provider" && (
-          <span className="ml-auto text-[10px] font-bold text-amber-500 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">
+          <span className="ml-auto text-[10px] font-bold text-[#9c7a1f] bg-[#FBF3E1] border border-[#D4AF37]/30 px-2 py-0.5 rounded-full">
             Provider Account
           </span>
         )}
@@ -172,7 +172,7 @@ export function Wallet() {
 
       {/* MAIN BALANCE CARD */}
       <div className="mx-4 mt-4">
-        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#1a56f0] rounded-3xl p-5 shadow-lg">
+        <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-3xl p-5 shadow-lg">
           <div className="text-white/60 text-xs mb-1">Available Balance</div>
           <div className="text-4xl font-black text-white mb-1">
             ${walletBalance.toFixed(2)} <span className="text-lg font-semibold text-white/60">USDT</span>
@@ -199,14 +199,14 @@ export function Wallet() {
       {/* SECURITY DEPOSIT — Provider only */}
       {role === "provider" && (
         <div className="mx-4 mt-3">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100">
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#D4AF37]/25">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Shield size={20} className="text-amber-500" />
+              <div className="w-10 h-10 bg-[#FBF3E1] rounded-xl flex items-center justify-center flex-shrink-0">
+                <Shield size={20} className="text-[#9c7a1f]" />
               </div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
-                <div className="text-xs text-amber-500 font-semibold mt-0.5">
+                <div className="text-xs text-[#9c7a1f] font-semibold mt-0.5">
                   {securityDeposit >= 2000 ? `🔒 Locked — $${securityDeposit.toFixed(2)} USDT` : `⚠ $${securityDeposit.toFixed(2)} / $2,000 USDT`}
                 </div>
               </div>
@@ -274,10 +274,10 @@ export function Wallet() {
               return (
                 <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < transactions.length - 1 ? "border-b border-gray-50" : ""}`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    tx.type === "earning" ? "bg-green-50" : tx.type === "fee" ? "bg-red-50" : tx.status === "pending" ? "bg-amber-50" : "bg-blue-50"
+                    tx.type === "earning" ? "bg-green-50" : tx.type === "fee" ? "bg-red-50" : tx.status === "pending" ? "bg-[#FBF3E1]" : "bg-[#E8F0EF]"
                   }`}>
                     <Icon size={16} className={
-                      tx.type === "earning" ? "text-green-500" : tx.type === "fee" ? "text-red-400" : tx.status === "pending" ? "text-amber-500" : "text-[#1a56f0]"
+                      tx.type === "earning" ? "text-green-500" : tx.type === "fee" ? "text-red-400" : tx.status === "pending" ? "text-[#9c7a1f]" : "text-[#004B49]"
                     } />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -288,7 +288,7 @@ export function Wallet() {
                     <div className={`font-bold text-sm ${tx.amount > 0 ? "text-green-500" : "text-red-400"}`}>
                       {tx.amount > 0 ? `+$${tx.amount.toFixed(2)}` : `-$${Math.abs(tx.amount).toFixed(2)}`}
                     </div>
-                    <div className={`text-[10px] font-semibold capitalize ${tx.status === "pending" ? "text-amber-400" : tx.status === "completed" ? "text-green-400" : "text-red-400"}`}>
+                    <div className={`text-[10px] font-semibold capitalize ${tx.status === "pending" ? "text-[#9c7a1f]" : tx.status === "completed" ? "text-green-400" : "text-red-400"}`}>
                       {tx.status}
                     </div>
                   </div>
@@ -323,13 +323,13 @@ export function Wallet() {
                 <div className="flex gap-2 mb-4">
                   {["100", "250", "500", "1000", "2000"].map((a) => (
                     <button key={a} onClick={() => setAmount(a)}
-                      className="flex-1 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-semibold text-gray-600 hover:border-[#1a56f0] hover:text-[#1a56f0]">
+                      className="flex-1 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-semibold text-gray-600 hover:border-[#004B49] hover:text-[#004B49]">
                       ${a}
                     </button>
                   ))}
                 </div>
                 <button onClick={() => setDepositStep(1)} disabled={!amount || Number(amount) <= 0}
-                  className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-40">
+                  className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-40">
                   Continue
                 </button>
               </>
@@ -349,17 +349,17 @@ export function Wallet() {
                     <div className="text-[10px] text-gray-400 mb-1">Your USDT Deposit Address</div>
                     <div className="flex items-center gap-2">
                       <div className="text-xs font-mono text-gray-700 break-all flex-1">{DEPOSIT_ADDRESS}</div>
-                      <button onClick={copyAddress} className="flex-shrink-0 bg-blue-50 text-[#1a56f0] p-1.5 rounded-lg">
+                      <button onClick={copyAddress} className="flex-shrink-0 bg-[#E8F0EF] text-[#004B49] p-1.5 rounded-lg">
                         <Copy size={13} />
                       </button>
                     </div>
                     {copied && <div className="text-[10px] text-green-500 font-bold mt-1">✓ Copied to clipboard</div>}
                   </div>
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
-                    <div className="text-[10px] text-amber-600 mb-1 font-bold">⚠️ Important — Add this reference in your transaction memo:</div>
+                  <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3">
+                    <div className="text-[10px] text-[#9c7a1f] mb-1 font-bold">⚠️ Important — Add this reference in your transaction memo:</div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-mono font-black text-amber-700 flex-1">{referenceCode}</div>
-                      <button onClick={() => navigator.clipboard.writeText(referenceCode)} className="flex-shrink-0 bg-amber-100 text-amber-700 p-1.5 rounded-lg">
+                      <div className="text-sm font-mono font-black text-[#9c7a1f] flex-1">{referenceCode}</div>
+                      <button onClick={() => navigator.clipboard.writeText(referenceCode)} className="flex-shrink-0 bg-[#D4AF37]/20 text-[#9c7a1f] p-1.5 rounded-lg">
                         <Copy size={13} />
                       </button>
                     </div>
@@ -369,7 +369,7 @@ export function Wallet() {
                   <div className="text-xs text-red-600 font-semibold">⚠️ Send only USDT (any network) to this address. Always include your reference code so we can credit your account correctly.</div>
                 </div>
                 <button onClick={() => void submitDepositRequest()} disabled={submitting}
-                  className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
+                  className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
                   {submitting ? "Submitting..." : "I've Sent the Payment"}
                 </button>
                 <button onClick={() => setDepositStep(0)} className="w-full mt-2 text-gray-400 text-sm py-2">Back</button>
@@ -388,10 +388,10 @@ export function Wallet() {
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4 flex flex-col gap-2">
                   <div className="flex justify-between text-sm"><span className="text-gray-500">Amount</span><span className="font-bold">${amount} USDT</span></div>
                   <div className="flex justify-between text-sm"><span className="text-gray-500">Reference</span><span className="font-bold font-mono">{referenceCode}</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-bold text-amber-500">Pending Confirmation</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-bold text-[#9c7a1f]">Pending Confirmation</span></div>
                 </div>
                 <button onClick={() => { setShowDeposit(false); setDepositStep(0); setAmount(""); void loadWallet(); }}
-                  className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
+                  className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm">
                   Done
                 </button>
               </>
@@ -461,7 +461,7 @@ export function Wallet() {
                   <div className="text-sm text-gray-500">Your security deposit will be available for withdrawal after a 72-hour security hold.</div>
                 </div>
                 <button onClick={() => { setShowCloseAccount(false); setCloseStep(0); void navigate({ to: "/" }); }}
-                  className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm">
+                  className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm">
                   Done
                 </button>
               </>
@@ -507,7 +507,7 @@ function WithdrawModal({
               </div>
             </div>
             <Link to="/disputes">
-              <button className="w-full bg-[#1a56f0] text-white font-bold py-3.5 rounded-2xl text-sm mb-2">View & Resolve Disputes</button>
+              <button className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm mb-2">View & Resolve Disputes</button>
             </Link>
             <button onClick={onClose} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Close</button>
           </>
@@ -519,13 +519,13 @@ function WithdrawModal({
                 <span className="text-gray-400 font-bold">$</span>
                 <input type="number" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="0.00" max={balance}
                   className="flex-1 bg-transparent text-xl font-black text-gray-800 outline-none" />
-                <button onClick={() => setAmt(String(balance))} className="text-[10px] font-bold text-[#1a56f0] bg-blue-50 px-2 py-1 rounded-lg">MAX</button>
+                <button onClick={() => setAmt(String(balance))} className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2 py-1 rounded-lg">MAX</button>
               </div>
             </div>
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Your USDT Wallet Address</label>
               <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your wallet address"
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-mono text-gray-700 outline-none focus:border-[#1a56f0]" />
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-mono text-gray-700 outline-none focus:border-[#004B49]" />
             </div>
             <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-4">
               <div className="text-[11px] text-green-700 font-semibold">✓ Account in good standing — withdrawal available. No fees right now.</div>
@@ -533,7 +533,7 @@ function WithdrawModal({
             <button
               onClick={() => { if (!amt || !address) { alert("Enter amount and wallet address"); return; } onSubmit(address); }}
               disabled={submitting}
-              className="w-full bg-[#1a56f0] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
+              className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
               {submitting ? "Submitting..." : "Submit Withdrawal"}
             </button>
           </>
