@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
 
+const CROSSING_FEE = 72;
+
 const VISA_TYPES = ["Work Visa", "Study Visa", "Tourist Visa", "Business Visa", "Sponsorship", "PR / Immigration"];
 const SORT_OPTIONS = ["Newest", "Price: Low to High", "Price: High to Low"];
 
@@ -30,7 +32,7 @@ export function BrowseAds() {
   const [visaType, setVisaType] = useState(search.type ?? "");
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState("Newest");
-  const [maxPrice, setMaxPrice] = useState(2000);
+  const [maxPrice, setMaxPrice] = useState(5000);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<AdRow[]>([]);
@@ -67,12 +69,14 @@ export function BrowseAds() {
     setLoading(false);
   }
 
+  // buyer-facing price = provider price + CROSSING_FEE
   let filtered = ads.filter((ad) => {
+    const buyerPrice = ad.price + CROSSING_FEE;
     const matchQ = !q || ad.title.toLowerCase().includes(q.toLowerCase()) || ad.country.toLowerCase().includes(q.toLowerCase());
     const matchCountry = !country || ad.country.toLowerCase().includes(country.toLowerCase());
     const matchType = !visaType || ad.visa_type === visaType;
     const matchVerified = !verifiedOnly || ad.provider_kyc_status === "approved";
-    const matchPrice = ad.price <= maxPrice;
+    const matchPrice = buyerPrice <= maxPrice;
     return matchQ && matchCountry && matchType && matchVerified && matchPrice;
   });
 
@@ -80,7 +84,7 @@ export function BrowseAds() {
   if (sortBy === "Price: High to Low") filtered = [...filtered].sort((a, b) => b.price - a.price);
 
   const clearFilters = () => {
-    setQ(""); setCountry(""); setVisaType(""); setVerifiedOnly(false); setMaxPrice(2000);
+    setQ(""); setCountry(""); setVisaType(""); setVerifiedOnly(false); setMaxPrice(5000);
   };
 
   const hasFilters = q || country || visaType || verifiedOnly;
@@ -152,10 +156,10 @@ export function BrowseAds() {
 
           <div className="mb-3">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Max Price: ${maxPrice} USDT</label>
-            <input type="range" min={50} max={2000} step={50} value={maxPrice}
+            <input type="range" min={100} max={5000} step={50} value={maxPrice}
               onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full accent-[#004B49]" />
             <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-              <span>$50</span><span>$2000</span>
+              <span>$100</span><span>$5000</span>
             </div>
           </div>
 
@@ -202,6 +206,7 @@ export function BrowseAds() {
         ) : (
           filtered.map((ad) => {
             const verified = ad.provider_kyc_status === "approved";
+            const buyerPrice = ad.price + CROSSING_FEE;
             return (
               <Link key={ad.id} to="/ads/$id" params={{ id: ad.id }}>
                 <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-50 hover:border-[#004B49]/20 transition-all">
@@ -211,7 +216,7 @@ export function BrowseAds() {
                       <div className="text-xs text-gray-400 mt-0.5">{ad.country}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-black text-[#004B49] text-lg">${ad.price}</div>
+                      <div className="font-black text-[#004B49] text-lg">${buyerPrice}</div>
                       <div className="text-[10px] text-gray-400">{ad.currency}</div>
                     </div>
                   </div>
