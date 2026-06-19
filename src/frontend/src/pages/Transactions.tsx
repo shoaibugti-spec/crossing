@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Calendar, Upload, Plus, Timer, Loader2 } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Calendar, Upload, Plus, Timer, Loader2, XCircle, ShieldAlert } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -17,6 +17,9 @@ interface TxRow {
   amount: number;
   status: string;
   current_step: number;
+  is_locked: boolean;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
   appointment_date: string | null;
   appointment_time: string | null;
   appointment_location: string | null;
@@ -31,11 +34,11 @@ interface TxRow {
 }
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  escrow_active: { label: "Escrow Active", color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
-  in_progress:   { label: "In Progress",   color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
-  completed:     { label: "Completed",     color: "text-green-500", bg: "bg-green-50", border: "border-green-100" },
-  disputed:      { label: "Disputed",      color: "text-red-500",   bg: "bg-red-50",   border: "border-red-100" },
-  cancelled:     { label: "Cancelled",     color: "text-gray-400",  bg: "bg-gray-50",  border: "border-gray-200" },
+  escrow_active: { label: "Escrow Active",  color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
+  in_progress:   { label: "In Progress",    color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
+  completed:     { label: "Completed",      color: "text-green-500", bg: "bg-green-50",  border: "border-green-100" },
+  disputed:      { label: "Disputed",       color: "text-red-500",   bg: "bg-red-50",    border: "border-red-100" },
+  cancelled:     { label: "Cancelled",      color: "text-gray-400",  bg: "bg-gray-50",   border: "border-gray-200" },
 };
 
 const PROGRESS_STEPS = [
@@ -68,6 +71,14 @@ export function Transactions() {
   const [showConfirmModal, setShowConfirmModal] = useState<TxRow | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Cancel workflow
+  const [showCancelModal, setShowCancelModal] = useState<TxRow | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+
+  // Issue raise workflow
+  const [showIssueModal, setShowIssueModal] = useState<TxRow | null>(null);
+  const [issueText, setIssueText] = useState("");
+
   useEffect(() => {
     void loadData();
     const interval = setInterval(() => setNow(Date.now()), 30000);
@@ -77,18 +88,16 @@ export function Transactions() {
   async function loadData() {
     setLoading(true);
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      setLoading(false);
-      void navigate({ to: "/login" });
-      return;
-    }
+    if (!userData.user) { setLoading(false); void navigate({ to: "/login" }); return; }
     const uid = userData.user.id;
     setUserId(uid);
 
     const { data: txs } = await supabase
       .from("transactions")
       .select(`
-        id, amount, status, current_step, appointment_date, appointment_time, appointment_location, appointment_voucher, created_at, buyer_id, seller_id,
+        id, amount, status, current_step, is_locked, cancelled_at, cancel_reason,
+        appointment_date, appointment_time, appointment_location, appointment_voucher,
+        created_at, buyer_id, seller_id,
         ads:ad_id(title, country),
         buyer:buyer_id(full_name),
         seller:seller_id(full_name)
@@ -110,6 +119,9 @@ export function Transactions() {
         amount: Number(row.amount),
         status: row.status,
         current_step: row.current_step,
+        is_locked: row.is_locked ?? false,
+        cancelled_at: row.cancelled_at,
+        cancel_reason: row.cancel_reason,
         appointment_date: row.appointment_date,
         appointment_time: row.appointment_time,
         appointment_location: row.appointment_location,
@@ -119,7 +131,9 @@ export function Transactions() {
         seller_id: row.seller_id,
         ad_title: row.ads?.title ?? "Visa Listing",
         ad_country: row.ads?.country ?? "",
-        counterparty_name: uid === row.buyer_id ? (row.seller?.full_name ?? "Provider") : (row.buyer?.full_name ?? "Buyer"),
+        counterparty_name: uid === row.buyer_id
+          ? (row.seller?.full_name ?? "Provider")
+          : (row.buyer?.full_name ?? "Buyer"),
         docs: docs ?? [],
       });
     }
@@ -136,8 +150,21 @@ export function Transactions() {
       review_deadline: deadline,
     }).eq("id", docId);
 
+    // Lock the transaction after first doc submission
+    const tx = transactions.find((t) => t.id === txId);
+    if (tx && !tx.is_locked) {
+      await supabase.from("transactions").update({ is_locked: true }).eq("id", txId);
+    }
+
     setTransactions((prev) => prev.map((t) =>
-      t.id === txId ? { ...t, docs: t.docs.map((d) => d.id === docId ? { ...d, status: "submitted", submitted_at: new Date().toISOString(), review_deadline: deadline } : d) } : t
+      t.id === txId ? {
+        ...t,
+        is_locked: true,
+        docs: t.docs.map((d) => d.id === docId
+          ? { ...d, status: "submitted", submitted_at: new Date().toISOString(), review_deadline: deadline }
+          : d
+        ),
+      } : t
     ));
   }
 
@@ -147,6 +174,54 @@ export function Transactions() {
     setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, appointment_voucher: voucherInput.trim() } : t));
     setVoucherInput("");
     setShowVoucherInput(null);
+  }
+
+  async function cancelTransaction(tx: TxRow) {
+    if (!cancelReason.trim()) { alert("Please provide a reason"); return; }
+    setBusy(true);
+
+    await supabase.from("transactions").update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancel_reason: cancelReason.trim(),
+    }).eq("id", tx.id);
+
+    // Refund buyer
+    const { data: buyerProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", tx.buyer_id).single();
+    const newBalance = Number(buyerProfile?.wallet_balance ?? 0) + tx.amount;
+    await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", tx.buyer_id);
+    await supabase.from("wallet_transactions").insert({
+      user_id: tx.buyer_id,
+      type: "refund",
+      amount: tx.amount,
+      status: "completed",
+      notes: `Cancelled — ${tx.ad_title}: ${cancelReason.trim()}`,
+    });
+
+    setTransactions((prev) => prev.map((t) => t.id === tx.id
+      ? { ...t, status: "cancelled", cancel_reason: cancelReason.trim() }
+      : t
+    ));
+    setShowCancelModal(null);
+    setCancelReason("");
+    setBusy(false);
+  }
+
+  async function raiseIssue(tx: TxRow) {
+    if (!issueText.trim()) { alert("Please describe the issue"); return; }
+    setBusy(true);
+
+    await supabase.from("disputes").insert({
+      transaction_id: tx.id,
+      filed_by: userId,
+      reason: issueText.trim(),
+      status: "open",
+    });
+
+    setShowIssueModal(null);
+    setIssueText("");
+    setBusy(false);
+    alert("Issue raised successfully. Admin will review within 24 hours.");
   }
 
   async function confirmVisaReceived(tx: TxRow) {
@@ -246,6 +321,7 @@ export function Transactions() {
             const isBuyer = tx.buyer_id === userId;
             const pendingDocs = tx.docs.filter((d) => d.status === "not_submitted").length;
             const overdueReviews = tx.docs.filter((d) => d.status === "submitted" && d.review_deadline && now > new Date(d.review_deadline).getTime()).length;
+            const isActive = tx.status === "escrow_active" || tx.status === "in_progress";
 
             return (
               <div key={tx.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -254,6 +330,7 @@ export function Transactions() {
                   <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
                     {tx.status === "completed" ? <CheckCircle size={18} className={s.color} />
                       : tx.status === "disputed" ? <AlertTriangle size={18} className={s.color} />
+                      : tx.status === "cancelled" ? <XCircle size={18} className={s.color} />
                       : <Clock size={18} className={s.color} />}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -261,11 +338,16 @@ export function Transactions() {
                     <div className="text-xs text-gray-400 mt-0.5">{tx.ad_country} · {tx.counterparty_name}</div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color} ${s.border}`}>{s.label}</span>
+                      {tx.is_locked && isActive && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#004B49]/10 text-[#004B49] border border-[#004B49]/20">
+                          🔒 Locked
+                        </span>
+                      )}
                       {pendingDocs > 0 && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100">{pendingDocs} docs pending</span>
                       )}
                       {overdueReviews > 0 && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 animate-pulse">⚠ {overdueReviews} review overdue!</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 animate-pulse">⚠ {overdueReviews} overdue</span>
                       )}
                     </div>
                   </div>
@@ -278,6 +360,34 @@ export function Transactions() {
 
                 {isOpen && (
                   <div className="border-t border-gray-50">
+
+                    {/* LOCK STATUS BANNER */}
+                    {isActive && (
+                      <div className={`px-4 py-2.5 flex items-center gap-2 ${tx.is_locked ? "bg-[#004B49]/8 border-b border-[#004B49]/10" : "bg-amber-50 border-b border-amber-100"}`}>
+                        {tx.is_locked ? (
+                          <>
+                            <Lock size={13} className="text-[#004B49] flex-shrink-0" />
+                            <span className="text-[11px] text-[#004B49] font-semibold">Transaction locked — document submitted. Only issue raise allowed.</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+                            <span className="text-[11px] text-amber-700 font-semibold">
+                              {isBuyer ? "You can cancel before submitting first document." : "Buyer can cancel until first document is submitted."}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CANCELLED INFO */}
+                    {tx.status === "cancelled" && tx.cancel_reason && (
+                      <div className="mx-4 mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                        <div className="text-xs font-bold text-gray-500 mb-1">Cancellation Reason</div>
+                        <div className="text-xs text-gray-600">{tx.cancel_reason}</div>
+                        <div className="text-[10px] text-green-500 font-semibold mt-1.5">✓ Full refund sent to buyer wallet</div>
+                      </div>
+                    )}
 
                     <div className="flex border-b border-gray-100">
                       {[
@@ -316,7 +426,10 @@ export function Transactions() {
                                     <div className="flex-1 min-w-0">
                                       <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
                                       <div className={`text-[10px] font-semibold mt-0.5 ${
-                                        doc.status === "verified" ? "text-green-500" : isOverdue ? "text-red-500" : doc.status === "submitted" ? "text-[#9c7a1f]" : "text-red-400"
+                                        doc.status === "verified" ? "text-green-500"
+                                          : isOverdue ? "text-red-500"
+                                          : doc.status === "submitted" ? "text-[#9c7a1f]"
+                                          : "text-red-400"
                                       }`}>
                                         {doc.status === "verified" ? "✓ Verified"
                                           : isOverdue ? "⚠ Review overdue — file dispute"
@@ -333,7 +446,7 @@ export function Transactions() {
                                     {isOverdue && isBuyer && (
                                       <button onClick={() => setShowOverdueDispute({ tx: tx.id, doc: doc.name })}
                                         className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0">
-                                        File Dispute
+                                        Dispute
                                       </button>
                                     )}
                                   </div>
@@ -438,27 +551,53 @@ export function Transactions() {
                         </div>
                       )}
 
-                      <div className="flex gap-2 mt-4">
+                      {/* ACTION BUTTONS */}
+                      <div className="flex gap-2 mt-4 flex-wrap">
                         <Link to="/messages" className="flex-1">
                           <button className="w-full border border-[#004B49] text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
                             <MessageCircle size={14} /> Chat
                           </button>
                         </Link>
-                        {(tx.status === "escrow_active" || tx.status === "in_progress") && isBuyer && (
-                          <button onClick={() => setShowConfirmModal(tx)} className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl">
+
+                        {/* Buyer: Cancel (only before lock) */}
+                        {isActive && isBuyer && !tx.is_locked && (
+                          <button onClick={() => setShowCancelModal(tx)}
+                            className="flex-1 border border-red-200 text-red-500 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                            <XCircle size={14} /> Cancel
+                          </button>
+                        )}
+
+                        {/* Both: Raise Issue (after lock) */}
+                        {isActive && tx.is_locked && (
+                          <button onClick={() => setShowIssueModal(tx)}
+                            className="flex-1 border border-amber-300 text-amber-600 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
+                            <ShieldAlert size={14} /> Raise Issue
+                          </button>
+                        )}
+
+                        {/* Buyer: Confirm visa */}
+                        {isActive && isBuyer && (
+                          <button onClick={() => setShowConfirmModal(tx)}
+                            className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl">
                             ✓ Visa Received
                           </button>
                         )}
+
                         {tx.status === "disputed" && (
                           <Link to="/disputes" className="flex-1">
                             <button className="w-full bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl">View Dispute</button>
                           </Link>
                         )}
+
                         {tx.status === "completed" && isBuyer && (
-                          <button onClick={() => alert("Review system coming soon")} className="flex-1 bg-[#D4AF37] text-white text-xs font-bold py-2.5 rounded-xl">⭐ Leave Review</button>
+                          <button onClick={() => alert("Review system coming soon")}
+                            className="flex-1 bg-[#D4AF37] text-white text-xs font-bold py-2.5 rounded-xl">⭐ Leave Review</button>
                         )}
                       </div>
-                      <div className="mt-2 text-center"><span className="text-[10px] text-gray-400 font-mono">ID: {tx.id.slice(0, 8)}</span></div>
+
+                      <div className="mt-2 text-center">
+                        <span className="text-[10px] text-gray-400 font-mono">ID: {tx.id.slice(0, 8)}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -468,7 +607,79 @@ export function Transactions() {
         )}
       </div>
 
-      {/* OVERDUE DISPUTE MODAL */}
+      {/* ── CANCEL MODAL ── */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !busy && setShowCancelModal(null)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <XCircle size={26} className="text-red-500" />
+              </div>
+              <div className="font-black text-gray-800 text-lg mb-1">Cancel Order?</div>
+              <div className="text-sm text-gray-500 leading-relaxed">
+                Your full payment of <span className="font-bold text-gray-800">${showCancelModal.amount} USDT</span> will be refunded to your wallet.
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
+              <div className="text-xs text-amber-700 font-semibold">⚠️ You can only cancel before submitting any documents. After that, you must raise an issue.</div>
+            </div>
+            <div className="mb-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Reason for Cancellation *</label>
+              <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Please explain why you're cancelling..."
+                rows={3}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-red-300 resize-none" />
+            </div>
+            <button onClick={() => void cancelTransaction(showCancelModal)} disabled={busy || !cancelReason.trim()}
+              className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-50">
+              {busy ? "Processing..." : "Yes, Cancel Order"}
+            </button>
+            <button onClick={() => { setShowCancelModal(null); setCancelReason(""); }} disabled={busy}
+              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
+              Keep Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── RAISE ISSUE MODAL ── */}
+      {showIssueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !busy && setShowIssueModal(null)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <ShieldAlert size={26} className="text-amber-500" />
+              </div>
+              <div className="font-black text-gray-800 text-lg mb-1">Raise an Issue</div>
+              <div className="text-sm text-gray-500 leading-relaxed">
+                Describe your issue. Admin will review within 24 hours and mediate.
+              </div>
+            </div>
+            <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 mb-4">
+              <div className="text-xs text-[#004B49]">🔒 Transaction is locked. Direct cancellation is not available — admin mediation required.</div>
+            </div>
+            <div className="mb-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Describe the Issue *</label>
+              <textarea value={issueText} onChange={(e) => setIssueText(e.target.value)}
+                placeholder="What went wrong? Be specific..."
+                rows={4}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-amber-300 resize-none" />
+            </div>
+            <button onClick={() => void raiseIssue(showIssueModal)} disabled={busy || !issueText.trim()}
+              className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-50">
+              {busy ? "Submitting..." : "Submit Issue to Admin"}
+            </button>
+            <button onClick={() => { setShowIssueModal(null); setIssueText(""); }} disabled={busy}
+              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── OVERDUE DISPUTE MODAL ── */}
       {showOverdueDispute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowOverdueDispute(null)} />
@@ -490,7 +701,7 @@ export function Transactions() {
         </div>
       )}
 
-      {/* CONFIRM MODAL */}
+      {/* ── CONFIRM VISA MODAL ── */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" />
