@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck } from "lucide-react";
+import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
 
 const CROSSING_FEE = 72;
+const LOGO_URL = "https://kdbnmoqzcncvkwcbzhxc.supabase.co/storage/v1/object/public/brand-assets/logo.png";
 
 interface AdRow {
   id: string;
@@ -67,6 +68,25 @@ export function LandingPage() {
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<AdRow[]>([]);
   const [verifiedProviders, setVerifiedProviders] = useState<ProviderSummary[]>([]);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setShowInstallBanner(false);
+  };
 
   useEffect(() => {
     void loadData();
@@ -133,6 +153,24 @@ export function LandingPage() {
     );
   }
 
+  // Install Banner
+  const InstallBanner = showInstallBanner ? (
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-white border-b border-gray-100 shadow-lg px-4 py-3 flex items-center gap-3 max-w-lg mx-auto">
+      <img src={LOGO_URL} className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-gray-100" alt="Crossingpoint" />
+      <div className="flex-1 min-w-0">
+        <div className="font-black text-gray-800 text-sm">Crossingpoint</div>
+        <div className="text-xs text-gray-400">crossing-frontend.vercel.app</div>
+      </div>
+      <button onClick={() => void handleInstall()}
+        className="bg-[#004B49] text-white text-xs font-bold px-4 py-2 rounded-xl flex-shrink-0 flex items-center gap-1.5">
+        <Download size={12} /> Install
+      </button>
+      <button onClick={() => setShowInstallBanner(false)} className="text-gray-300 flex-shrink-0 text-lg leading-none">
+        ✕
+      </button>
+    </div>
+  ) : null;
+
   const SearchCard = (
     <div className="bg-white rounded-3xl shadow-xl shadow-[#004B49]/20 overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50">
@@ -167,8 +205,9 @@ export function LandingPage() {
   if (!loggedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F4F6F6]">
+        {InstallBanner}
 
-        <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-10 pb-16 relative overflow-hidden">
+        <div className={`bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-10 pb-16 relative overflow-hidden ${showInstallBanner ? "mt-16" : ""}`}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full bg-[#D4AF37]/15 blur-2xl" />
           <div className="absolute -bottom-20 -left-16 w-60 h-60 rounded-full bg-white/5 blur-2xl" />
 
@@ -302,8 +341,9 @@ export function LandingPage() {
 
   return (
     <div className="flex flex-col bg-[#F4F6F6]">
+      {InstallBanner}
 
-      <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-4 pt-5 pb-14 relative overflow-hidden">
+      <div className={`bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-4 pt-5 pb-14 relative overflow-hidden ${showInstallBanner ? "mt-16" : ""}`}>
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#D4AF37]/15 blur-2xl" />
         <div className="text-white/70 text-xs">Wallet Balance</div>
         <div className="text-white font-black text-2xl mt-0.5">
