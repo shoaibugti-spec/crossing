@@ -3,6 +3,19 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+function CPLogo({ size = 56 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
+      <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
+      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
+        fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="32" fill="white">
+        CP
+      </text>
+      <circle cx="66" cy="66" r="8" fill="#D4AF37" />
+    </svg>
+  );
+}
+
 export function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -19,10 +32,7 @@ export function Login() {
     setLoading(true);
     setError("");
 
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (loginError) {
       setError(loginError.message === "Invalid login credentials"
@@ -39,23 +49,16 @@ export function Login() {
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
-      {/* TOP BRAND HEADER */}
       <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-16 pb-10 flex flex-col items-center">
-        <svg width="56" height="56" viewBox="0 0 80 80" fill="none">
-          <rect width="80" height="80" rx="20" fill="white" fillOpacity="0.15" />
-          <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-          <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-          <circle cx="40" cy="40" r="7" fill="#D4AF37" />
-        </svg>
-        <div className="text-white font-black text-2xl tracking-wider mt-3">CROSSING</div>
+        <CPLogo size={56} />
+        <div className="text-white font-black text-2xl tracking-wider mt-3">CrossingPoint</div>
         <div className="text-white/60 text-xs mt-1">World's Trusted Visa Marketplace</div>
       </div>
 
-      {/* FORM */}
       <div className="flex-1 px-5 -mt-6">
         <div className="bg-white rounded-3xl p-6 shadow-sm">
           <div className="font-black text-gray-800 text-xl mb-1">Welcome Back</div>
-          <div className="text-sm text-gray-500 mb-5">Login to continue to Crossing</div>
+          <div className="text-sm text-gray-500 mb-5">Login to continue to CrossingPoint</div>
 
           {error && (
             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
@@ -68,14 +71,10 @@ export function Login() {
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Email Address</label>
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
                 <Mail size={15} className="text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@email.com"
                   className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
-                  onKeyDown={(e) => e.key === "Enter" && void handleLogin()}
-                />
+                  onKeyDown={(e) => e.key === "Enter" && void handleLogin()} />
               </div>
             </div>
 
@@ -88,14 +87,11 @@ export function Login() {
               </div>
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
                 <Lock size={15} className="text-gray-400" />
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
+                <input type={showPass ? "text" : "password"} value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
-                  onKeyDown={(e) => e.key === "Enter" && void handleLogin()}
-                />
+                  onKeyDown={(e) => e.key === "Enter" && void handleLogin()} />
                 <button onClick={() => setShowPass(!showPass)}>
                   {showPass ? <EyeOff size={15} className="text-gray-400" /> : <Eye size={15} className="text-gray-400" />}
                 </button>
@@ -103,11 +99,8 @@ export function Login() {
             </div>
           </div>
 
-          <button
-            onClick={() => void handleLogin()}
-            disabled={loading}
-            className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60"
-          >
+          <button onClick={() => void handleLogin()} disabled={loading}
+            className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60">
             {loading ? "Logging in..." : "Login"}
           </button>
 
@@ -118,7 +111,7 @@ export function Login() {
         </div>
 
         <div className="text-center text-xs text-gray-400 mt-6 px-8">
-          By logging in, you agree to Crossing's Terms of Service and Privacy Policy. Your funds are always protected by Escrow.
+          By logging in, you agree to CrossingPoint's Terms of Service and Privacy Policy. Your funds are always protected by Escrow.
         </div>
       </div>
     </div>
