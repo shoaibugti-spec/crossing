@@ -12,6 +12,7 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { BrowseAds } from "./pages/BrowseAds";
 import { ChatView } from "./pages/ChatView";
 import { Disputes } from "./pages/Disputes";
+import { ForgotPassword } from "./pages/ForgotPassword";
 import { Help } from "./pages/Help";
 import { KYCFlow } from "./pages/KYCFlow";
 import { LandingPage } from "./pages/LandingPage";
@@ -27,7 +28,6 @@ import { Signup } from "./pages/Signup";
 import { Transactions } from "./pages/Transactions";
 import { Wallet } from "./pages/Wallet";
 
-// Root route with layout
 const rootRoute = createRootRoute({
   component: () => (
     <Layout>
@@ -37,7 +37,6 @@ const rootRoute = createRootRoute({
   ),
 });
 
-// Route definitions
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
@@ -157,6 +156,12 @@ const signupRoute = createRoute({
   component: Signup,
 });
 
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/forgot-password",
+  component: ForgotPassword,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   adsRoute,
@@ -177,6 +182,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   loginRoute,
   signupRoute,
+  forgotPasswordRoute,
 ]);
 
 const router = createRouter({
