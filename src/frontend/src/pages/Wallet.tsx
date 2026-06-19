@@ -1,9 +1,9 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Upload } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Camera } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-const DEPOSIT_ADDRESS = "TQn9Y2khEsLMG6Wg3KqkPFRYz5UY8gh3xZ";
+const DEPOSIT_ADDRESS = "TNjaCQjQ5Yzm5tiVF8s121rUv5BH7y6hAC";
 
 interface WalletTx {
   id: string;
@@ -11,7 +11,12 @@ interface WalletTx {
   amount: number;
   status: string;
   notes: string | null;
+  receipt_url: string | null;
   created_at: string;
+}
+
+function fileToBlob(file: File): Promise<Blob> {
+  return Promise.resolve(file);
 }
 
 export function Wallet() {
@@ -33,6 +38,8 @@ export function Wallet() {
   const [amount, setAmount] = useState("");
   const [depositStep, setDepositStep] = useState(0);
   const [txHash, setTxHash] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [closeStep, setCloseStep] = useState(0);
   const [confirmText, setConfirmText] = useState("");
   const [copied, setCopied] = useState(false);
@@ -82,7 +89,7 @@ export function Wallet() {
 
     const { data: txs } = await supabase
       .from("wallet_transactions")
-      .select("id, type, amount, status, notes, created_at")
+      .select("id, type, amount, status, notes, receipt_url, created_at")
       .eq("user_id", uid)
       .order("created_at", { ascending: false })
       .limit(30);
@@ -101,17 +108,48 @@ export function Wallet() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  function handleReceiptSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptFile(file);
+    setReceiptPreview(URL.createObjectURL(file));
+  }
+
   async function submitDepositRequest() {
     if (!userId || !amount) return;
+    if (!receiptFile) {
+      alert("Please upload a screenshot of your payment receipt before submitting.");
+      return;
+    }
     setSubmitting(true);
+
+    let receiptUrl: string | null = null;
+    try {
+      const blob = await fileToBlob(receiptFile);
+      const ext = receiptFile.name.split(".").pop() || "jpg";
+      const path = `${userId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("deposit-receipts").upload(path, blob, {
+        contentType: receiptFile.type || "image/jpeg",
+      });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage.from("deposit-receipts").getPublicUrl(path);
+      receiptUrl = urlData.publicUrl;
+    } catch (err: any) {
+      alert("Failed to upload receipt: " + (err.message ?? "unknown error"));
+      setSubmitting(false);
+      return;
+    }
+
     await supabase.from("wallet_transactions").insert({
       user_id: userId,
       type: "deposit",
       amount: Number(amount),
       reference_code: referenceCode,
       status: "pending",
+      receipt_url: receiptUrl,
       notes: txHash ? `Manual USDT deposit — TX: ${txHash}` : "Manual USDT deposit — pending admin confirmation",
     });
+
     setSubmitting(false);
     setDepositStep(2);
   }
@@ -145,6 +183,15 @@ export function Wallet() {
     });
     setSubmitting(false);
     setCloseStep(2);
+  }
+
+  function resetDepositModal() {
+    setShowDeposit(false);
+    setDepositStep(0);
+    setAmount("");
+    setTxHash("");
+    setReceiptFile(null);
+    setReceiptPreview(null);
   }
 
   if (loading) {
@@ -259,13 +306,19 @@ export function Wallet() {
               const Icon = tx.type === "earning" ? CheckCircle : tx.type === "fee" ? X : tx.type === "deposit" ? ArrowDownLeft : tx.type === "withdrawal" ? ArrowUpRight : Lock;
               return (
                 <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < transactions.length - 1 ? "border-b border-gray-50" : ""}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    tx.type === "earning" ? "bg-green-50" : tx.type === "fee" ? "bg-red-50" : tx.status === "pending" ? "bg-[#FBF3E1]" : "bg-[#E8F0EF]"
-                  }`}>
-                    <Icon size={16} className={
-                      tx.type === "earning" ? "text-green-500" : tx.type === "fee" ? "text-red-400" : tx.status === "pending" ? "text-[#9c7a1f]" : "text-[#004B49]"
-                    } />
-                  </div>
+                  {tx.receipt_url ? (
+                    <a href={tx.receipt_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                      <img src={tx.receipt_url} alt="Receipt" className="w-9 h-9 rounded-xl object-cover border border-gray-100" />
+                    </a>
+                  ) : (
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      tx.type === "earning" ? "bg-green-50" : tx.type === "fee" ? "bg-red-50" : tx.status === "pending" ? "bg-[#FBF3E1]" : "bg-[#E8F0EF]"
+                    }`}>
+                      <Icon size={16} className={
+                        tx.type === "earning" ? "text-green-500" : tx.type === "fee" ? "text-red-400" : tx.status === "pending" ? "text-[#9c7a1f]" : "text-[#004B49]"
+                      } />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-800 truncate capitalize">{tx.notes || tx.type}</div>
                     <div className="text-xs text-gray-400">{new Date(tx.created_at).toLocaleDateString()}</div>
@@ -288,8 +341,8 @@ export function Wallet() {
       {/* ── DEPOSIT MODAL ── */}
       {showDeposit && (
         <div className="fixed inset-0 z-50 flex items-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowDeposit(false); setDepositStep(0); setAmount(""); setTxHash(""); }} />
-          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl p-6 pb-10">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !submitting && resetDepositModal()} />
+          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl p-6 pb-10 max-h-[90vh] overflow-y-auto">
 
             {depositStep === 0 && (
               <>
@@ -339,20 +392,41 @@ export function Wallet() {
                     {copied && <div className="text-[10px] text-green-500 font-bold mt-1">✓ Copied to clipboard</div>}
                   </div>
                 </div>
+
+                <div className="mb-4">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Payment Receipt Screenshot *</label>
+                  {receiptPreview ? (
+                    <div className="relative">
+                      <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-56 object-contain rounded-xl border border-gray-100 bg-gray-50" />
+                      <button onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}
+                        className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="w-full border-2 border-dashed border-gray-200 rounded-xl py-6 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#004B49]/40 transition-all">
+                      <Camera size={22} className="text-gray-300" />
+                      <span className="text-xs font-semibold text-gray-400">Tap to upload your payment screenshot</span>
+                      <input type="file" accept="image/*" capture="environment" onChange={handleReceiptSelect} className="hidden" />
+                    </label>
+                  )}
+                  <div className="text-[10px] text-gray-400 mt-1">Required — this is how we verify your deposit.</div>
+                </div>
+
                 <div className="mb-4">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Transaction Hash / TXID (optional)</label>
                   <input value={txHash} onChange={(e) => setTxHash(e.target.value)} placeholder="Paste your blockchain transaction ID"
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-700 outline-none focus:border-[#004B49]" />
-                  <div className="text-[10px] text-gray-400 mt-1">Adding this speeds up confirmation. You can also message us a screenshot of the receipt.</div>
                 </div>
+
                 <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
                   <div className="text-xs text-red-600 font-semibold">⚠️ Send only USDT on the TRC-20 network to this address.</div>
                 </div>
-                <button onClick={() => void submitDepositRequest()} disabled={submitting}
+                <button onClick={() => void submitDepositRequest()} disabled={submitting || !receiptFile}
                   className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
-                  {submitting ? "Submitting..." : "I've Sent the Payment"}
+                  {submitting ? "Submitting..." : "Submit Deposit Request"}
                 </button>
-                <button onClick={() => setDepositStep(0)} className="w-full mt-2 text-gray-400 text-sm py-2">Back</button>
+                <button onClick={() => setDepositStep(0)} disabled={submitting} className="w-full mt-2 text-gray-400 text-sm py-2">Back</button>
               </>
             )}
 
@@ -369,7 +443,7 @@ export function Wallet() {
                   <div className="flex justify-between text-sm"><span className="text-gray-500">Amount</span><span className="font-bold">${amount} USDT</span></div>
                   <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-bold text-[#9c7a1f]">Pending Confirmation</span></div>
                 </div>
-                <button onClick={() => { setShowDeposit(false); setDepositStep(0); setAmount(""); setTxHash(""); void loadWallet(); }}
+                <button onClick={() => { resetDepositModal(); void loadWallet(); }}
                   className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm">
                   Done
                 </button>
