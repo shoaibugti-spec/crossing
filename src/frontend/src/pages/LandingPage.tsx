@@ -43,18 +43,19 @@ const CATEGORY_TILES = [
   { emoji: "🧳", label: "Tourist Visa" },
 ];
 
-function CPLogo({ size = 44 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <rect width="80" height="80" rx="18" fill="white" fillOpacity="0.15" />
-      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
-        fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="32" fill="white">
-        CP
-      </text>
-      <circle cx="66" cy="66" r="8" fill="#D4AF37" />
-    </svg>
-  );
-}
+const BrandLight = (
+  <span style={{
+    fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
+    fontWeight: 700,
+    fontStyle: "italic",
+    fontSize: "22px",
+    letterSpacing: "-0.3px",
+    lineHeight: 1,
+  }}>
+    <span style={{ color: "#ffffff" }}>Crossing</span>
+    <span style={{ color: "#D4AF37" }}>point</span>
+  </span>
+);
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -172,8 +173,7 @@ export function LandingPage() {
           <div className="absolute -bottom-20 -left-16 w-60 h-60 rounded-full bg-white/5 blur-2xl" />
 
           <div className="flex items-center gap-2.5 relative z-10">
-            <CPLogo size={32} />
-            <span className="text-white font-black text-sm tracking-widest">CrossingPoint</span>
+            {BrandLight}
             <span className="ml-auto flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-full px-2.5 py-1 text-[10px] font-bold text-white/85">
               <Lock size={10} /> Escrow Protected
             </span>
@@ -263,7 +263,7 @@ export function LandingPage() {
           <div className="mt-7 px-5">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Fresh on CrossingPoint</span>
+                <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Fresh on Crossingpoint</span>
                 <h2 className="font-black text-gray-800 text-base">Live Listings</h2>
               </div>
               <Link to="/ads" search={{ q: "", country: "", type: "" }}>
@@ -366,7 +366,7 @@ export function LandingPage() {
         <div className="mx-4 mt-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
             <div className="text-2xl mb-2">📋</div>
-            <div className="text-sm font-bold text-gray-400">No listings on CrossingPoint yet</div>
+            <div className="text-sm font-bold text-gray-400">No listings on Crossingpoint yet</div>
             <div className="text-xs text-gray-300 mt-1">Be the first verified provider to post a listing</div>
           </div>
         </div>
