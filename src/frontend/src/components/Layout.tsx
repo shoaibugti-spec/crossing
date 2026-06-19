@@ -132,18 +132,9 @@ export function Layout({ children }: LayoutProps) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
 
-          {/* LEFT: Brand */}
+          {/* LEFT: Brand name only */}
           <Link to="/">
-            <div className="flex items-center gap-2 mr-auto">
-              {/* Icon placeholder — replace with real logo img when ready */}
-              <div className="w-8 h-8 rounded-xl bg-[#004B49] flex items-center justify-center flex-shrink-0">
-                <svg width="18" height="18" viewBox="0 0 80 80" fill="none">
-                  <line x1="15" y1="15" x2="65" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
-                  <line x1="65" y1="15" x2="15" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
-                </svg>
-              </div>
-              <span style={{ fontSize: "17px" }}>{BRAND_NAME}</span>
-            </div>
+            <span style={{ fontSize: "17px" }}>{BRAND_NAME}</span>
           </Link>
 
           {/* RIGHT: Bell + Menu */}
@@ -169,15 +160,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="w-72 bg-white h-full shadow-2xl flex flex-col overflow-y-auto">
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-[#004B49] flex items-center justify-center flex-shrink-0">
-                  <svg width="15" height="15" viewBox="0 0 80 80" fill="none">
-                    <line x1="15" y1="15" x2="65" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
-                    <line x1="65" y1="15" x2="15" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
-                  </svg>
-                </div>
-                <span style={{ fontSize: "15px" }}>{BRAND_NAME}</span>
-              </div>
+              <span style={{ fontSize: "15px" }}>{BRAND_NAME}</span>
               <button onClick={() => setMenuOpen(false)}>
                 <X size={20} className="text-gray-500" />
               </button>
