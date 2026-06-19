@@ -13,18 +13,31 @@ interface ProfileInfo {
   kyc_status: string;
 }
 
-function CPLogo({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <rect width="80" height="80" rx="18" fill="#004B49" />
-      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
-        fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="34" fill="white">
-        CP
-      </text>
-      <circle cx="66" cy="66" r="9" fill="#D4AF37" />
-    </svg>
-  );
-}
+const BRAND_NAME = (
+  <span style={{
+    fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
+    fontWeight: 700,
+    fontStyle: "italic",
+    letterSpacing: "-0.3px",
+    lineHeight: 1,
+  }}>
+    <span style={{ color: "#004B49" }}>Crossing</span>
+    <span style={{ color: "#D4AF37" }}>point</span>
+  </span>
+);
+
+const BRAND_NAME_LIGHT = (
+  <span style={{
+    fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
+    fontWeight: 700,
+    fontStyle: "italic",
+    letterSpacing: "-0.3px",
+    lineHeight: 1,
+  }}>
+    <span style={{ color: "#ffffff" }}>Crossing</span>
+    <span style={{ color: "#D4AF37" }}>point</span>
+  </span>
+);
 
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -117,25 +130,35 @@ export function Layout({ children }: LayoutProps) {
 
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
 
-          <Link to="/notifications">
-            <div className="relative p-2 rounded-full hover:bg-gray-50">
-              <Bell size={22} className="text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4AF37] rounded-full border border-white" />
-            </div>
-          </Link>
-
+          {/* LEFT: Brand */}
           <Link to="/">
-            <div className="flex flex-col items-center">
-              <CPLogo size={32} />
-              <span className="text-[10px] font-black tracking-widest text-[#004B49] leading-none mt-0.5">CrossingPoint</span>
+            <div className="flex items-center gap-2 mr-auto">
+              {/* Icon placeholder — replace with real logo img when ready */}
+              <div className="w-8 h-8 rounded-xl bg-[#004B49] flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 80 80" fill="none">
+                  <line x1="15" y1="15" x2="65" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
+                  <line x1="65" y1="15" x2="15" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
+                </svg>
+              </div>
+              <span style={{ fontSize: "17px" }}>{BRAND_NAME}</span>
             </div>
           </Link>
 
-          <button onClick={() => setMenuOpen(true)} className="p-2 rounded-full hover:bg-gray-50">
-            <Menu size={22} className="text-gray-600" />
-          </button>
+          {/* RIGHT: Bell + Menu */}
+          <div className="flex items-center gap-1 ml-auto">
+            <Link to="/notifications">
+              <div className="relative p-2 rounded-full hover:bg-gray-50">
+                <Bell size={22} className="text-gray-600" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4AF37] rounded-full border border-white" />
+              </div>
+            </Link>
+            <button onClick={() => setMenuOpen(true)} className="p-2 rounded-full hover:bg-gray-50">
+              <Menu size={22} className="text-gray-600" />
+            </button>
+          </div>
+
         </div>
       </header>
 
@@ -147,8 +170,13 @@ export function Layout({ children }: LayoutProps) {
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <CPLogo size={28} />
-                <span className="font-black text-[#004B49] tracking-wider text-sm">CrossingPoint</span>
+                <div className="w-7 h-7 rounded-lg bg-[#004B49] flex items-center justify-center flex-shrink-0">
+                  <svg width="15" height="15" viewBox="0 0 80 80" fill="none">
+                    <line x1="15" y1="15" x2="65" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
+                    <line x1="65" y1="15" x2="15" y2="65" stroke="#D4AF37" strokeWidth="14" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: "15px" }}>{BRAND_NAME}</span>
               </div>
               <button onClick={() => setMenuOpen(false)}>
                 <X size={20} className="text-gray-500" />
