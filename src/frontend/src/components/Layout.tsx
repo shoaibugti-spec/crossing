@@ -13,6 +13,19 @@ interface ProfileInfo {
   kyc_status: string;
 }
 
+function CPLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
+      <rect width="80" height="80" rx="18" fill="#004B49" />
+      <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle"
+        fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="34" fill="white">
+        CP
+      </text>
+      <circle cx="66" cy="66" r="9" fill="#D4AF37" />
+    </svg>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
@@ -64,7 +77,7 @@ export function Layout({ children }: LayoutProps) {
   const isProvider = profile?.role === "provider";
   const loggedIn = !!profile;
 
-  const sideMenuLinks: { to: "/" | "/ads" | "/my-ads" | "/messages" | "/wallet" | "/transactions" | "/kyc" | "/disputes" | "/notifications" | "/settings" | "/help" | "/admin"; label: string }[] = [
+  const sideMenuLinks: { to: "/" | "/ads" | "/my-ads" | "/messages" | "/wallet" | "/transactions" | "/kyc" | "/disputes" | "/notifications" | "/settings" | "/help" | "/admin" | "/setup-services"; label: string }[] = [
     { to: "/", label: "🏠 Home" },
     { to: "/ads", label: "🔍 Browse Visa Ads" },
     { to: "/my-ads", label: "📋 My Listings" },
@@ -72,6 +85,7 @@ export function Layout({ children }: LayoutProps) {
     { to: "/wallet", label: "💳 Wallet" },
     { to: "/transactions", label: "🔄 Transactions" },
     { to: "/kyc", label: "✅ KYC Verification" },
+    ...(isProvider ? [{ to: "/setup-services" as const, label: "🌍 My Services" }] : []),
     { to: "/disputes", label: "⚖️ Disputes" },
     { to: "/notifications", label: "🔔 Notifications" },
     { to: "/settings", label: "⚙️ Settings" },
@@ -114,13 +128,8 @@ export function Layout({ children }: LayoutProps) {
 
           <Link to="/">
             <div className="flex flex-col items-center">
-              <svg width="32" height="32" viewBox="0 0 80 80" fill="none">
-                <rect width="80" height="80" rx="18" fill="#004B49" />
-                <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                <circle cx="40" cy="40" r="7" fill="#D4AF37" />
-              </svg>
-              <span className="text-[10px] font-black tracking-widest text-[#004B49] leading-none mt-0.5">CROSSING</span>
+              <CPLogo size={32} />
+              <span className="text-[10px] font-black tracking-widest text-[#004B49] leading-none mt-0.5">CrossingPoint</span>
             </div>
           </Link>
 
@@ -138,13 +147,8 @@ export function Layout({ children }: LayoutProps) {
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <svg width="28" height="28" viewBox="0 0 80 80" fill="none">
-                  <rect width="80" height="80" rx="18" fill="#004B49" />
-                  <line x1="18" y1="18" x2="62" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                  <line x1="62" y1="18" x2="18" y2="62" stroke="white" strokeWidth="9" strokeLinecap="round" />
-                  <circle cx="40" cy="40" r="7" fill="#D4AF37" />
-                </svg>
-                <span className="font-black text-[#004B49] tracking-wider text-sm">CROSSING</span>
+                <CPLogo size={28} />
+                <span className="font-black text-[#004B49] tracking-wider text-sm">CrossingPoint</span>
               </div>
               <button onClick={() => setMenuOpen(false)}>
                 <X size={20} className="text-gray-500" />
