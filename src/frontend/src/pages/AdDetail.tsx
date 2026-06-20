@@ -1,12 +1,73 @@
 import { useParams, useNavigate, Link } from "@tanstack/react-router";
 import {
   ArrowLeft, Shield, Clock, CheckCircle, Lock,
-  MessageCircle, Star, AlertTriangle, ChevronDown, ChevronUp, Wallet as WalletIcon, Loader2,
+  MessageCircle, Star, AlertTriangle, ChevronDown, ChevronUp,
+  Wallet as WalletIcon, Loader2, Plus, X, Globe, Building2,
+  Printer, Fingerprint, Stethoscope, FileUp,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const CROSSING_FEE = 72;
+
+// ── Document Categories ──
+const DOC_CATEGORIES = [
+  {
+    category: "Identity Documents",
+    docs: ["Passport", "National ID", "Driver License"],
+  },
+  {
+    category: "Business Documents",
+    docs: ["Company Registration", "Trade License", "Tax Certificate", "Business Address Proof"],
+  },
+  {
+    category: "Employment Documents",
+    docs: ["Offer Letter", "Employment Contract", "Experience Letter", "Salary Certificate"],
+  },
+  {
+    category: "Education Documents",
+    docs: ["Degree", "Diploma", "Transcript", "Admission Letter"],
+  },
+  {
+    category: "Financial Documents",
+    docs: ["Bank Statement", "Income Proof", "Tax Return"],
+  },
+  {
+    category: "Travel Documents",
+    docs: ["Visa Copy", "Work Permit", "Residence Permit", "Invitation Letter"],
+  },
+  {
+    category: "Medical Documents",
+    docs: ["Medical Report", "Vaccination Certificate", "Health Insurance"],
+  },
+  {
+    category: "Legal Documents",
+    docs: ["Police Clearance", "Court Clearance", "Affidavit"],
+  },
+  {
+    category: "Family Documents",
+    docs: ["Marriage Certificate", "Birth Certificate", "Family Registration Certificate"],
+  },
+  {
+    category: "Other Documents",
+    docs: ["Photos", "CV", "Cover Letter", "Reference Letter"],
+  },
+];
+
+const DOC_TYPES = [
+  { key: "upload", label: "Scan / Upload", icon: "📄", desc: "Digital scan or photo" },
+  { key: "portal", label: "Online Portal", icon: "🌐", desc: "Link to booking site" },
+  { key: "physical", label: "Physical Appointment", icon: "🏢", desc: "In-person visit required" },
+  { key: "print", label: "Print & Submit", icon: "🖨️", desc: "Printed form required" },
+  { key: "biometric", label: "Biometric", icon: "👆", desc: "Fingerprints / Face scan" },
+  { key: "medical", label: "Medical Test", icon: "💉", desc: "Medical examination" },
+];
+
+interface DocRequirement {
+  name: string;
+  type: string;
+  instructions: string;
+}
 
 interface AdData {
   id: string;
@@ -22,14 +83,15 @@ interface AdData {
   provider_id: string;
   provider_name: string | null;
   provider_kyc_status: string | null;
+  doc_requirements: DocRequirement[];
 }
 
 const PROCESS_STEPS = [
-  { title: "Submit Your Documents", desc: "Provider will tell you exactly which documents are needed. You upload them through the app." },
-  { title: "Provider Reviews & Submits", desc: "Provider checks your documents and submits them to the embassy or relevant authority." },
-  { title: "Application Processing", desc: "Embassy processes your application. Provider updates you at every stage." },
-  { title: "Visa Decision", desc: "Visa approved or rejected. Provider shares official documents with you." },
-  { title: "Case Closed & Payment Released", desc: "You confirm receipt of visa. Crossing releases Escrow funds to provider." },
+  { title: "Submit Your Documents", desc: "Provider will tell you exactly which documents are needed." },
+  { title: "Provider Reviews & Submits", desc: "Provider checks your documents and submits to the embassy." },
+  { title: "Application Processing", desc: "Embassy processes your application. Provider updates you." },
+  { title: "Visa Decision", desc: "Visa approved or rejected. Provider shares official documents." },
+  { title: "Case Closed & Payment Released", desc: "You confirm receipt of visa. Escrow releases funds." },
 ];
 
 export function AdDetail() {
@@ -39,6 +101,7 @@ export function AdDetail() {
   const [loading, setLoading] = useState(true);
   const [ad, setAd] = useState<AdData | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("seeker");
   const [walletBalance, setWalletBalance] = useState(0);
   const [existingTxId, setExistingTxId] = useState<string | null>(null);
 
@@ -48,25 +111,38 @@ export function AdDetail() {
   const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);
   const [placing, setPlacing] = useState(false);
 
+  // Doc builder (provider only)
+  const [showDocBuilder, setShowDocBuilder] = useState(false);
+  const [docRequirements, setDocRequirements] = useState<DocRequirement[]>([]);
+  const [savingDocs, setSavingDocs] = useState(false);
+  const [openCat, setOpenCat] = useState<string | null>(null);
+  const [draftDoc, setDraftDoc] = useState<{ name: string; type: string; instructions: string }>({
+    name: "", type: "upload", instructions: "",
+  });
+
   useEffect(() => {
     void loadData();
   }, [id]);
 
   async function loadData() {
     setLoading(true);
-
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id ?? null;
     setUserId(uid);
 
     if (uid) {
-      const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", uid).single();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("wallet_balance, role")
+        .eq("id", uid)
+        .single();
       setWalletBalance(Number(profile?.wallet_balance ?? 0));
+      setUserRole(profile?.role ?? "seeker");
     }
 
     const { data: adRow } = await supabase
       .from("ads")
-      .select("id, title, description, country, visa_type, price, currency, processing_time, requirements, steps, provider_id, profiles:provider_id(full_name, kyc_status)")
+      .select("id, title, description, country, visa_type, price, currency, processing_time, requirements, steps, doc_requirements, provider_id, profiles:provider_id(full_name, kyc_status)")
       .eq("id", id)
       .single();
 
@@ -83,10 +159,12 @@ export function AdDetail() {
         processing_time: row.processing_time,
         requirements: Array.isArray(row.requirements) ? row.requirements : [],
         steps: Array.isArray(row.steps) ? row.steps : [],
+        doc_requirements: Array.isArray(row.doc_requirements) ? row.doc_requirements : [],
         provider_id: row.provider_id,
         provider_name: row.profiles?.full_name ?? null,
         provider_kyc_status: row.profiles?.kyc_status ?? null,
       });
+      setDocRequirements(Array.isArray(row.doc_requirements) ? row.doc_requirements : []);
 
       if (uid) {
         const { data: existingTx } = await supabase
@@ -98,51 +176,50 @@ export function AdDetail() {
         setExistingTxId(existingTx?.id ?? null);
       }
     }
-
     setLoading(false);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="animate-spin text-gray-300" size={28} />
-      </div>
-    );
-  }
-
-  if (!ad) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-        <div className="text-2xl mb-2">🔍</div>
-        <div className="font-bold text-gray-700">Listing not found</div>
-        <Link to="/ads" search={{ q: "", country: "", type: "" }}>
-          <button className="mt-3 text-xs text-[#004B49] font-semibold">Back to listings</button>
-        </Link>
-      </div>
-    );
-  }
-
-  // ad.price = provider's own asking price (what they receive).
-  // Buyer always sees and pays ad.price + CROSSING_FEE, shown as a single plain number — no breakdown.
-  const buyerPrice = ad.price + CROSSING_FEE;
+  const isProvider = userId === ad?.provider_id;
+  const buyerPrice = (ad?.price ?? 0) + CROSSING_FEE;
   const totalRequired = buyerPrice;
   const hasEnoughBalance = walletBalance >= totalRequired;
-  const verified = ad.provider_kyc_status === "approved";
+  const verified = ad?.provider_kyc_status === "approved";
   const orderPlaced = !!existingTxId;
 
+  // ── Add doc from picker ──
+  function addDocFromPicker(name: string) {
+    if (docRequirements.find((d) => d.name === name)) return;
+    setDocRequirements((prev) => [...prev, { name, type: "upload", instructions: "" }]);
+  }
+
+  function removeDoc(i: number) {
+    setDocRequirements((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function updateDoc(i: number, field: keyof DocRequirement, val: string) {
+    setDocRequirements((prev) => prev.map((d, idx) => idx === i ? { ...d, [field]: val } : d));
+  }
+
+  function addCustomDoc() {
+    if (!draftDoc.name.trim()) return;
+    setDocRequirements((prev) => [...prev, { ...draftDoc, name: draftDoc.name.trim() }]);
+    setDraftDoc({ name: "", type: "upload", instructions: "" });
+  }
+
+  async function saveDocRequirements() {
+    if (!ad) return;
+    setSavingDocs(true);
+    await supabase.from("ads").update({ doc_requirements: docRequirements }).eq("id", ad.id);
+    setAd((prev) => prev ? { ...prev, doc_requirements: docRequirements } : prev);
+    setSavingDocs(false);
+    setShowDocBuilder(false);
+    alert("Document requirements saved!");
+  }
+
   const handleBuyClick = () => {
-    if (!userId) {
-      void navigate({ to: "/login" });
-      return;
-    }
-    if (orderPlaced) {
-      void navigate({ to: "/transactions" });
-      return;
-    }
-    if (!hasEnoughBalance) {
-      setShowInsufficientFunds(true);
-      return;
-    }
+    if (!userId) { void navigate({ to: "/login" }); return; }
+    if (orderPlaced) { void navigate({ to: "/transactions" }); return; }
+    if (!hasEnoughBalance) { setShowInsufficientFunds(true); return; }
     setShowEscrow(true);
     setEscrowStep(1);
   };
@@ -170,6 +247,7 @@ export function AdDetail() {
         seller_fee: CROSSING_FEE,
         status: "escrow_active",
         current_step: 1,
+        is_locked: false,
       })
       .select("id")
       .single();
@@ -189,14 +267,27 @@ export function AdDetail() {
       notes: `Order placed: "${ad.title}"`,
     });
 
-    if (ad.requirements.length > 0) {
-      await supabase.from("transaction_documents").insert(
-        ad.requirements.map((name) => ({
+    // Use doc_requirements if available, else fallback to requirements
+    const docsToInsert = ad.doc_requirements.length > 0
+      ? ad.doc_requirements.map((d) => ({
+          transaction_id: txData.id,
+          name: d.name,
+          doc_type: d.type,
+          instructions: d.instructions,
+          is_additional: false,
+          status: "not_submitted",
+        }))
+      : ad.requirements.map((name) => ({
           transaction_id: txData.id,
           name,
+          doc_type: "upload",
+          instructions: "",
           is_additional: false,
-        }))
-      );
+          status: "not_submitted",
+        }));
+
+    if (docsToInsert.length > 0) {
+      await supabase.from("transaction_documents").insert(docsToInsert);
     }
 
     setExistingTxId(txData.id);
@@ -204,6 +295,28 @@ export function AdDetail() {
     setEscrowStep(2);
     setPlacing(false);
   }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin text-gray-300" size={28} />
+      </div>
+    );
+  }
+
+  if (!ad) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+        <div className="text-2xl mb-2">🔍</div>
+        <div className="font-bold text-gray-700">Listing not found</div>
+        <Link to="/ads" search={{ q: "", country: "", type: "" }}>
+          <button className="mt-3 text-xs text-[#004B49] font-semibold">Back to listings</button>
+        </Link>
+      </div>
+    );
+  }
+
+  const docTypeInfo = (key: string) => DOC_TYPES.find((d) => d.key === key) ?? DOC_TYPES[0];
 
   return (
     <div className="flex flex-col pb-8">
@@ -215,24 +328,26 @@ export function AdDetail() {
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
         <span className="font-bold text-gray-800 text-sm">Listing Detail</span>
+        {isProvider && (
+          <button onClick={() => setShowDocBuilder(true)}
+            className="ml-auto bg-[#004B49] text-white text-xs font-bold px-3 py-1.5 rounded-xl">
+            📄 Manage Docs
+          </button>
+        )}
       </div>
 
-      {/* WALLET BALANCE STRIP */}
-      {userId && (
+      {/* WALLET BALANCE */}
+      {userId && !isProvider && (
         <div className="mx-4 mt-3">
           <Link to="/wallet">
-            <div className={`rounded-xl p-3 flex items-center justify-between border ${
-              hasEnoughBalance ? "bg-green-50 border-green-100" : "bg-[#FBF3E1] border-[#D4AF37]/30"
-            }`}>
+            <div className={`rounded-xl p-3 flex items-center justify-between border ${hasEnoughBalance ? "bg-green-50 border-green-100" : "bg-[#FBF3E1] border-[#D4AF37]/30"}`}>
               <div className="flex items-center gap-2">
                 <WalletIcon size={14} className={hasEnoughBalance ? "text-green-500" : "text-[#9c7a1f]"} />
                 <span className={`text-xs font-semibold ${hasEnoughBalance ? "text-green-600" : "text-[#9c7a1f]"}`}>
-                  Wallet Balance: ${walletBalance.toFixed(2)} USDT
+                  Wallet: ${walletBalance.toFixed(2)} USDT
                 </span>
               </div>
-              {!hasEnoughBalance && (
-                <span className="text-[10px] font-bold text-[#9c7a1f] bg-[#D4AF37]/20 px-2 py-0.5 rounded-full">Top Up →</span>
-              )}
+              {!hasEnoughBalance && <span className="text-[10px] font-bold text-[#9c7a1f] bg-[#D4AF37]/20 px-2 py-0.5 rounded-full">Top Up →</span>}
             </div>
           </Link>
         </div>
@@ -248,15 +363,11 @@ export function AdDetail() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-gray-800">{ad.provider_name ?? "Visa Provider"}</span>
-                {verified && (
-                  <span className="bg-[#FBF3E1] text-[#9c7a1f] text-[10px] font-bold px-2 py-0.5 rounded-full">✓ KYC Verified</span>
-                )}
+                {verified && <span className="bg-[#FBF3E1] text-[#9c7a1f] text-[10px] font-bold px-2 py-0.5 rounded-full">✓ KYC Verified</span>}
               </div>
-              <div className="flex items-center gap-3 mt-1">
-                <div className="flex items-center gap-1">
-                  <Star size={12} className="text-amber-400 fill-amber-400" />
-                  <span className="text-xs text-gray-400">No ratings yet</span>
-                </div>
+              <div className="flex items-center gap-1 mt-1">
+                <Star size={12} className="text-amber-400 fill-amber-400" />
+                <span className="text-xs text-gray-400">No ratings yet</span>
               </div>
             </div>
           </div>
@@ -273,25 +384,21 @@ export function AdDetail() {
               <div className="text-[10px] text-gray-400">{ad.currency}</div>
             </div>
           </div>
-
           <div className="flex flex-wrap gap-2 mb-3">
             <span className="bg-[#E8F0EF] text-[#004B49] text-xs font-semibold px-2.5 py-1 rounded-full">🌍 {ad.country}</span>
             <span className="bg-purple-50 text-purple-600 text-xs font-semibold px-2.5 py-1 rounded-full">{ad.visa_type}</span>
-            {ad.processing_time && (
-              <span className="bg-[#FBF3E1] text-[#9c7a1f] text-xs font-semibold px-2.5 py-1 rounded-full">⏱ {ad.processing_time}</span>
-            )}
+            {ad.processing_time && <span className="bg-[#FBF3E1] text-[#9c7a1f] text-xs font-semibold px-2.5 py-1 rounded-full">⏱ {ad.processing_time}</span>}
           </div>
-
           {ad.description && <p className="text-sm text-gray-600 leading-relaxed">{ad.description}</p>}
         </div>
       </div>
 
-      {/* STEP BY STEP PROCESS */}
+      {/* STEP BY STEP */}
       <div className="mx-4 mt-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3">📋 Step-by-Step Process</div>
           <div className="flex flex-col gap-2">
-            {(ad.steps.length > 0 ? ad.steps.map((s, i) => ({ title: s, desc: "" })) : PROCESS_STEPS).map((step, i) => (
+            {(ad.steps.length > 0 ? ad.steps.map((s) => ({ title: s, desc: "" })) : PROCESS_STEPS).map((step, i) => (
               <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                 <button onClick={() => setOpenStep(openStep === i ? null : i)} className="w-full flex items-center justify-between px-3 py-3 text-left">
                   <div className="flex items-center gap-2.5">
@@ -309,15 +416,43 @@ export function AdDetail() {
         </div>
       </div>
 
-      {/* REQUIREMENTS */}
+      {/* DOCUMENT REQUIREMENTS */}
       <div className="mx-4 mt-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3">📄 Required Documents</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-gray-800">📄 Required Documents</div>
+            {isProvider && (
+              <button onClick={() => setShowDocBuilder(true)}
+                className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2.5 py-1 rounded-lg">
+                + Edit
+              </button>
+            )}
+          </div>
+
           <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 mb-3 flex gap-2">
             <Clock size={13} className="text-[#004B49] flex-shrink-0 mt-0.5" />
-            <span className="text-[11px] text-[#004B49]">Provider must review each document within 24 hours of submission — guaranteed.</span>
+            <span className="text-[11px] text-[#004B49]">Provider reviews each document within <span className="font-bold">24 hours</span> — guaranteed.</span>
           </div>
-          {ad.requirements.length > 0 ? (
+
+          {ad.doc_requirements.length > 0 ? (
+            <div className="flex flex-col gap-2.5">
+              {ad.doc_requirements.map((doc, i) => {
+                const dt = docTypeInfo(doc.type);
+                return (
+                  <div key={i} className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">{dt.icon}</span>
+                      <span className="text-sm font-bold text-gray-800">{doc.name}</span>
+                      <span className="ml-auto text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2 py-0.5 rounded-full">{dt.label}</span>
+                    </div>
+                    {doc.instructions && (
+                      <div className="text-xs text-gray-500 mt-1 pl-7 leading-relaxed">{doc.instructions}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : ad.requirements.length > 0 ? (
             <div className="flex flex-col gap-2">
               {ad.requirements.map((req, i) => (
                 <div key={i} className="flex items-start gap-2">
@@ -327,7 +462,9 @@ export function AdDetail() {
               ))}
             </div>
           ) : (
-            <div className="text-xs text-gray-400">Provider has not listed specific document requirements yet.</div>
+            <div className="text-xs text-gray-400 text-center py-3">
+              {isProvider ? "No documents set yet — tap Edit to add" : "Provider has not listed specific document requirements yet."}
+            </div>
           )}
         </div>
       </div>
@@ -339,22 +476,130 @@ export function AdDetail() {
             <Shield size={16} className="text-[#004B49]" />
             <span className="text-sm font-bold text-[#004B49]">Escrow Protected Payment</span>
           </div>
-          <div className="flex flex-col gap-2">
-            {[
-              "You deposit USDT — funds go to Crossing Escrow",
-              "Provider never receives money until visa is confirmed",
-              "If visa fails or fraud — full refund guaranteed",
-              "Case closes only after YOU confirm visa received",
-              "Chat unlocks only after you place this order",
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <Lock size={11} className="text-[#004B49] flex-shrink-0 mt-0.5" />
-                <span className="text-[11px] text-[#11201f]">{item}</span>
-              </div>
-            ))}
-          </div>
+          {[
+            "Funds go to Crossing Escrow — provider never gets them early",
+            "Provider gets paid only after you confirm visa received",
+            "Fraud or failure = full refund guaranteed",
+            "Chat unlocks only after placing this order",
+          ].map((item, i) => (
+            <div key={i} className="flex items-start gap-2 mb-1.5">
+              <Lock size={11} className="text-[#004B49] flex-shrink-0 mt-0.5" />
+              <span className="text-[11px] text-[#11201f]">{item}</span>
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* ── DOC BUILDER MODAL (Provider only) ── */}
+      {showDocBuilder && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDocBuilder(false)} />
+          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-gray-100 flex items-center justify-between z-10">
+              <div className="font-black text-gray-800">📄 Document Requirements</div>
+              <button onClick={() => setShowDocBuilder(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+
+            <div className="px-5 py-4">
+
+              {/* Selected docs list */}
+              {docRequirements.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Selected ({docRequirements.length})</div>
+                  <div className="flex flex-col gap-2">
+                    {docRequirements.map((doc, i) => (
+                      <div key={i} className="bg-[#E8F0EF] rounded-2xl p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-bold text-gray-800 flex-1">{doc.name}</span>
+                          <button onClick={() => removeDoc(i)}>
+                            <X size={14} className="text-gray-400" />
+                          </button>
+                        </div>
+
+                        {/* Type selector */}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {DOC_TYPES.map((dt) => (
+                            <button key={dt.key} onClick={() => updateDoc(i, "type", dt.key)}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${doc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
+                              {dt.icon} {dt.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Instructions */}
+                        <input
+                          value={doc.instructions}
+                          onChange={(e) => updateDoc(i, "instructions", e.target.value)}
+                          placeholder={
+                            doc.type === "portal" ? "Enter portal URL or booking link..."
+                            : doc.type === "physical" ? "Enter address or location..."
+                            : doc.type === "biometric" ? "Enter biometric center details..."
+                            : doc.type === "medical" ? "Enter medical center or test details..."
+                            : "Add instructions for buyer (optional)..."
+                          }
+                          className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#004B49]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Doc categories picker */}
+              <div className="mb-4">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Add Documents</div>
+                {DOC_CATEGORIES.map((cat) => (
+                  <div key={cat.category} className="mb-2">
+                    <button onClick={() => setOpenCat(openCat === cat.category ? null : cat.category)}
+                      className="w-full flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 text-left">
+                      <span className="text-xs font-bold text-gray-700">{cat.category}</span>
+                      {openCat === cat.category ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                    </button>
+                    {openCat === cat.category && (
+                      <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+                        {cat.docs.map((doc) => {
+                          const already = docRequirements.find((d) => d.name === doc);
+                          return (
+                            <button key={doc} onClick={() => addDocFromPicker(doc)}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${already ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#004B49]/40"}`}>
+                              {already ? "✓ " : "+ "}{doc}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom doc */}
+              <div className="bg-gray-50 rounded-2xl p-3 mb-4">
+                <div className="text-xs font-bold text-gray-500 mb-2">Add Custom Document</div>
+                <input value={draftDoc.name} onChange={(e) => setDraftDoc((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="Document name..."
+                  className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49] mb-2" />
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {DOC_TYPES.map((dt) => (
+                    <button key={dt.key} onClick={() => setDraftDoc((d) => ({ ...d, type: dt.key }))}
+                      className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${draftDoc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
+                      {dt.icon} {dt.label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={addCustomDoc} disabled={!draftDoc.name.trim()}
+                  className="w-full bg-[#004B49]/10 text-[#004B49] text-xs font-bold py-2.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-1.5">
+                  <Plus size={14} /> Add Custom
+                </button>
+              </div>
+
+              <button onClick={() => void saveDocRequirements()} disabled={savingDocs}
+                className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60 sticky bottom-4">
+                {savingDocs ? "Saving..." : `Save ${docRequirements.length} Document Requirement${docRequirements.length !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* INSUFFICIENT FUNDS MODAL */}
       {showInsufficientFunds && (
@@ -367,12 +612,12 @@ export function AdDetail() {
               </div>
               <div className="font-black text-gray-800 text-lg mb-1">Insufficient Balance</div>
               <div className="text-sm text-gray-500 leading-relaxed">
-                You need <span className="font-bold text-gray-800">${totalRequired.toFixed(2)} USDT</span> to place this order. Your current balance is <span className="font-bold text-gray-800">${walletBalance.toFixed(2)} USDT</span>.
+                You need <span className="font-bold text-gray-800">${totalRequired.toFixed(2)} USDT</span>. Your balance: <span className="font-bold">${walletBalance.toFixed(2)} USDT</span>.
               </div>
             </div>
             <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-              <div className="flex justify-between text-sm mb-1.5"><span className="text-gray-500">Required</span><span className="font-bold text-gray-800">${totalRequired.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm mb-1.5"><span className="text-gray-500">Your Balance</span><span className="font-bold text-gray-800">${walletBalance.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm mb-1.5"><span className="text-gray-500">Required</span><span className="font-bold">${totalRequired.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm mb-1.5"><span className="text-gray-500">Balance</span><span className="font-bold">${walletBalance.toFixed(2)}</span></div>
               <div className="border-t border-gray-200 pt-1.5 flex justify-between text-sm">
                 <span className="text-gray-500 font-bold">Top Up Needed</span>
                 <span className="font-black text-[#9c7a1f]">${(totalRequired - walletBalance).toFixed(2)}</span>
@@ -401,19 +646,31 @@ export function AdDetail() {
                   <div className="font-black text-gray-800 text-lg">Deposit to Escrow</div>
                   <div className="text-sm text-gray-500 mt-1">Your funds are 100% safe until visa confirmed</div>
                 </div>
-
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-gray-700">Total Deposit</span>
                     <span className="font-black text-[#004B49] text-lg">${totalRequired.toFixed(2)} USDT</span>
                   </div>
                 </div>
-
+                {ad.doc_requirements.length > 0 && (
+                  <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 mb-4">
+                    <div className="text-xs font-bold text-[#004B49] mb-1.5">📄 Documents Required ({ad.doc_requirements.length})</div>
+                    {ad.doc_requirements.map((d, i) => {
+                      const dt = docTypeInfo(d.type);
+                      return (
+                        <div key={i} className="flex items-center gap-2 mb-1">
+                          <span className="text-xs">{dt.icon}</span>
+                          <span className="text-xs text-[#004B49]">{d.name}</span>
+                          <span className="text-[10px] text-[#004B49]/60 ml-auto">{dt.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
                   <AlertTriangle size={14} className="text-[#9c7a1f] flex-shrink-0 mt-0.5" />
-                  <span className="text-xs text-[#9c7a1f]">Funds will be locked until you confirm visa receipt. Chat with provider unlocks immediately after this order.</span>
+                  <span className="text-xs text-[#9c7a1f]">Funds locked until you confirm visa receipt. Chat unlocks immediately after order.</span>
                 </div>
-
                 <button onClick={() => void confirmEscrow()} disabled={placing}
                   className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
                   {placing ? "Processing..." : "Confirm & Lock Funds in Escrow"}
@@ -431,7 +688,6 @@ export function AdDetail() {
                   <div className="font-black text-gray-800 text-lg">Escrow Active! 🔒</div>
                   <div className="text-sm text-gray-500 mt-1">Your ${totalRequired.toFixed(2)} USDT is safely locked</div>
                 </div>
-
                 <div className="flex flex-col gap-3 mb-6">
                   {[
                     { done: true, t: "Payment locked in Escrow" },
@@ -448,7 +704,6 @@ export function AdDetail() {
                     </div>
                   ))}
                 </div>
-
                 <Link to="/transactions">
                   <button className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2">
                     <MessageCircle size={18} /> View Transaction
@@ -461,22 +716,22 @@ export function AdDetail() {
       )}
 
       {/* BOTTOM ACTIONS */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30">
-        <div className="max-w-lg mx-auto flex gap-3">
-          <button onClick={handleMessageClick}
-            className={`flex-1 font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 ${
-              orderPlaced ? "border-2 border-[#004B49] text-[#004B49]" : "border-2 border-gray-200 text-gray-400"
-            }`}>
-            {!orderPlaced && <Lock size={14} />}
-            <MessageCircle size={16} /> Message
-          </button>
-          <button onClick={handleBuyClick}
-            className="flex-1 bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
-            <Lock size={16} />
-            {orderPlaced ? "View Order" : `Buy — $${buyerPrice.toFixed(2)} USDT`}
-          </button>
+      {!isProvider && (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30">
+          <div className="max-w-lg mx-auto flex gap-3">
+            <button onClick={handleMessageClick}
+              className={`flex-1 font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 ${orderPlaced ? "border-2 border-[#004B49] text-[#004B49]" : "border-2 border-gray-200 text-gray-400"}`}>
+              {!orderPlaced && <Lock size={14} />}
+              <MessageCircle size={16} /> Message
+            </button>
+            <button onClick={handleBuyClick}
+              className="flex-1 bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
+              <Lock size={16} />
+              {orderPlaced ? "View Order" : `Buy — $${buyerPrice.toFixed(2)} USDT`}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );
