@@ -2,65 +2,33 @@ import { useParams, useNavigate, Link } from "@tanstack/react-router";
 import {
   ArrowLeft, Shield, Clock, CheckCircle, Lock,
   MessageCircle, Star, AlertTriangle, ChevronDown, ChevronUp,
-  Wallet as WalletIcon, Loader2, Plus, X, Globe, Building2,
-  Printer, Fingerprint, Stethoscope, FileUp,
+  Wallet as WalletIcon, Loader2, Plus, X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const CROSSING_FEE = 72;
 
-// ── Document Categories ──
 const DOC_CATEGORIES = [
-  {
-    category: "Identity Documents",
-    docs: ["Passport", "National ID", "Driver License"],
-  },
-  {
-    category: "Business Documents",
-    docs: ["Company Registration", "Trade License", "Tax Certificate", "Business Address Proof"],
-  },
-  {
-    category: "Employment Documents",
-    docs: ["Offer Letter", "Employment Contract", "Experience Letter", "Salary Certificate"],
-  },
-  {
-    category: "Education Documents",
-    docs: ["Degree", "Diploma", "Transcript", "Admission Letter"],
-  },
-  {
-    category: "Financial Documents",
-    docs: ["Bank Statement", "Income Proof", "Tax Return"],
-  },
-  {
-    category: "Travel Documents",
-    docs: ["Visa Copy", "Work Permit", "Residence Permit", "Invitation Letter"],
-  },
-  {
-    category: "Medical Documents",
-    docs: ["Medical Report", "Vaccination Certificate", "Health Insurance"],
-  },
-  {
-    category: "Legal Documents",
-    docs: ["Police Clearance", "Court Clearance", "Affidavit"],
-  },
-  {
-    category: "Family Documents",
-    docs: ["Marriage Certificate", "Birth Certificate", "Family Registration Certificate"],
-  },
-  {
-    category: "Other Documents",
-    docs: ["Photos", "CV", "Cover Letter", "Reference Letter"],
-  },
+  { category: "Identity Documents", docs: ["Passport", "National ID", "Driver License"] },
+  { category: "Business Documents", docs: ["Company Registration", "Trade License", "Tax Certificate", "Business Address Proof"] },
+  { category: "Employment Documents", docs: ["Offer Letter", "Employment Contract", "Experience Letter", "Salary Certificate"] },
+  { category: "Education Documents", docs: ["Degree", "Diploma", "Transcript", "Admission Letter"] },
+  { category: "Financial Documents", docs: ["Bank Statement", "Income Proof", "Tax Return"] },
+  { category: "Travel Documents", docs: ["Visa Copy", "Work Permit", "Residence Permit", "Invitation Letter"] },
+  { category: "Medical Documents", docs: ["Medical Report", "Vaccination Certificate", "Health Insurance"] },
+  { category: "Legal Documents", docs: ["Police Clearance", "Court Clearance", "Affidavit"] },
+  { category: "Family Documents", docs: ["Marriage Certificate", "Birth Certificate", "Family Registration Certificate"] },
+  { category: "Other Documents", docs: ["Photos", "CV", "Cover Letter", "Reference Letter"] },
 ];
 
 const DOC_TYPES = [
-  { key: "upload", label: "Scan / Upload", icon: "📄", desc: "Digital scan or photo" },
-  { key: "portal", label: "Online Portal", icon: "🌐", desc: "Link to booking site" },
-  { key: "physical", label: "Physical Appointment", icon: "🏢", desc: "In-person visit required" },
-  { key: "print", label: "Print & Submit", icon: "🖨️", desc: "Printed form required" },
-  { key: "biometric", label: "Biometric", icon: "👆", desc: "Fingerprints / Face scan" },
-  { key: "medical", label: "Medical Test", icon: "💉", desc: "Medical examination" },
+  { key: "upload", label: "Scan / Upload", icon: "📄" },
+  { key: "portal", label: "Online Portal", icon: "🌐" },
+  { key: "physical", label: "Physical Appointment", icon: "🏢" },
+  { key: "print", label: "Print & Submit", icon: "🖨️" },
+  { key: "biometric", label: "Biometric", icon: "👆" },
+  { key: "medical", label: "Medical Test", icon: "💉" },
 ];
 
 interface DocRequirement {
@@ -101,7 +69,7 @@ export function AdDetail() {
   const [loading, setLoading] = useState(true);
   const [ad, setAd] = useState<AdData | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string>("seeker");
+  const [userKycLevel, setUserKycLevel] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [existingTxId, setExistingTxId] = useState<string | null>(null);
 
@@ -109,16 +77,14 @@ export function AdDetail() {
   const [escrowStep, setEscrowStep] = useState(0);
   const [openStep, setOpenStep] = useState<number | null>(0);
   const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);
+  const [showKycGate, setShowKycGate] = useState(false);
   const [placing, setPlacing] = useState(false);
 
-  // Doc builder (provider only)
   const [showDocBuilder, setShowDocBuilder] = useState(false);
   const [docRequirements, setDocRequirements] = useState<DocRequirement[]>([]);
   const [savingDocs, setSavingDocs] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
-  const [draftDoc, setDraftDoc] = useState<{ name: string; type: string; instructions: string }>({
-    name: "", type: "upload", instructions: "",
-  });
+  const [draftDoc, setDraftDoc] = useState({ name: "", type: "upload", instructions: "" });
 
   useEffect(() => {
     void loadData();
@@ -133,11 +99,11 @@ export function AdDetail() {
     if (uid) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("wallet_balance, role")
+        .select("wallet_balance, kyc_level")
         .eq("id", uid)
         .single();
       setWalletBalance(Number(profile?.wallet_balance ?? 0));
-      setUserRole(profile?.role ?? "seeker");
+      setUserKycLevel(Number(profile?.kyc_level ?? 0));
     }
 
     const { data: adRow } = await supabase
@@ -185,8 +151,8 @@ export function AdDetail() {
   const hasEnoughBalance = walletBalance >= totalRequired;
   const verified = ad?.provider_kyc_status === "approved";
   const orderPlaced = !!existingTxId;
+  const buyerKycDone = userKycLevel >= 3;
 
-  // ── Add doc from picker ──
   function addDocFromPicker(name: string) {
     if (docRequirements.find((d) => d.name === name)) return;
     setDocRequirements((prev) => [...prev, { name, type: "upload", instructions: "" }]);
@@ -213,12 +179,12 @@ export function AdDetail() {
     setAd((prev) => prev ? { ...prev, doc_requirements: docRequirements } : prev);
     setSavingDocs(false);
     setShowDocBuilder(false);
-    alert("Document requirements saved!");
   }
 
   const handleBuyClick = () => {
     if (!userId) { void navigate({ to: "/login" }); return; }
     if (orderPlaced) { void navigate({ to: "/transactions" }); return; }
+    if (!buyerKycDone) { setShowKycGate(true); return; }
     if (!hasEnoughBalance) { setShowInsufficientFunds(true); return; }
     setShowEscrow(true);
     setEscrowStep(1);
@@ -226,7 +192,7 @@ export function AdDetail() {
 
   const handleMessageClick = () => {
     if (!orderPlaced) {
-      alert("You can only message the provider after placing an order. This protects both parties from fraud outside Escrow.");
+      alert("You can only message the provider after placing an order.");
       return;
     }
     void navigate({ to: "/messages" });
@@ -267,7 +233,6 @@ export function AdDetail() {
       notes: `Order placed: "${ad.title}"`,
     });
 
-    // Use doc_requirements if available, else fallback to requirements
     const docsToInsert = ad.doc_requirements.length > 0
       ? ad.doc_requirements.map((d) => ({
           transaction_id: txData.id,
@@ -296,6 +261,8 @@ export function AdDetail() {
     setPlacing(false);
   }
 
+  const docTypeInfo = (key: string) => DOC_TYPES.find((d) => d.key === key) ?? DOC_TYPES[0];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -316,8 +283,6 @@ export function AdDetail() {
     );
   }
 
-  const docTypeInfo = (key: string) => DOC_TYPES.find((d) => d.key === key) ?? DOC_TYPES[0];
-
   return (
     <div className="flex flex-col pb-8">
 
@@ -336,8 +301,23 @@ export function AdDetail() {
         )}
       </div>
 
+      {/* KYC WARNING STRIP — buyer only */}
+      {userId && !isProvider && !buyerKycDone && (
+        <div className="mx-4 mt-3">
+          <Link to="/kyc">
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield size={14} className="text-red-500 flex-shrink-0" />
+                <span className="text-xs font-semibold text-red-600">KYC required to place orders</span>
+              </div>
+              <span className="text-[10px] font-bold text-red-500 bg-red-100 px-2 py-0.5 rounded-full">Verify Now →</span>
+            </div>
+          </Link>
+        </div>
+      )}
+
       {/* WALLET BALANCE */}
-      {userId && !isProvider && (
+      {userId && !isProvider && buyerKycDone && (
         <div className="mx-4 mt-3">
           <Link to="/wallet">
             <div className={`rounded-xl p-3 flex items-center justify-between border ${hasEnoughBalance ? "bg-green-50 border-green-100" : "bg-[#FBF3E1] border-[#D4AF37]/30"}`}>
@@ -423,17 +403,13 @@ export function AdDetail() {
             <div className="text-sm font-bold text-gray-800">📄 Required Documents</div>
             {isProvider && (
               <button onClick={() => setShowDocBuilder(true)}
-                className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2.5 py-1 rounded-lg">
-                + Edit
-              </button>
+                className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2.5 py-1 rounded-lg">+ Edit</button>
             )}
           </div>
-
           <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 mb-3 flex gap-2">
             <Clock size={13} className="text-[#004B49] flex-shrink-0 mt-0.5" />
             <span className="text-[11px] text-[#004B49]">Provider reviews each document within <span className="font-bold">24 hours</span> — guaranteed.</span>
           </div>
-
           {ad.doc_requirements.length > 0 ? (
             <div className="flex flex-col gap-2.5">
               {ad.doc_requirements.map((doc, i) => {
@@ -445,9 +421,7 @@ export function AdDetail() {
                       <span className="text-sm font-bold text-gray-800">{doc.name}</span>
                       <span className="ml-auto text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2 py-0.5 rounded-full">{dt.label}</span>
                     </div>
-                    {doc.instructions && (
-                      <div className="text-xs text-gray-500 mt-1 pl-7 leading-relaxed">{doc.instructions}</div>
-                    )}
+                    {doc.instructions && <div className="text-xs text-gray-500 mt-1 pl-7 leading-relaxed">{doc.instructions}</div>}
                   </div>
                 );
               })}
@@ -463,7 +437,7 @@ export function AdDetail() {
             </div>
           ) : (
             <div className="text-xs text-gray-400 text-center py-3">
-              {isProvider ? "No documents set yet — tap Edit to add" : "Provider has not listed specific document requirements yet."}
+              {isProvider ? "No documents set yet — tap Edit to add" : "Provider has not listed documents yet."}
             </div>
           )}
         </div>
@@ -490,118 +464,41 @@ export function AdDetail() {
         </div>
       </div>
 
-      {/* ── DOC BUILDER MODAL (Provider only) ── */}
-      {showDocBuilder && (
-        <div className="fixed inset-0 z-50 flex items-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDocBuilder(false)} />
-          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white px-5 py-4 border-b border-gray-100 flex items-center justify-between z-10">
-              <div className="font-black text-gray-800">📄 Document Requirements</div>
-              <button onClick={() => setShowDocBuilder(false)}><X size={20} className="text-gray-400" /></button>
+      {/* ── KYC GATE MODAL ── */}
+      {showKycGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowKycGate(false)} />
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Shield size={26} className="text-red-400" />
+              </div>
+              <div className="font-black text-gray-800 text-lg mb-1">KYC Required</div>
+              <div className="text-sm text-gray-500 leading-relaxed">
+                You must complete identity verification before placing any order on Crossingpoint.
+              </div>
             </div>
-
-            <div className="px-5 py-4">
-
-              {/* Selected docs list */}
-              {docRequirements.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Selected ({docRequirements.length})</div>
-                  <div className="flex flex-col gap-2">
-                    {docRequirements.map((doc, i) => (
-                      <div key={i} className="bg-[#E8F0EF] rounded-2xl p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-bold text-gray-800 flex-1">{doc.name}</span>
-                          <button onClick={() => removeDoc(i)}>
-                            <X size={14} className="text-gray-400" />
-                          </button>
-                        </div>
-
-                        {/* Type selector */}
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {DOC_TYPES.map((dt) => (
-                            <button key={dt.key} onClick={() => updateDoc(i, "type", dt.key)}
-                              className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${doc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
-                              {dt.icon} {dt.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Instructions */}
-                        <input
-                          value={doc.instructions}
-                          onChange={(e) => updateDoc(i, "instructions", e.target.value)}
-                          placeholder={
-                            doc.type === "portal" ? "Enter portal URL or booking link..."
-                            : doc.type === "physical" ? "Enter address or location..."
-                            : doc.type === "biometric" ? "Enter biometric center details..."
-                            : doc.type === "medical" ? "Enter medical center or test details..."
-                            : "Add instructions for buyer (optional)..."
-                          }
-                          className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#004B49]"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Doc categories picker */}
-              <div className="mb-4">
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Add Documents</div>
-                {DOC_CATEGORIES.map((cat) => (
-                  <div key={cat.category} className="mb-2">
-                    <button onClick={() => setOpenCat(openCat === cat.category ? null : cat.category)}
-                      className="w-full flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 text-left">
-                      <span className="text-xs font-bold text-gray-700">{cat.category}</span>
-                      {openCat === cat.category ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                    </button>
-                    {openCat === cat.category && (
-                      <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
-                        {cat.docs.map((doc) => {
-                          const already = docRequirements.find((d) => d.name === doc);
-                          return (
-                            <button key={doc} onClick={() => addDocFromPicker(doc)}
-                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${already ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-600 border-gray-200 hover:border-[#004B49]/40"}`}>
-                              {already ? "✓ " : "+ "}{doc}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 mb-4">
+              <div className="text-xs text-[#004B49] flex flex-col gap-1">
+                <div>✓ Takes only 2-3 minutes</div>
+                <div>✓ Protects buyers and sellers</div>
+                <div>✓ One-time verification only</div>
+                <div>✓ Admin reviews within 24 hours</div>
               </div>
-
-              {/* Custom doc */}
-              <div className="bg-gray-50 rounded-2xl p-3 mb-4">
-                <div className="text-xs font-bold text-gray-500 mb-2">Add Custom Document</div>
-                <input value={draftDoc.name} onChange={(e) => setDraftDoc((d) => ({ ...d, name: e.target.value }))}
-                  placeholder="Document name..."
-                  className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49] mb-2" />
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {DOC_TYPES.map((dt) => (
-                    <button key={dt.key} onClick={() => setDraftDoc((d) => ({ ...d, type: dt.key }))}
-                      className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${draftDoc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
-                      {dt.icon} {dt.label}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={addCustomDoc} disabled={!draftDoc.name.trim()}
-                  className="w-full bg-[#004B49]/10 text-[#004B49] text-xs font-bold py-2.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-1.5">
-                  <Plus size={14} /> Add Custom
-                </button>
-              </div>
-
-              <button onClick={() => void saveDocRequirements()} disabled={savingDocs}
-                className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60 sticky bottom-4">
-                {savingDocs ? "Saving..." : `Save ${docRequirements.length} Document Requirement${docRequirements.length !== 1 ? "s" : ""}`}
+            </div>
+            <Link to="/kyc">
+              <button className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mb-2">
+                Complete KYC Now →
               </button>
-            </div>
+            </Link>
+            <button onClick={() => setShowKycGate(false)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
+              Maybe Later
+            </button>
           </div>
         </div>
       )}
 
-      {/* INSUFFICIENT FUNDS MODAL */}
+      {/* ── INSUFFICIENT FUNDS MODAL ── */}
       {showInsufficientFunds && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowInsufficientFunds(false)} />
@@ -631,7 +528,7 @@ export function AdDetail() {
         </div>
       )}
 
-      {/* ESCROW FLOW MODAL */}
+      {/* ── ESCROW FLOW MODAL ── */}
       {showEscrow && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => !placing && setShowEscrow(false)} />
@@ -711,6 +608,103 @@ export function AdDetail() {
                 </Link>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── DOC BUILDER MODAL (Provider only) ── */}
+      {showDocBuilder && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDocBuilder(false)} />
+          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-gray-100 flex items-center justify-between z-10">
+              <div className="font-black text-gray-800">📄 Document Requirements</div>
+              <button onClick={() => setShowDocBuilder(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+            <div className="px-5 py-4">
+              {docRequirements.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Selected ({docRequirements.length})</div>
+                  <div className="flex flex-col gap-2">
+                    {docRequirements.map((doc, i) => (
+                      <div key={i} className="bg-[#E8F0EF] rounded-2xl p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-bold text-gray-800 flex-1">{doc.name}</span>
+                          <button onClick={() => removeDoc(i)}><X size={14} className="text-gray-400" /></button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {DOC_TYPES.map((dt) => (
+                            <button key={dt.key} onClick={() => updateDoc(i, "type", dt.key)}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${doc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
+                              {dt.icon} {dt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <input value={doc.instructions} onChange={(e) => updateDoc(i, "instructions", e.target.value)}
+                          placeholder={
+                            doc.type === "portal" ? "Enter portal URL or booking link..."
+                            : doc.type === "physical" ? "Enter address or location..."
+                            : doc.type === "biometric" ? "Enter biometric center details..."
+                            : doc.type === "medical" ? "Enter medical center details..."
+                            : "Add instructions for buyer (optional)..."
+                          }
+                          className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#004B49]" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Add Documents</div>
+                {DOC_CATEGORIES.map((cat) => (
+                  <div key={cat.category} className="mb-2">
+                    <button onClick={() => setOpenCat(openCat === cat.category ? null : cat.category)}
+                      className="w-full flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 text-left">
+                      <span className="text-xs font-bold text-gray-700">{cat.category}</span>
+                      {openCat === cat.category ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                    </button>
+                    {openCat === cat.category && (
+                      <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+                        {cat.docs.map((doc) => {
+                          const already = docRequirements.find((d) => d.name === doc);
+                          return (
+                            <button key={doc} onClick={() => addDocFromPicker(doc)}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${already ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-600 border-gray-200"}`}>
+                              {already ? "✓ " : "+ "}{doc}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-gray-50 rounded-2xl p-3 mb-4">
+                <div className="text-xs font-bold text-gray-500 mb-2">Add Custom Document</div>
+                <input value={draftDoc.name} onChange={(e) => setDraftDoc((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="Document name..."
+                  className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49] mb-2" />
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {DOC_TYPES.map((dt) => (
+                    <button key={dt.key} onClick={() => setDraftDoc((d) => ({ ...d, type: dt.key }))}
+                      className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all ${draftDoc.type === dt.key ? "bg-[#004B49] text-white border-[#004B49]" : "bg-white text-gray-500 border-gray-200"}`}>
+                      {dt.icon} {dt.label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={addCustomDoc} disabled={!draftDoc.name.trim()}
+                  className="w-full bg-[#004B49]/10 text-[#004B49] text-xs font-bold py-2.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-1.5">
+                  <Plus size={14} /> Add Custom
+                </button>
+              </div>
+
+              <button onClick={() => void saveDocRequirements()} disabled={savingDocs}
+                className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
+                {savingDocs ? "Saving..." : `Save ${docRequirements.length} Document Requirement${docRequirements.length !== 1 ? "s" : ""}`}
+              </button>
+            </div>
           </div>
         </div>
       )}
