@@ -17,12 +17,12 @@ const BRAND_NAME = (
   <span style={{
     fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
     fontWeight: 700,
-    fontStyle: "italic",
-    letterSpacing: "-0.3px",
+    fontStyle: "normal",
+    letterSpacing: "0px",
     lineHeight: 1,
   }}>
-    <span style={{ color: "#004B49" }}>Crossing</span>
-    <span style={{ color: "#D4AF37" }}>point</span>
+    <span style={{ color: "#004B49" }}>Crossin</span>
+    <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
 
@@ -30,12 +30,12 @@ const BRAND_NAME_LIGHT = (
   <span style={{
     fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
     fontWeight: 700,
-    fontStyle: "italic",
-    letterSpacing: "-0.3px",
+    fontStyle: "normal",
+    letterSpacing: "0px",
     lineHeight: 1,
   }}>
-    <span style={{ color: "#ffffff" }}>Crossing</span>
-    <span style={{ color: "#D4AF37" }}>point</span>
+    <span style={{ color: "#ffffff" }}>Crossin</span>
+    <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
 
@@ -131,13 +131,9 @@ export function Layout({ children }: LayoutProps) {
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
-
-          {/* LEFT: Brand name only */}
           <Link to="/">
-            <span style={{ fontSize: "17px" }}>{BRAND_NAME}</span>
+            <span style={{ fontSize: "18px" }}>{BRAND_NAME}</span>
           </Link>
-
-          {/* RIGHT: Bell + Menu */}
           <div className="flex items-center gap-1 ml-auto">
             <Link to="/notifications">
               <div className="relative p-2 rounded-full hover:bg-gray-50">
@@ -149,7 +145,6 @@ export function Layout({ children }: LayoutProps) {
               <Menu size={22} className="text-gray-600" />
             </button>
           </div>
-
         </div>
       </header>
 
@@ -160,7 +155,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="w-72 bg-white h-full shadow-2xl flex flex-col overflow-y-auto">
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <span style={{ fontSize: "15px" }}>{BRAND_NAME}</span>
+              <span style={{ fontSize: "16px" }}>{BRAND_NAME}</span>
               <button onClick={() => setMenuOpen(false)}>
                 <X size={20} className="text-gray-500" />
               </button>
@@ -206,21 +201,18 @@ export function Layout({ children }: LayoutProps) {
       {/* BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-lg">
         <div className="max-w-lg mx-auto flex">
-
           <Link to="/" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/") ? "text-[#004B49]" : "text-gray-400"}`}>
               <Home size={22} strokeWidth={isActive("/") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Home</span>
             </div>
           </Link>
-
           <Link to="/transactions" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/transactions") ? "text-[#004B49]" : "text-gray-400"}`}>
               <ShoppingBag size={22} strokeWidth={isActive("/transactions") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Orders</span>
             </div>
           </Link>
-
           {isProvider ? (
             <Link to="/post-ad" className="flex-1">
               <div className="flex flex-col items-center gap-0.5 py-2.5">
@@ -240,21 +232,18 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </Link>
           )}
-
           <Link to="/messages" className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#004B49]" : "text-gray-400"}`}>
               <MessageCircle size={22} strokeWidth={isActive("/messages") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Chat</span>
             </div>
           </Link>
-
           <Link to="/profile/$id" params={{ id: "me" }} className="flex-1">
             <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/profile") ? "text-[#004B49]" : "text-gray-400"}`}>
               <User size={22} strokeWidth={isActive("/profile") ? 2.5 : 1.8} />
               <span className="text-[10px] font-semibold">Profile</span>
             </div>
           </Link>
-
         </div>
       </nav>
     </div>
