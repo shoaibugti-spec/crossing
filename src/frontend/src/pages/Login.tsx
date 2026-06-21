@@ -7,13 +7,13 @@ const BrandLight = (
   <span style={{
     fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
     fontWeight: 700,
-    fontStyle: "italic",
-    fontSize: "28px",
-    letterSpacing: "-0.3px",
+    fontStyle: "normal",
+    fontSize: "30px",
+    letterSpacing: "0px",
     lineHeight: 1,
   }}>
-    <span style={{ color: "#ffffff" }}>Crossing</span>
-    <span style={{ color: "#D4AF37" }}>point</span>
+    <span style={{ color: "#ffffff" }}>Crossin</span>
+    <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
 
@@ -32,9 +32,7 @@ export function Login() {
     }
     setLoading(true);
     setError("");
-
     const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-
     if (loginError) {
       setError(loginError.message === "Invalid login credentials"
         ? "Incorrect email or password"
@@ -42,14 +40,12 @@ export function Login() {
       setLoading(false);
       return;
     }
-
     setLoading(false);
     void navigate({ to: "/" });
   };
 
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
-
       <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-16 pb-10 flex flex-col items-center">
         {BrandLight}
         <div className="text-white/60 text-xs mt-2">World's Trusted Visa Marketplace</div>
@@ -58,7 +54,7 @@ export function Login() {
       <div className="flex-1 px-5 -mt-6">
         <div className="bg-white rounded-3xl p-6 shadow-sm">
           <div className="font-black text-gray-800 text-xl mb-1">Welcome Back</div>
-          <div className="text-sm text-gray-500 mb-5">Login to continue to Crossingpoint</div>
+          <div className="text-sm text-gray-500 mb-5">Login to continue to Crossingate</div>
 
           {error && (
             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
@@ -77,7 +73,6 @@ export function Login() {
                   onKeyDown={(e) => e.key === "Enter" && void handleLogin()} />
               </div>
             </div>
-
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Password</label>
@@ -111,7 +106,7 @@ export function Login() {
         </div>
 
         <div className="text-center text-xs text-gray-400 mt-6 px-8">
-          By logging in, you agree to Crossingpoint's Terms of Service and Privacy Policy. Your funds are always protected by Escrow.
+          By logging in, you agree to Crossingate's Terms of Service and Privacy Policy.
         </div>
       </div>
     </div>
