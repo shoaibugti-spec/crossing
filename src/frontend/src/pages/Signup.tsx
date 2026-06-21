@@ -21,13 +21,13 @@ const BrandLight = (
   <span style={{
     fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
     fontWeight: 700,
-    fontStyle: "italic",
-    fontSize: "22px",
-    letterSpacing: "-0.3px",
+    fontStyle: "normal",
+    fontSize: "24px",
+    letterSpacing: "0px",
     lineHeight: 1,
   }}>
-    <span style={{ color: "#ffffff" }}>Crossing</span>
-    <span style={{ color: "#D4AF37" }}>point</span>
+    <span style={{ color: "#ffffff" }}>Crossin</span>
+    <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
 
@@ -86,14 +86,10 @@ export function Signup() {
         password: form.password,
         options: { data: { full_name: form.name, role } },
       });
-
       if (signUpError) { setError(signUpError.message); setLoading(false); return; }
-
       const userId = data.user?.id;
-      if (!userId) { setError("Account created but no session returned. Please try logging in."); setLoading(false); return; }
-
+      if (!userId) { setError("Account created but no session returned."); setLoading(false); return; }
       await supabase.from("profiles").update({ phone: form.phone, country: form.country }).eq("id", userId);
-
       if (role === "provider") {
         await supabase.from("provider_business_info").insert({
           user_id: userId,
@@ -110,11 +106,10 @@ export function Signup() {
           status: "pending",
         });
       }
-
       setLoading(false);
       void navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong.");
       setLoading(false);
     }
   };
@@ -125,12 +120,8 @@ export function Signup() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
-
       <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-14 pb-6">
-        <div className="flex justify-center mb-4">
-          {BrandLight}
-        </div>
-
+        <div className="flex justify-center mb-4">{BrandLight}</div>
         <div className="flex items-center justify-center gap-1.5">
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div key={i} className="flex items-center gap-1.5">
@@ -148,7 +139,6 @@ export function Signup() {
 
       <div className="flex-1 px-5 py-5">
         <div className="bg-white rounded-3xl p-5 shadow-sm">
-
           {error && (
             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
               ⚠️ {error}
@@ -157,9 +147,8 @@ export function Signup() {
 
           {step === 1 && (
             <>
-              <div className="font-black text-gray-800 text-xl mb-1">Join Crossingpoint</div>
+              <div className="font-black text-gray-800 text-xl mb-1">Join Crossingate</div>
               <div className="text-sm text-gray-500 mb-5">Select your role to get started</div>
-
               <div onClick={() => setRole("seeker")}
                 className={`border-2 rounded-2xl p-4 mb-3 cursor-pointer transition-all ${role === "seeker" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -176,7 +165,6 @@ export function Signup() {
                   ))}
                 </div>
               </div>
-
               <div onClick={() => setRole("provider")}
                 className={`border-2 rounded-2xl p-4 cursor-pointer transition-all ${role === "provider" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-3 mb-2">
@@ -354,9 +342,7 @@ export function Signup() {
               <div className="text-sm text-gray-500 mb-4">Your license details for verification</div>
               <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
                 <span className="text-[#9c7a1f] flex-shrink-0">⚠️</span>
-                <span className="text-[11px] text-[#9c7a1f]">
-                  Only licensed and registered professionals can operate as Visa Providers on Crossingpoint. Fake or expired licenses result in permanent ban.
-                </span>
+                <span className="text-[11px] text-[#9c7a1f]">Only licensed professionals can operate as Visa Providers on Crossingate. Fake licenses result in permanent ban.</span>
               </div>
               <div className="flex flex-col gap-3">
                 <div>
@@ -382,7 +368,7 @@ export function Signup() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload License Document *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40 transition-all"
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40"
                     onClick={() => alert("File upload coming soon.")}>
                     <div className="text-2xl mb-1">📄</div>
                     <div className="text-xs font-semibold text-gray-500">Tap to upload license</div>
@@ -391,7 +377,7 @@ export function Signup() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload Company Registration *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40 transition-all"
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40"
                     onClick={() => alert("File upload coming soon.")}>
                     <div className="text-2xl mb-1">🏢</div>
                     <div className="text-xs font-semibold text-gray-500">Company registration certificate</div>
@@ -401,11 +387,10 @@ export function Signup() {
                 <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
                   <span className="text-[#004B49] flex-shrink-0">ℹ️</span>
                   <div className="text-[11px] text-[#004B49]">
-                    <div className="font-black mb-0.5">What happens after submission?</div>
-                    <div>1. Admin verifies your license with issuing authority</div>
-                    <div>2. Office address is verified</div>
-                    <div>3. Account approved within 3-5 business days</div>
-                    <div>4. You receive email confirmation</div>
+                    <div className="font-black mb-0.5">After submission:</div>
+                    <div>1. Admin verifies your license</div>
+                    <div>2. Account approved within 3-5 days</div>
+                    <div>3. You receive email confirmation</div>
                   </div>
                 </div>
               </div>
@@ -415,7 +400,7 @@ export function Signup() {
           {step === 5 && role === "provider" && (
             <>
               <div className="font-black text-gray-800 text-xl mb-1">Set Password</div>
-              <div className="text-sm text-gray-500 mb-4">Almost done! Set a strong password.</div>
+              <div className="text-sm text-gray-500 mb-4">Almost done!</div>
               <div className="flex flex-col gap-3">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Password *</label>
@@ -456,7 +441,9 @@ export function Signup() {
 
           <button onClick={() => void handleNext()} disabled={loading}
             className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60 flex items-center justify-center gap-2">
-            {loading ? "Creating account..." : (step === totalSteps ? (role === "provider" ? "Submit for Review 🚀" : "Create Account 🚀") : (<><span>Continue</span><ChevronRight size={16} /></>))}
+            {loading ? "Creating account..." : (step === totalSteps
+              ? (role === "provider" ? "Submit for Review 🚀" : "Create Account 🚀")
+              : (<><span>Continue</span><ChevronRight size={16} /></>))}
           </button>
 
           {step === 1 && (
