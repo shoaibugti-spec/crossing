@@ -48,13 +48,13 @@ const BrandLight = (
   <span style={{
     fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
     fontWeight: 700,
-    fontStyle: "italic",
-    fontSize: "22px",
-    letterSpacing: "-0.3px",
+    fontStyle: "normal",
+    fontSize: "26px",
+    letterSpacing: "0px",
     lineHeight: 1,
   }}>
-    <span style={{ color: "#ffffff" }}>Crossing</span>
-    <span style={{ color: "#D4AF37" }}>point</span>
+    <span style={{ color: "#ffffff" }}>Crossin</span>
+    <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
 
@@ -153,21 +153,18 @@ export function LandingPage() {
     );
   }
 
-  // Install Banner
   const InstallBanner = showInstallBanner ? (
     <div className="fixed top-0 left-0 right-0 z-[100] bg-white border-b border-gray-100 shadow-lg px-4 py-3 flex items-center gap-3 max-w-lg mx-auto">
-      <img src={LOGO_URL} className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-gray-100" alt="Crossingpoint" />
+      <img src={LOGO_URL} className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-gray-100" alt="Crossingate" />
       <div className="flex-1 min-w-0">
-        <div className="font-black text-gray-800 text-sm">Crossingpoint</div>
-        <div className="text-xs text-gray-400">crossing-frontend.vercel.app</div>
+        <div className="font-black text-gray-800 text-sm">Crossingate</div>
+        <div className="text-xs text-gray-400">crossingate.com</div>
       </div>
       <button onClick={() => void handleInstall()}
         className="bg-[#004B49] text-white text-xs font-bold px-4 py-2 rounded-xl flex-shrink-0 flex items-center gap-1.5">
         <Download size={12} /> Install
       </button>
-      <button onClick={() => setShowInstallBanner(false)} className="text-gray-300 flex-shrink-0 text-lg leading-none">
-        ✕
-      </button>
+      <button onClick={() => setShowInstallBanner(false)} className="text-gray-300 flex-shrink-0 text-lg leading-none">✕</button>
     </div>
   ) : null;
 
@@ -302,7 +299,7 @@ export function LandingPage() {
           <div className="mt-7 px-5">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Fresh on Crossingpoint</span>
+                <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Fresh on Crossingate</span>
                 <h2 className="font-black text-gray-800 text-base">Live Listings</h2>
               </div>
               <Link to="/ads" search={{ q: "", country: "", type: "" }}>
@@ -406,7 +403,7 @@ export function LandingPage() {
         <div className="mx-4 mt-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
             <div className="text-2xl mb-2">📋</div>
-            <div className="text-sm font-bold text-gray-400">No listings on Crossingpoint yet</div>
+            <div className="text-sm font-bold text-gray-400">No listings on Crossingate yet</div>
             <div className="text-xs text-gray-300 mt-1">Be the first verified provider to post a listing</div>
           </div>
         </div>
