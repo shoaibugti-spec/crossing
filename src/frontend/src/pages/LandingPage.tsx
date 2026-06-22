@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download } from "lucide-react";
+import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
@@ -57,6 +57,56 @@ const BrandLight = (
     <span style={{ color: "#D4AF37" }}>gate</span>
   </span>
 );
+
+// Social links footer — same for both logged in and logged out
+function SocialFooter() {
+  return (
+    <div className="mx-4 mt-4 mb-2">
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-3">Contact & Follow Us</div>
+        <div className="flex flex-col gap-1">
+
+          <a href="mailto:info@crossingate.com"
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
+            <div className="w-9 h-9 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
+              <Mail size={16} className="text-[#004B49]" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-gray-700">Email Us</div>
+              <div className="text-[11px] text-gray-400">info@crossingate.com</div>
+            </div>
+          </a>
+
+          <a href="https://www.instagram.com/crossingate.insta?igsh=amU0ZmxyaTE3bnB3"
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)" }}>
+              <span className="text-white text-base">📸</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-gray-700">Instagram</div>
+              <div className="text-[11px] text-gray-400">@crossingate.insta</div>
+            </div>
+          </a>
+
+          <a href="https://facebook.com/crossingate"
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-base font-black text-sm">f</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-gray-700">Facebook</div>
+              <div className="text-[11px] text-gray-400">facebook.com/crossingate</div>
+            </div>
+          </a>
+
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -207,14 +257,12 @@ export function LandingPage() {
         <div className={`bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-10 pb-16 relative overflow-hidden ${showInstallBanner ? "mt-16" : ""}`}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full bg-[#D4AF37]/15 blur-2xl" />
           <div className="absolute -bottom-20 -left-16 w-60 h-60 rounded-full bg-white/5 blur-2xl" />
-
           <div className="flex items-center gap-2.5 relative z-10">
             {BrandLight}
             <span className="ml-auto flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-full px-2.5 py-1 text-[10px] font-bold text-white/85">
               <Lock size={10} /> Escrow Protected
             </span>
           </div>
-
           <h1 className="text-white font-black text-2xl leading-snug mt-6 relative z-10">
             Your visa journey,<br /><span className="text-[#D4AF37]">verified end-to-end.</span>
           </h1>
@@ -328,7 +376,9 @@ export function LandingPage() {
           </div>
         </div>
 
-        <div className="text-center text-sm text-gray-500 py-7">
+        <SocialFooter />
+
+        <div className="text-center text-sm text-gray-500 py-5">
           Already have an account?{" "}
           <Link to="/login"><span className="font-bold text-[#004B49]">Login</span></Link>
         </div>
@@ -422,7 +472,6 @@ export function LandingPage() {
               </div>
             </div>
           )}
-
           {featuredAds.length > 0 && (
             <div className="mt-6 px-4">
               <div className="flex items-center justify-between mb-3">
@@ -454,6 +503,8 @@ export function LandingPage() {
           ))}
         </div>
       </div>
+
+      <SocialFooter />
 
       <div className="h-6" />
     </div>
