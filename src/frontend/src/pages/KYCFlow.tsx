@@ -1,4 +1,4 @@
-import { ArrowLeft, Shield, Camera, CheckCircle, Clock, Video, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, Camera, CheckCircle, Clock, Video, Loader2, XCircle, RefreshCw } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -25,6 +25,7 @@ export function KYCFlow() {
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
 
   const [activeLevel, setActiveLevel] = useState(3);
   const [docType, setDocType] = useState<"passport" | "nid" | "license">("passport");
@@ -41,7 +42,6 @@ export function KYCFlow() {
 
   const [videoRecording, setVideoRecording] = useState(false);
   const [videoTimer, setVideoTimer] = useState(0);
-
   const [activeCamera, setActiveCamera] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -62,17 +62,34 @@ export function KYCFlow() {
 
   async function loadStatus() {
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      setLoadingStatus(false);
-      void navigate({ to: "/login" });
-      return;
-    }
+    if (!userData.user) { setLoadingStatus(false); void navigate({ to: "/login" }); return; }
     setUserId(userData.user.id);
 
-    const { data: profile } = await supabase.from("profiles").select("kyc_status, full_name").eq("id", userData.user.id).single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("kyc_status, full_name")
+      .eq("id", userData.user.id)
+      .single();
+
     setExistingStatus(profile?.kyc_status ?? "none");
     if (profile?.full_name) setForm((p) => ({ ...p, fullName: profile.full_name }));
-    if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") setSubmitted(true);
+
+    // Get rejection reason if rejected
+    if (profile?.kyc_status === "rejected") {
+      const { data: submission } = await supabase
+        .from("kyc_submissions")
+        .select("rejection_reason")
+        .eq("user_id", userData.user.id)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setRejectionReason(submission?.rejection_reason ?? null);
+    }
+
+    if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
+      setSubmitted(true);
+    }
+
     setLoadingStatus(false);
   }
 
@@ -112,7 +129,6 @@ export function KYCFlow() {
     if (!ctx) return;
     ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-
     const target = activeCamera;
 
     stopStream();
@@ -159,10 +175,7 @@ export function KYCFlow() {
         stopStream();
         if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
         setVideoRecording(false);
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = null;
-        }
+        if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
       };
 
       recorder.start();
@@ -179,9 +192,20 @@ export function KYCFlow() {
         }
       }, 1000);
     } catch {
-      alert("Camera/microphone access denied. Please allow permissions in your browser settings.");
+      alert("Camera/microphone access denied. Please allow permissions.");
     }
   }, []);
+
+  // Reset form for resubmission
+  function resetForResubmit() {
+    setSubmitted(false);
+    setDocFront(null);
+    setDocBack(null);
+    setSelfie(null);
+    setVideoBlob(null);
+    setVideoRawBlob(null);
+    setForm((p) => ({ ...p, dob: "", nationality: "", docNumber: "" }));
+  }
 
   async function handleSubmit() {
     if (!userId) return;
@@ -222,6 +246,8 @@ export function KYCFlow() {
       const { data: faceVideoUrl } = supabase.storage.from("kyc-documents").getPublicUrl(`${folder}/face-video.webm`);
 
       setUploadProgress("Saving submission...");
+
+      // Insert new submission
       const { error: insertErr } = await supabase.from("kyc_submissions").insert({
         user_id: userId,
         full_name: form.fullName,
@@ -237,8 +263,13 @@ export function KYCFlow() {
       });
       if (insertErr) throw insertErr;
 
-      await supabase.from("profiles").update({ kyc_status: "pending" }).eq("id", userId);
+      // Update profile status back to pending
+      await supabase.from("profiles").update({
+        kyc_status: "pending",
+        kyc_level: 0,
+      }).eq("id", userId);
 
+      setExistingStatus("pending");
       setSubmitted(true);
     } catch (err: any) {
       alert("Submission failed: " + (err.message ?? "unknown error"));
@@ -274,7 +305,7 @@ export function KYCFlow() {
         <div className="p-6 bg-black flex-shrink-0">
           <div className="text-center text-white/60 text-xs mb-4">
             {activeCamera === "selfie"
-              ? "Hold your document next to your face — make sure both are clearly visible"
+              ? "Hold your document next to your face — both must be clearly visible"
               : "Make sure all text is clearly readable — good lighting required"}
           </div>
           <button onClick={capturePhoto} className="w-full bg-white text-black font-black py-4 rounded-2xl text-base flex items-center justify-center gap-2">
@@ -288,7 +319,6 @@ export function KYCFlow() {
   return (
     <div className="flex flex-col pb-8">
 
-      {/* HEADER */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
         <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
@@ -296,7 +326,6 @@ export function KYCFlow() {
         <span className="font-bold text-gray-800 text-sm">KYC Verification</span>
       </div>
 
-      {/* WHY VERIFY BANNER */}
       <div className="mx-4 mt-4">
         <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -314,53 +343,125 @@ export function KYCFlow() {
         </div>
       </div>
 
-      {/* LEVEL LIST */}
       <div className="mx-4 mt-4 flex flex-col gap-3">
         {LEVELS.map((l) => {
-          const level3Status = existingStatus === "approved" ? "completed" : existingStatus === "pending" ? "pending" : existingStatus === "rejected" ? "pending" : "pending";
-          const displayStatus = l.level === 3 ? level3Status : l.status;
+          const displayStatus = l.level === 3
+            ? existingStatus === "approved" ? "completed"
+            : existingStatus === "pending" ? "pending"
+            : existingStatus === "rejected" ? "rejected"
+            : "pending"
+            : l.status;
 
           return (
             <div key={l.level} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${l.status === "locked" ? "opacity-50" : ""}`}>
 
-              <button type="button" onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left" disabled={l.status === "locked"}>
+              <button type="button"
+                onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+                disabled={l.status === "locked"}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  displayStatus === "completed" ? "bg-green-50" : displayStatus === "pending" ? "bg-[#FBF3E1]" : "bg-gray-50"
+                  displayStatus === "completed" ? "bg-green-50"
+                  : displayStatus === "rejected" ? "bg-red-50"
+                  : displayStatus === "pending" ? "bg-[#FBF3E1]"
+                  : "bg-gray-50"
                 }`}>
                   {displayStatus === "completed" ? <CheckCircle size={20} className="text-green-500" />
+                    : displayStatus === "rejected" ? <XCircle size={20} className="text-red-500" />
                     : displayStatus === "pending" ? <Clock size={20} className="text-[#9c7a1f]" />
                     : <Shield size={20} className="text-gray-300" />}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-gray-800">Level {l.level} — {l.title}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      displayStatus === "completed" ? "bg-green-50 text-green-500" : displayStatus === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]" : "bg-gray-50 text-gray-400"
+                      displayStatus === "completed" ? "bg-green-50 text-green-500"
+                      : displayStatus === "rejected" ? "bg-red-50 text-red-500"
+                      : displayStatus === "pending" && existingStatus === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]"
+                      : "bg-gray-50 text-gray-400"
                     }`}>
                       {l.level === 3 && existingStatus === "approved" ? "✓ Verified"
-                        : l.level === 3 && existingStatus === "pending" ? "Under Review"
-                        : l.level === 3 && existingStatus === "rejected" ? "Rejected — Resubmit"
-                        : displayStatus === "completed" ? "✓ Done" : displayStatus === "pending" ? "Required" : "Locked"}
+                        : l.level === 3 && existingStatus === "pending" ? "⏳ Under Review"
+                        : l.level === 3 && existingStatus === "rejected" ? "❌ Rejected"
+                        : displayStatus === "completed" ? "✓ Done"
+                        : displayStatus === "pending" ? "Required"
+                        : "Locked"}
                     </span>
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">{l.desc}</div>
                 </div>
               </button>
 
-              {/* LEVEL 3 FORM */}
               {activeLevel === 3 && l.level === 3 && (
                 <div className="px-4 pb-4 border-t border-gray-50">
-                  {submitted ? (
+
+                  {/* REJECTED STATE */}
+                  {existingStatus === "rejected" && submitted && (
+                    <div className="mt-3">
+                      <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <XCircle size={18} className="text-red-500 flex-shrink-0" />
+                          <span className="font-black text-red-700 text-sm">KYC Rejected</span>
+                        </div>
+                        {rejectionReason && (
+                          <div className="text-xs text-red-600 mb-2">
+                            <span className="font-bold">Reason: </span>{rejectionReason}
+                          </div>
+                        )}
+                        <div className="text-xs text-red-500 flex flex-col gap-1">
+                          <div>• Make sure documents are clear and readable</div>
+                          <div>• Use good lighting for photos</div>
+                          <div>• Selfie must show your face and document clearly</div>
+                          <div>• Video must show your face from multiple angles</div>
+                        </div>
+                      </div>
+                      <button onClick={resetForResubmit}
+                        className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm flex items-center justify-center gap-2">
+                        <RefreshCw size={16} /> Resubmit KYC
+                      </button>
+                    </div>
+                  )}
+
+                  {/* PENDING STATE */}
+                  {existingStatus === "pending" && submitted && (
                     <div className="text-center py-6">
                       <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-3">
                         <Clock size={26} className="text-[#9c7a1f]" />
                       </div>
-                      <div className="font-black text-gray-800 text-lg mb-1">Documents Submitted!</div>
-                      <div className="text-sm text-gray-500">Admin will review within 24-48 hours. You will be notified.</div>
+                      <div className="font-black text-gray-800 text-lg mb-1">Under Review</div>
+                      <div className="text-sm text-gray-500 mb-3">Admin will review within 24-48 hours.</div>
+                      <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 text-left">
+                        <div className="text-xs text-[#004B49] flex flex-col gap-1">
+                          <div>✓ Documents received</div>
+                          <div>✓ Selfie received</div>
+                          <div>✓ Face video received</div>
+                          <div>⏳ Admin review in progress...</div>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* APPROVED STATE */}
+                  {existingStatus === "approved" && (
+                    <div className="text-center py-6">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <CheckCircle size={26} className="text-green-500" />
+                      </div>
+                      <div className="font-black text-gray-800 text-lg mb-1">KYC Verified ✅</div>
+                      <div className="text-sm text-gray-500">Your identity has been verified. You can now use all features.</div>
+                    </div>
+                  )}
+
+                  {/* FORM — shown when not submitted or resubmitting */}
+                  {!submitted && (
                     <div className="mt-3 flex flex-col gap-4">
+
+                      {/* Rejection reminder if resubmitting */}
+                      {existingStatus === "rejected" && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2">
+                          <span className="text-amber-600 flex-shrink-0">⚠️</span>
+                          <span className="text-xs text-amber-700 font-semibold">Please fix the issues and resubmit your documents carefully.</span>
+                        </div>
+                      )}
 
                       <div>
                         <div className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">Document Type</div>
@@ -384,7 +485,7 @@ export function KYCFlow() {
                         <div className="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">Personal Information</div>
                         <div className="flex flex-col gap-2">
                           <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Full Name (as on document) *</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Full Name *</label>
                             <input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
                               placeholder="Full Name"
                               className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
@@ -474,9 +575,7 @@ export function KYCFlow() {
 
                       <div>
                         <div className="text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">15-Second Face Video *</div>
-                        <div className="text-[10px] text-gray-400 mb-2">
-                          Record a short video of your face for liveness verification. Look at the camera and slowly turn your head left and right.
-                        </div>
+                        <div className="text-[10px] text-gray-400 mb-2">Look at camera and slowly turn your head left and right.</div>
                         {videoBlob ? (
                           <div>
                             <video src={videoBlob} controls className="w-full rounded-xl border border-gray-100 max-h-40" />
@@ -510,15 +609,14 @@ export function KYCFlow() {
                       <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
                         <Shield size={14} className="text-[#004B49] flex-shrink-0 mt-0.5" />
                         <div className="text-[11px] text-[#004B49]">
-                          Your documents are encrypted and stored securely. They are only used for identity verification and are never shared with third parties.
+                          Your documents are encrypted and stored securely. Never shared with third parties.
                         </div>
                       </div>
 
                       <button type="button" onClick={() => void handleSubmit()} disabled={submitting}
                         className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
-                        {submitting ? (uploadProgress || "Submitting...") : "Submit for Review"}
+                        {submitting ? (uploadProgress || "Submitting...") : existingStatus === "rejected" ? "Resubmit for Review 🔄" : "Submit for Review"}
                       </button>
-
                     </div>
                   )}
                 </div>
@@ -533,7 +631,6 @@ export function KYCFlow() {
           );
         })}
       </div>
-
     </div>
   );
 }
