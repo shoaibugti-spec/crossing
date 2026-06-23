@@ -28,20 +28,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  AlertTriangle,
-  Ban,
-  CheckCircle,
-  FileText,
-  Loader2,
-  Lock,
-  Shield,
-  Users,
-  Wallet,
-  XCircle,
-  Globe,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Eye,
+  AlertTriangle, Ban, CheckCircle, Loader2, Lock,
+  Shield, Users, XCircle, ArrowDownLeft,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -68,14 +56,17 @@ export function AdminDashboard() {
   const [disputeStatus, setDisputeStatus] = useState("under_review");
   const [disputeNotes, setDisputeNotes] = useState("");
 
-  // Deposit approval dialog
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [depositAmountOverride, setDepositAmountOverride] = useState("");
 
-  // Withdrawal approval dialog
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [selectedWithdraw, setSelectedWithdraw] = useState<any | null>(null);
+
+  // KYC reject with reason
+  const [kycRejectDialogOpen, setKycRejectDialogOpen] = useState(false);
+  const [selectedKyc, setSelectedKyc] = useState<any | null>(null);
+  const [kycRejectionReason, setKycRejectionReason] = useState("");
 
   useEffect(() => {
     void checkAccess();
@@ -83,21 +74,9 @@ export function AdminDashboard() {
 
   async function checkAccess() {
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      setAccessChecked(true);
-      void navigate({ to: "/login" });
-      return;
-    }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userData.user.id)
-      .single();
-
-    if (profile?.role === "admin") {
-      setIsAdmin(true);
-      void loadAllData();
-    }
+    if (!userData.user) { setAccessChecked(true); void navigate({ to: "/login" }); return; }
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", userData.user.id).single();
+    if (profile?.role === "admin") { setIsAdmin(true); void loadAllData(); }
     setAccessChecked(true);
   }
 
@@ -106,7 +85,7 @@ export function AdminDashboard() {
 
     const { data: kyc } = await supabase
       .from("kyc_submissions")
-      .select("id, user_id, full_name, document_type, submitted_at, status")
+      .select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason")
       .order("submitted_at", { ascending: false });
     setKycUsers(kyc ?? []);
 
@@ -128,7 +107,6 @@ export function AdminDashboard() {
       .order("created_at", { ascending: false });
     setDisputes(disputesData ?? []);
 
-    // Pending deposits
     const { data: depositsData } = await supabase
       .from("wallet_transactions")
       .select("id, user_id, amount, status, notes, receipt_url, reference_code, created_at, profiles:user_id(full_name)")
@@ -136,7 +114,6 @@ export function AdminDashboard() {
       .order("created_at", { ascending: false });
     setDeposits(depositsData ?? []);
 
-    // Pending withdrawals
     const { data: withdrawalsData } = await supabase
       .from("wallet_transactions")
       .select("id, user_id, amount, status, notes, created_at, profiles:user_id(full_name)")
@@ -144,7 +121,6 @@ export function AdminDashboard() {
       .order("created_at", { ascending: false });
     setWithdrawals(withdrawalsData ?? []);
 
-    // Provider services pending approval
     const { data: servicesData } = await supabase
       .from("provider_services")
       .select("id, provider_id, origin_country, destination_country, visa_category, min_price, max_price, capacity, status, created_at, profiles:provider_id(full_name)")
@@ -161,40 +137,51 @@ export function AdminDashboard() {
     await supabase.from("profiles").update({ kyc_status: "approved", kyc_level: 3 }).eq("id", userId);
     setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "approved" } : u)));
     setProcessingId(null);
-    toast.success("KYC approved");
+    toast.success("KYC approved ✅");
   };
 
-  const handleRejectKYC = async (kycId: string, userId: string) => {
-    setProcessingId(kycId);
-    await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString() }).eq("id", kycId);
-    await supabase.from("profiles").update({ kyc_status: "rejected" }).eq("id", userId);
-    setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "rejected" } : u)));
+  const openRejectKyc = (kyc: any) => {
+    setSelectedKyc(kyc);
+    setKycRejectionReason("");
+    setKycRejectDialogOpen(true);
+  };
+
+  const handleRejectKYC = async () => {
+    if (!selectedKyc) return;
+    if (!kycRejectionReason.trim()) { toast.error("Please enter a rejection reason"); return; }
+    setProcessingId(selectedKyc.id);
+
+    await supabase.from("kyc_submissions").update({
+      status: "rejected",
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: kycRejectionReason.trim(),
+    }).eq("id", selectedKyc.id);
+
+    await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
+
+    setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
+    setKycRejectDialogOpen(false);
+    setSelectedKyc(null);
+    setKycRejectionReason("");
     setProcessingId(null);
-    toast.success("KYC rejected");
+    toast.success("KYC rejected — reason saved");
   };
 
-  // ── DEPOSIT APPROVAL ──
+  // ── DEPOSIT ──
   async function confirmDeposit() {
     if (!selectedDeposit) return;
     const confirmedAmount = Number(depositAmountOverride) || selectedDeposit.amount;
     setProcessingId(selectedDeposit.id);
-
     await supabase.from("wallet_transactions").update({ status: "completed" }).eq("id", selectedDeposit.id);
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("wallet_balance")
-      .eq("id", selectedDeposit.user_id)
-      .single();
+    const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedDeposit.user_id).single();
     const newBalance = Number(profile?.wallet_balance ?? 0) + confirmedAmount;
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedDeposit.user_id);
-
     setDeposits((prev) => prev.map((d) => (d.id === selectedDeposit.id ? { ...d, status: "completed" } : d)));
     setDepositDialogOpen(false);
     setSelectedDeposit(null);
     setDepositAmountOverride("");
     setProcessingId(null);
-    toast.success(`Deposit of $${confirmedAmount} confirmed — user balance updated`);
+    toast.success(`Deposit of $${confirmedAmount} confirmed`);
   }
 
   async function rejectDeposit(id: string) {
@@ -205,27 +192,20 @@ export function AdminDashboard() {
     toast.success("Deposit rejected");
   }
 
-  // ── WITHDRAWAL APPROVAL ──
+  // ── WITHDRAWAL ──
   async function confirmWithdrawal() {
     if (!selectedWithdraw) return;
     setProcessingId(selectedWithdraw.id);
-
     await supabase.from("wallet_transactions").update({ status: "completed" }).eq("id", selectedWithdraw.id);
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("wallet_balance")
-      .eq("id", selectedWithdraw.user_id)
-      .single();
+    const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedWithdraw.user_id).single();
     const withdrawAmount = Math.abs(selectedWithdraw.amount);
     const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - withdrawAmount);
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedWithdraw.user_id);
-
     setWithdrawals((prev) => prev.map((w) => (w.id === selectedWithdraw.id ? { ...w, status: "completed" } : w)));
     setWithdrawDialogOpen(false);
     setSelectedWithdraw(null);
     setProcessingId(null);
-    toast.success("Withdrawal confirmed — please send USDT manually to the user's address");
+    toast.success("Withdrawal confirmed");
   }
 
   async function rejectWithdrawal(id: string) {
@@ -236,26 +216,15 @@ export function AdminDashboard() {
     toast.success("Withdrawal rejected");
   }
 
-  // ── PROVIDER SERVICES ──
+  // ── SERVICES ──
   async function approveService(id: string, providerId: string) {
     setProcessingId(id);
     await supabase.from("provider_services").update({ status: "approved" }).eq("id", id);
-
-    // Calculate total required deposit for this provider
-    const { data: allServices } = await supabase
-      .from("provider_services")
-      .select("max_price, capacity, status")
-      .eq("provider_id", providerId);
-
-    const updatedServices = (allServices ?? []).map((s: any) =>
-      s === id ? { ...s, status: "approved" } : s
-    );
-    const totalDeposit = updatedServices
+    const { data: allServices } = await supabase.from("provider_services").select("max_price, capacity, status").eq("provider_id", providerId);
+    const totalDeposit = (allServices ?? [])
       .filter((s: any) => s.status === "approved")
       .reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
-
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
-
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
     setProcessingId(null);
     toast.success("Service approved");
@@ -317,30 +286,23 @@ export function AdminDashboard() {
   const pendingDeposits = deposits.filter((d) => d.status === "pending").length;
   const pendingWithdrawals = withdrawals.filter((w) => w.status === "pending").length;
   const pendingServices = providerServices.filter((s) => s.status === "pending").length;
+  const pendingKyc = kycUsers.filter((u) => u.status === "pending").length;
 
   const stats = [
     { label: "Total Users", value: adminUsers.length.toString(), icon: Users, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
-    { label: "Pending KYC", value: kycUsers.filter((u) => u.status === "pending").length.toString(), icon: Shield, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
+    { label: "Pending KYC", value: String(pendingKyc), icon: Shield, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
     { label: "Pending Deposits", value: String(pendingDeposits), icon: ArrowDownLeft, color: "text-green-600", bg: "bg-green-50" },
     { label: "Open Disputes", value: disputes.filter((d) => d.status === "open" || d.status === "under_review").length.toString(), icon: AlertTriangle, color: "text-red-600", bg: "bg-red-50" },
   ];
 
-  if (!accessChecked) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="animate-spin text-gray-300" size={28} />
-      </div>
-    );
-  }
+  if (!accessChecked) return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
 
   if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-          <Lock size={28} className="text-red-400" />
-        </div>
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><Lock size={28} className="text-red-400" /></div>
         <div className="font-black text-gray-800 text-lg mb-1">Access Denied</div>
-        <div className="text-sm text-gray-500">This area is restricted to Crossing administrators only.</div>
+        <div className="text-sm text-gray-500">Restricted to Crossingate administrators only.</div>
       </div>
     );
   }
@@ -349,15 +311,14 @@ export function AdminDashboard() {
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <h1 className="font-display text-2xl font-bold text-foreground mb-6">Admin Dashboard</h1>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {stats.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} className="border-border/60 shadow-card">
+          <Card key={label} className="border-border/60">
             <CardContent className="p-5">
               <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
                 <Icon size={18} className={color} />
               </div>
-              <p className="font-display font-bold text-2xl text-foreground">{value}</p>
+              <p className="font-bold text-2xl text-foreground">{value}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
             </CardContent>
           </Card>
@@ -365,43 +326,22 @@ export function AdminDashboard() {
       </div>
 
       {loadingData ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="animate-spin text-gray-300" size={28} />
-        </div>
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={28} /></div>
       ) : (
         <Tabs defaultValue="deposits">
           <TabsList className="mb-6 flex-wrap gap-1">
-
             <TabsTrigger value="deposits">
-              Deposits
-              {pendingDeposits > 0 && (
-                <span className="ml-1.5 bg-green-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingDeposits}</span>
-              )}
+              Deposits {pendingDeposits > 0 && <span className="ml-1.5 bg-green-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingDeposits}</span>}
             </TabsTrigger>
-
             <TabsTrigger value="withdrawals">
-              Withdrawals
-              {pendingWithdrawals > 0 && (
-                <span className="ml-1.5 bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingWithdrawals}</span>
-              )}
+              Withdrawals {pendingWithdrawals > 0 && <span className="ml-1.5 bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingWithdrawals}</span>}
             </TabsTrigger>
-
             <TabsTrigger value="services">
-              Services
-              {pendingServices > 0 && (
-                <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingServices}</span>
-              )}
+              Services {pendingServices > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingServices}</span>}
             </TabsTrigger>
-
             <TabsTrigger value="kyc">
-              KYC
-              {kycUsers.filter((u) => u.status === "pending").length > 0 && (
-                <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">
-                  {kycUsers.filter((u) => u.status === "pending").length}
-                </span>
-              )}
+              KYC {pendingKyc > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingKyc}</span>}
             </TabsTrigger>
-
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="disputes">Disputes</TabsTrigger>
@@ -409,17 +349,15 @@ export function AdminDashboard() {
 
           {/* ── DEPOSITS ── */}
           <TabsContent value="deposits">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {deposits.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No deposit requests yet.</div>
-                ) : (
+                {deposits.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No deposit requests yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
                         <TableHead>Amount</TableHead>
-                        <TableHead>Notes / TX</TableHead>
+                        <TableHead>Notes</TableHead>
                         <TableHead>Receipt</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Status</TableHead>
@@ -431,31 +369,24 @@ export function AdminDashboard() {
                         <TableRow key={d.id}>
                           <TableCell className="font-medium text-sm">{(d.profiles as any)?.full_name ?? "—"}</TableCell>
                           <TableCell className="font-bold text-green-600">${d.amount}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-xs">
-                            <span className="line-clamp-2">{d.notes ?? "—"}</span>
-                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-xs"><span className="line-clamp-2">{d.notes ?? "—"}</span></TableCell>
                           <TableCell>
                             {d.receipt_url ? (
                               <a href={d.receipt_url} target="_blank" rel="noopener noreferrer">
                                 <img src={d.receipt_url} alt="receipt" className="w-10 h-10 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80" />
                               </a>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No receipt</span>
-                            )}
+                            ) : <span className="text-xs text-muted-foreground">No receipt</span>}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(d.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>{txStatusBadge(d.status)}</TableCell>
                           <TableCell className="text-right">
                             {d.status === "pending" && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button size="sm"
-                                  onClick={() => { setSelectedDeposit(d); setDepositAmountOverride(String(d.amount)); setDepositDialogOpen(true); }}
+                                <Button size="sm" onClick={() => { setSelectedDeposit(d); setDepositAmountOverride(String(d.amount)); setDepositDialogOpen(true); }}
                                   className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
                                   <CheckCircle size={11} /> Confirm
                                 </Button>
-                                <Button size="sm" variant="outline"
-                                  onClick={() => void rejectDeposit(d.id)}
-                                  disabled={processingId === d.id}
+                                <Button size="sm" variant="outline" onClick={() => void rejectDeposit(d.id)} disabled={processingId === d.id}
                                   className="gap-1 text-xs text-destructive border-destructive/30 h-7">
                                   <XCircle size={11} /> Reject
                                 </Button>
@@ -473,11 +404,9 @@ export function AdminDashboard() {
 
           {/* ── WITHDRAWALS ── */}
           <TabsContent value="withdrawals">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {withdrawals.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No withdrawal requests yet.</div>
-                ) : (
+                {withdrawals.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No withdrawal requests yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -494,22 +423,17 @@ export function AdminDashboard() {
                         <TableRow key={w.id}>
                           <TableCell className="font-medium text-sm">{(w.profiles as any)?.full_name ?? "—"}</TableCell>
                           <TableCell className="font-bold text-orange-600">${Math.abs(w.amount)}</TableCell>
-                          <TableCell className="text-xs font-mono text-muted-foreground max-w-xs">
-                            <span className="line-clamp-1">{w.notes?.replace("Withdrawal request to ", "") ?? "—"}</span>
-                          </TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground max-w-xs"><span className="line-clamp-1">{w.notes?.replace("Withdrawal request to ", "") ?? "—"}</span></TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>{txStatusBadge(w.status)}</TableCell>
                           <TableCell className="text-right">
                             {w.status === "pending" && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button size="sm"
-                                  onClick={() => { setSelectedWithdraw(w); setWithdrawDialogOpen(true); }}
+                                <Button size="sm" onClick={() => { setSelectedWithdraw(w); setWithdrawDialogOpen(true); }}
                                   className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
                                   <CheckCircle size={11} /> Mark Sent
                                 </Button>
-                                <Button size="sm" variant="outline"
-                                  onClick={() => void rejectWithdrawal(w.id)}
-                                  disabled={processingId === w.id}
+                                <Button size="sm" variant="outline" onClick={() => void rejectWithdrawal(w.id)} disabled={processingId === w.id}
                                   className="gap-1 text-xs text-destructive border-destructive/30 h-7">
                                   <XCircle size={11} /> Reject
                                 </Button>
@@ -525,13 +449,11 @@ export function AdminDashboard() {
             </Card>
           </TabsContent>
 
-          {/* ── PROVIDER SERVICES ── */}
+          {/* ── SERVICES ── */}
           <TabsContent value="services">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {providerServices.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No service requests yet.</div>
-                ) : (
+                {providerServices.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No service requests yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -558,16 +480,11 @@ export function AdminDashboard() {
                           <TableCell className="text-right">
                             {s.status === "pending" && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button size="sm"
-                                  onClick={() => void approveService(s.id, s.provider_id)}
-                                  disabled={processingId === s.id}
+                                <Button size="sm" onClick={() => void approveService(s.id, s.provider_id)} disabled={processingId === s.id}
                                   className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  {processingId === s.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />}
-                                  Approve
+                                  {processingId === s.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve
                                 </Button>
-                                <Button size="sm" variant="outline"
-                                  onClick={() => void rejectService(s.id)}
-                                  disabled={processingId === s.id}
+                                <Button size="sm" variant="outline" onClick={() => void rejectService(s.id)} disabled={processingId === s.id}
                                   className="gap-1 text-xs text-destructive border-destructive/30 h-7">
                                   <XCircle size={11} /> Reject
                                 </Button>
@@ -585,18 +502,18 @@ export function AdminDashboard() {
 
           {/* ── KYC ── */}
           <TabsContent value="kyc">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {kycUsers.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div>
-                ) : (
+                {kycUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
-                        <TableHead>Document Type</TableHead>
+                        <TableHead>Document</TableHead>
+                        <TableHead>Photos</TableHead>
                         <TableHead>Submitted</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Rejection Reason</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -605,25 +522,42 @@ export function AdminDashboard() {
                         <TableRow key={user.id}>
                           <TableCell className="font-medium text-sm">{user.full_name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground capitalize">{user.document_type}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {user.document_front_url && (
+                                <a href={user.document_front_url} target="_blank" rel="noopener noreferrer">
+                                  <img src={user.document_front_url} alt="front" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" />
+                                </a>
+                              )}
+                              {user.selfie_url && (
+                                <a href={user.selfie_url} target="_blank" rel="noopener noreferrer">
+                                  <img src={user.selfie_url} alt="selfie" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" />
+                                </a>
+                              )}
+                              {user.face_video_url && (
+                                <a href={user.face_video_url} target="_blank" rel="noopener noreferrer">
+                                  <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">▶</div>
+                                </a>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(user.submitted_at).toLocaleDateString()}</TableCell>
                           <TableCell>{kycStatusBadge(user.status)}</TableCell>
+                          <TableCell className="text-xs text-red-500 max-w-xs">
+                            <span className="line-clamp-2">{user.rejection_reason ?? "—"}</span>
+                          </TableCell>
                           <TableCell className="text-right">
-                            {user.status === "pending" ? (
+                            {user.status === "pending" && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" onClick={() => void handleApproveKYC(user.id, user.user_id)}
-                                  disabled={processingId === user.id}
+                                <Button size="sm" onClick={() => void handleApproveKYC(user.id, user.user_id)} disabled={processingId === user.id}
                                   className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  {processingId === user.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />}
-                                  Approve
+                                  {processingId === user.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => void handleRejectKYC(user.id, user.user_id)}
-                                  disabled={processingId === user.id}
+                                <Button size="sm" variant="outline" onClick={() => openRejectKyc(user)} disabled={processingId === user.id}
                                   className="gap-1 text-xs text-destructive border-destructive/30 h-7">
                                   <XCircle size={11} /> Reject
                                 </Button>
                               </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -637,11 +571,9 @@ export function AdminDashboard() {
 
           {/* ── ADS ── */}
           <TabsContent value="ads">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {adminAds.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div>
-                ) : (
+                {adminAds.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -660,9 +592,9 @@ export function AdminDashboard() {
                           <TableCell>
                             <Badge variant="outline" className={`text-xs capitalize ${
                               ad.status === "active" ? "bg-green-50 text-green-700 border-green-200"
-                                : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200"
-                                : ad.status === "pending_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
-                                : "bg-gray-100 text-gray-600 border-gray-200"
+                              : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200"
+                              : ad.status === "pending_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
                             }`}>
                               {ad.status.replace("_", " ")}
                             </Badge>
@@ -695,18 +627,15 @@ export function AdminDashboard() {
 
           {/* ── USERS ── */}
           <TabsContent value="users">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {adminUsers.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div>
-                ) : (
+                {adminUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>KYC</TableHead>
-                        <TableHead>Trust Score</TableHead>
                         <TableHead>Joined</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -717,7 +646,6 @@ export function AdminDashboard() {
                           <TableCell className="font-medium text-sm">{user.full_name || "—"}</TableCell>
                           <TableCell><Badge variant="outline" className="text-xs capitalize">{user.role}</Badge></TableCell>
                           <TableCell className="text-xs capitalize text-muted-foreground">{user.kyc_status}</TableCell>
-                          <TableCell className="text-sm font-medium">{user.trust_score}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
                             {!user.is_suspended && user.role !== "admin" && (
@@ -739,11 +667,9 @@ export function AdminDashboard() {
 
           {/* ── DISPUTES ── */}
           <TabsContent value="disputes">
-            <Card className="border-border/60 shadow-card">
+            <Card className="border-border/60">
               <CardContent className="p-0">
-                {disputes.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div>
-                ) : (
+                {disputes.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -762,8 +688,8 @@ export function AdminDashboard() {
                           <TableCell>
                             <Badge variant="outline" className={`text-xs capitalize ${
                               dispute.status === "open" ? "bg-[#E8F0EF] text-[#004B49] border-[#004B49]/20"
-                                : dispute.status === "under_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
-                                : "bg-green-50 text-green-700 border-green-200"
+                              : dispute.status === "under_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
+                              : "bg-green-50 text-green-700 border-green-200"
                             }`}>{dispute.status}</Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
@@ -784,6 +710,51 @@ export function AdminDashboard() {
         </Tabs>
       )}
 
+      {/* ── KYC REJECT DIALOG ── */}
+      <Dialog open={kycRejectDialogOpen} onOpenChange={setKycRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reject KYC — Add Reason</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xs font-bold text-gray-600 mb-1">User: {selectedKyc?.full_name}</div>
+              <div className="text-xs text-gray-400">Document: {selectedKyc?.document_type}</div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Rejection Reason *</Label>
+              <Textarea
+                placeholder="e.g. Document not clear, selfie does not match, wrong document type..."
+                rows={4}
+                value={kycRejectionReason}
+                onChange={(e) => setKycRejectionReason(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">This reason will be shown to the user so they can fix and resubmit.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                "Document not clearly visible",
+                "Selfie does not match document",
+                "Document expired",
+                "Wrong document type",
+                "Poor lighting — retake photos",
+                "Face video too short",
+              ].map((r) => (
+                <button key={r} onClick={() => setKycRejectionReason(r)}
+                  className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full border border-gray-200 hover:border-red-300 hover:text-red-600 transition-all">
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKycRejectDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleRejectKYC()} disabled={processingId !== null || !kycRejectionReason.trim()}
+              className="bg-red-500 hover:bg-red-600 text-white">
+              {processingId ? <Loader2 size={14} className="animate-spin" /> : "Reject & Notify User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── DEPOSIT CONFIRM DIALOG ── */}
       <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
         <DialogContent>
@@ -799,16 +770,13 @@ export function AdminDashboard() {
             )}
             <div className="space-y-1.5">
               <Label>Confirm Amount (USDT)</Label>
-              <Input type="number" value={depositAmountOverride}
-                onChange={(e) => setDepositAmountOverride(e.target.value)}
-                placeholder="Enter confirmed amount" />
-              <p className="text-xs text-muted-foreground">User claimed: ${selectedDeposit?.amount}. Adjust if the actual received amount differs.</p>
+              <Input type="number" value={depositAmountOverride} onChange={(e) => setDepositAmountOverride(e.target.value)} placeholder="Enter confirmed amount" />
+              <p className="text-xs text-muted-foreground">User claimed: ${selectedDeposit?.amount}. Adjust if actual amount differs.</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDepositDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void confirmDeposit()} disabled={processingId !== null}
-              className="bg-[#004B49] hover:bg-[#00302e] text-white">
+            <Button onClick={() => void confirmDeposit()} disabled={processingId !== null} className="bg-[#004B49] hover:bg-[#00302e] text-white">
               {processingId ? <Loader2 size={14} className="animate-spin" /> : "Confirm & Credit"}
             </Button>
           </DialogFooter>
@@ -827,12 +795,11 @@ export function AdminDashboard() {
                 <div className="break-all">To: <span className="font-mono font-bold">{selectedWithdraw?.notes?.replace("Withdrawal request to ", "") ?? "—"}</span></div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">Once you confirm, the user's wallet balance will be deducted. Only confirm after you have actually sent the USDT.</p>
+            <p className="text-xs text-muted-foreground">Only confirm after you have actually sent the USDT.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void confirmWithdrawal()} disabled={processingId !== null}
-              className="bg-[#004B49] hover:bg-[#00302e] text-white">
+            <Button onClick={() => void confirmWithdrawal()} disabled={processingId !== null} className="bg-[#004B49] hover:bg-[#00302e] text-white">
               {processingId ? <Loader2 size={14} className="animate-spin" /> : "I've Sent — Confirm"}
             </Button>
           </DialogFooter>
@@ -859,7 +826,7 @@ export function AdminDashboard() {
             </div>
             <div className="space-y-1.5">
               <Label>Resolution Notes</Label>
-              <Textarea placeholder="Add resolution notes for both parties..." rows={4} value={disputeNotes} onChange={(e) => setDisputeNotes(e.target.value)} />
+              <Textarea placeholder="Add resolution notes..." rows={4} value={disputeNotes} onChange={(e) => setDisputeNotes(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
