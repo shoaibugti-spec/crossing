@@ -83,20 +83,23 @@ export function Help() {
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [convIdRef, setConvIdRef] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatReady, setChatReady] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const convIdLocal = useRef<string | null>(null);
   const t = TRANSLATIONS[lang];
   const rtl = lang === "ar" || lang === "ur";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, showChat]);
+  }, [chatMessages]);
 
   async function openChat() {
     setShowChat(true);
     setChatLoading(true);
+    setChatReady(false);
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
@@ -116,9 +119,10 @@ export function Help() {
     const name = profile?.full_name ?? "User";
 
     // If already have conversation
-    if (conversationId) {
-      await loadMessages(conversationId);
+    if (convIdLocal.current) {
+      await loadMessages(convIdLocal.current);
       setChatLoading(false);
+      setChatReady(true);
       return;
     }
 
@@ -132,14 +136,16 @@ export function Help() {
       .maybeSingle();
 
     if (existing?.conversation_id) {
-      setConversationId(existing.conversation_id);
+      convIdLocal.current = existing.conversation_id;
+      setConvIdRef(existing.conversation_id);
       await loadMessages(existing.conversation_id);
       subscribeToReplies(existing.conversation_id);
       setChatLoading(false);
+      setChatReady(true);
       return;
     }
 
-    // Create new conversation with random UUID
+    // Create new
     const newConvId = crypto.randomUUID();
 
     const { data: newMsg, error: msgError } = await supabase
@@ -156,12 +162,10 @@ export function Help() {
       .single();
 
     if (msgError || !newMsg) {
-      console.error("Support message error:", msgError);
       setChatLoading(false);
       return;
     }
 
-    // Welcome reply from admin
     await supabase.from("support_replies").insert({
       conversation_id: newMsg.conversation_id,
       message_id: newMsg.id,
@@ -170,23 +174,20 @@ export function Help() {
       user_id: null,
     });
 
-    setConversationId(newMsg.conversation_id);
+    convIdLocal.current = newMsg.conversation_id;
+    setConvIdRef(newMsg.conversation_id);
     await loadMessages(newMsg.conversation_id);
     subscribeToReplies(newMsg.conversation_id);
     setChatLoading(false);
+    setChatReady(true);
   }
 
   async function loadMessages(convId: string) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("support_replies")
       .select("id, text, from_role, created_at")
       .eq("conversation_id", convId)
       .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Load messages error:", error);
-      return;
-    }
     if (data) setChatMessages(data as ChatMsg[]);
   }
 
@@ -209,25 +210,35 @@ export function Help() {
   }
 
   async function sendMessage() {
-    if (!chatInput.trim() || !conversationId || sending) return;
+    const convId = convIdLocal.current;
+    const text = chatInput.trim();
+
+    if (!text || !convId || sending) return;
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
     setSending(true);
-    const text = chatInput.trim();
     setChatInput("");
 
-    // Get message_id for this conversation
+    // Optimistic update
+    const tempMsg: ChatMsg = {
+      id: "temp_" + Date.now(),
+      text,
+      from_role: "user",
+      created_at: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, tempMsg]);
+
     const { data: msgRow } = await supabase
       .from("support_messages")
       .select("id")
-      .eq("conversation_id", conversationId)
+      .eq("conversation_id", convId)
       .limit(1)
       .maybeSingle();
 
     const { error } = await supabase.from("support_replies").insert({
-      conversation_id: conversationId,
+      conversation_id: convId,
       message_id: msgRow?.id ?? null,
       text,
       from_role: "user",
@@ -235,18 +246,20 @@ export function Help() {
     });
 
     if (error) {
-      console.error("Send error:", error);
+      // Remove optimistic message on error
+      setChatMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
       setChatInput(text);
       setSending(false);
       return;
     }
 
-    // Update last message in support_messages
     await supabase
       .from("support_messages")
       .update({ message: text, status: "open" })
-      .eq("conversation_id", conversationId);
+      .eq("conversation_id", convId);
 
+    // Reload to get real IDs
+    await loadMessages(convId);
     setSending(false);
   }
 
@@ -256,6 +269,8 @@ export function Help() {
       (q) => !search || q.q.toLowerCase().includes(search.toLowerCase()) || q.a.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter((cat) => cat.questions.length > 0);
+
+  const canSend = chatInput.trim().length > 0 && chatReady && !sending;
 
   return (
     <div className="flex flex-col pb-8">
@@ -420,13 +435,13 @@ export function Help() {
         </div>
       </div>
 
-      {/* ── LIVE CHAT PANEL ── */}
+      {/* LIVE CHAT PANEL */}
       {showChat && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
           <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl flex flex-col" style={{ height: "85vh" }}>
 
-            {/* Chat header */}
+            {/* Header */}
             <div className="bg-gradient-to-r from-[#004B49] to-[#005c59] px-5 py-4 rounded-t-3xl flex items-center gap-3 flex-shrink-0">
               <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center">
                 <HeadphonesIcon size={18} className="text-[#D4AF37]" />
@@ -434,8 +449,10 @@ export function Help() {
               <div className="flex-1">
                 <div className="text-white font-black text-sm">Crossingate Support</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  <span className="text-white/60 text-[10px]">Online · Admin replies in minutes</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${chatReady ? "bg-green-400" : "bg-yellow-400"}`} />
+                  <span className="text-white/60 text-[10px]">
+                    {chatReady ? "Online · Admin replies in minutes" : "Connecting..."}
+                  </span>
                 </div>
               </div>
               <button onClick={() => setShowChat(false)}><X size={20} className="text-white/70" /></button>
@@ -444,40 +461,44 @@ export function Help() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-[#F4F6F6]">
               {chatLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-[#004B49] flex items-center justify-center">
-                      <HeadphonesIcon size={16} className="text-[#D4AF37]" />
-                    </div>
-                    <span className="text-xs text-gray-400">Connecting...</span>
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#004B49] flex items-center justify-center">
+                    <HeadphonesIcon size={18} className="text-[#D4AF37]" />
                   </div>
-                </div>
-              ) : chatMessages.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <span className="text-xs text-gray-400">No messages yet. Say hello! 👋</span>
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-[#004B49]/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#004B49]/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#004B49]/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-xs text-gray-400">Setting up your chat...</span>
                 </div>
               ) : (
-                chatMessages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
-                    {msg.from_role === "admin" && (
-                      <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
-                        <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+                <>
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
+                      {msg.from_role === "admin" && (
+                        <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
+                          <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+                        </div>
+                      )}
+                      <div className={`max-w-[78%] flex flex-col gap-0.5 ${msg.from_role === "user" ? "items-end" : "items-start"}`}>
+                        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                          msg.from_role === "user"
+                            ? "bg-[#004B49] text-white rounded-br-sm"
+                            : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
+                        }`}>
+                          {msg.text}
+                        </div>
+                        <span className="text-[9px] text-gray-400 px-1">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
                       </div>
-                    )}
-                    <div className={`max-w-[78%] flex flex-col gap-0.5 ${msg.from_role === "user" ? "items-end" : "items-start"}`}>
-                      <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                        msg.from_role === "user"
-                          ? "bg-[#004B49] text-white rounded-br-sm"
-                          : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
-                      }`}>
-                        {msg.text}
-                      </div>
-                      <span className="text-[9px] text-gray-400 px-1">
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {chatMessages.length === 0 && (
+                    <div className="text-center py-8 text-xs text-gray-400">No messages yet. Say hello! 👋</div>
+                  )}
+                </>
               )}
               <div ref={chatEndRef} />
             </div>
@@ -497,15 +518,14 @@ export function Help() {
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !sending && void sendMessage()}
-                placeholder="Type your message..."
-                disabled={chatLoading}
-                className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49] disabled:opacity-50"
+                onKeyDown={(e) => { if (e.key === "Enter" && canSend) void sendMessage(); }}
+                placeholder={chatReady ? "Type your message..." : "Please wait..."}
+                className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]"
               />
               <button
-                onClick={() => void sendMessage()}
-                disabled={!chatInput.trim() || sending || chatLoading}
-                className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 disabled:opacity-40 shadow-lg shadow-[#004B49]/20">
+                onClick={() => { if (canSend) void sendMessage(); }}
+                style={{ opacity: canSend ? 1 : 0.4 }}
+                className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#004B49]/20">
                 {sending ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
