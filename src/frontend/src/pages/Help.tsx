@@ -85,10 +85,10 @@ export function Help() {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [sending, setSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const convIdRef = useRef<string | null>(null);
   const userIdRef = useRef<string | null>(null);
-  const setupDoneRef = useRef(false);
   const t = TRANSLATIONS[lang];
   const rtl = lang === "ar" || lang === "ur";
 
@@ -96,32 +96,36 @@ export function Help() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  async function setupChat(): Promise<string | null> {
-    if (convIdRef.current) return convIdRef.current;
-    if (setupDoneRef.current) return convIdRef.current;
-    setupDoneRef.current = true;
+  async function openChat() {
+    setShowChat(true);
+    if (convIdRef.current) return;
+    setChatLoading(true);
+    setErrorMsg(null);
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
+      setChatLoading(false);
       void navigate({ to: "/login" });
-      return null;
+      return;
     }
 
     const uid = userData.user.id;
-    userIdRef.current = uid;
     const email = userData.user.email ?? "";
+    userIdRef.current = uid;
 
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name")
       .eq("id", uid)
       .single();
-    const name = profile?.full_name ?? "User";
+    const name = profile?.full_name ?? email;
 
+    // Check existing conversation
     const { data: existing } = await supabase
       .from("support_messages")
       .select("id, conversation_id")
       .eq("user_id", uid)
+      .not("conversation_id", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -130,11 +134,13 @@ export function Help() {
       convIdRef.current = existing.conversation_id;
       await loadMessages(existing.conversation_id);
       subscribeToReplies(existing.conversation_id);
-      return existing.conversation_id;
+      setChatLoading(false);
+      return;
     }
 
+    // Create new conversation
     const newConvId = crypto.randomUUID();
-    const { data: newMsg, error: msgError } = await supabase
+    const { data: newMsg, error: e1 } = await supabase
       .from("support_messages")
       .insert({
         user_id: uid,
@@ -147,11 +153,13 @@ export function Help() {
       .select("id, conversation_id")
       .single();
 
-    if (msgError || !newMsg) {
-      setupDoneRef.current = false;
-      return null;
+    if (e1 || !newMsg) {
+      setErrorMsg("Could not start chat. Please try again.");
+      setChatLoading(false);
+      return;
     }
 
+    // Welcome message
     await supabase.from("support_replies").insert({
       conversation_id: newMsg.conversation_id,
       message_id: newMsg.id,
@@ -163,14 +171,6 @@ export function Help() {
     convIdRef.current = newMsg.conversation_id;
     await loadMessages(newMsg.conversation_id);
     subscribeToReplies(newMsg.conversation_id);
-    return newMsg.conversation_id;
-  }
-
-  async function openChat() {
-    setShowChat(true);
-    if (convIdRef.current) return;
-    setChatLoading(true);
-    await setupChat();
     setChatLoading(false);
   }
 
@@ -202,23 +202,17 @@ export function Help() {
     const text = chatInput.trim();
     if (!text || sending) return;
 
-    setSending(true);
-    setChatInput("");
+    const uid = userIdRef.current;
+    const convId = convIdRef.current;
 
-    // اگر conversation نہیں بنی تو پہلے بناؤ
-    let convId = convIdRef.current;
-    let uid = userIdRef.current;
-
-    if (!convId) {
-      convId = await setupChat();
-      uid = userIdRef.current;
-    }
-
-    if (!convId || !uid) {
-      setSending(false);
-      setChatInput(text);
+    if (!uid || !convId) {
+      setErrorMsg("Chat not ready. Please close and reopen.");
       return;
     }
+
+    setSending(true);
+    setChatInput("");
+    setErrorMsg(null);
 
     // Optimistic
     const temp: ChatMsg = {
@@ -236,17 +230,20 @@ export function Help() {
       .limit(1)
       .maybeSingle();
 
-    const { error } = await supabase.from("support_replies").insert({
-      conversation_id: convId,
-      message_id: msgRow?.id ?? null,
-      text,
-      from_role: "user",
-      user_id: uid,
-    });
+    const { error } = await supabase
+      .from("support_replies")
+      .insert({
+        conversation_id: convId,
+        message_id: msgRow?.id ?? null,
+        text,
+        from_role: "user",
+        user_id: uid,
+      });
 
     if (error) {
       setChatMessages((prev) => prev.filter((m) => m.id !== temp.id));
       setChatInput(text);
+      setErrorMsg("Failed to send: " + error.message);
       setSending(false);
       return;
     }
@@ -466,7 +463,12 @@ export function Help() {
                 </div>
               ) : (
                 <>
-                  {chatMessages.length === 0 && (
+                  {errorMsg && (
+                    <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-2 text-xs text-red-600 font-semibold">
+                      ⚠️ {errorMsg}
+                    </div>
+                  )}
+                  {chatMessages.length === 0 && !errorMsg && (
                     <div className="text-center py-8 text-xs text-gray-400">No messages yet. Say hello! 👋</div>
                   )}
                   {chatMessages.map((msg) => (
@@ -515,9 +517,7 @@ export function Help() {
               <button
                 onClick={() => void sendMessage()}
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg transition-all ${
-                  chatInput.trim() && !sending
-                    ? "bg-[#004B49] shadow-[#004B49]/20"
-                    : "bg-gray-200"
+                  chatInput.trim() && !sending ? "bg-[#004B49] shadow-[#004B49]/20" : "bg-gray-200"
                 }`}>
                 {sending ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
