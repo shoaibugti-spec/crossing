@@ -61,10 +61,10 @@ const LANGUAGES = [
 ];
 
 const TRANSLATIONS: Record<string, any> = {
-  en: { hero: "How can we help?", heroSub: "Find answers or chat with our support team", searchPlaceholder: "Search help articles...", stillNeedHelp: "Still need help?", liveChat: "Live Chat Support", liveChatSub: "Available 24/7 · Usually replies in minutes", emailSupport: "Email Support", emailSub: "info@crossingate.com · 24h response", fileDispute: "File a Dispute", disputeSub: "For payment and fraud issues", noResults: "No results found" },
-  ur: { hero: "ہم آپ کی کیسے مدد کر سکتے ہیں؟", heroSub: "سوالات کے جوابات یا ہماری ٹیم سے چیٹ کریں", searchPlaceholder: "سوالات تلاش کریں...", stillNeedHelp: "ابھی بھی مدد چاہیے؟", liveChat: "لائیو چیٹ سپورٹ", liveChatSub: "24/7 دستیاب · چند منٹوں میں جواب", emailSupport: "ای میل سپورٹ", emailSub: "info@crossingate.com · 24 گھنٹے میں جواب", fileDispute: "شکایت درج کریں", disputeSub: "ادائیگی اور فراڈ کے مسائل کے لیے", noResults: "کوئی نتیجہ نہیں ملا" },
-  ar: { hero: "كيف يمكننا مساعدتك؟", heroSub: "ابحث عن الإجابات أو تحدث مع فريق الدعم", searchPlaceholder: "ابحث في مقالات المساعدة...", stillNeedHelp: "هل لا تزال بحاجة إلى مساعدة؟", liveChat: "دعم الدردشة المباشرة", liveChatSub: "متاح 24/7 · يرد عادةً في دقائق", emailSupport: "دعم البريد الإلكتروني", emailSub: "info@crossingate.com · رد خلال 24 ساعة", fileDispute: "تقديم نزاع", disputeSub: "لمشاكل الدفع والاحتيال", noResults: "لم يتم العثور على نتائج" },
-  hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाب खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · मिनटों में जवाब", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
+  en: { hero: "How can we help?", heroSub: "Find answers or chat with our support team", searchPlaceholder: "Search help articles...", stillNeedHelp: "Still need help?", liveChat: "Live Chat Support", liveChatSub: "Available 24/7 · We'll reply soon", emailSupport: "Email Support", emailSub: "info@crossingate.com · 24h response", fileDispute: "File a Dispute", disputeSub: "For payment and fraud issues", noResults: "No results found" },
+  ur: { hero: "ہم آپ کی کیسے مدد کر سکتے ہیں؟", heroSub: "سوالات کے جوابات یا ہماری ٹیم سے چیٹ کریں", searchPlaceholder: "سوالات تلاش کریں...", stillNeedHelp: "ابھی بھی مدد چاہیے؟", liveChat: "لائیو چیٹ سپورٹ", liveChatSub: "24/7 دستیاب · جلد جواب دیں گے", emailSupport: "ای میل سپورٹ", emailSub: "info@crossingate.com · 24 گھنٹے میں جواب", fileDispute: "شکایت درج کریں", disputeSub: "ادائیگی اور فراڈ کے مسائل کے لیے", noResults: "کوئی نتیجہ نہیں ملا" },
+  ar: { hero: "كيف يمكننا مساعدتك؟", heroSub: "ابحث عن الإجابات أو تحدث مع فريق الدعم", searchPlaceholder: "ابحث في مقالات المساعدة...", stillNeedHelp: "هل لا تزال بحاجة إلى مساعدة؟", liveChat: "دعم الدردشة المباشرة", liveChatSub: "متاح 24/7 · سنرد قريباً", emailSupport: "دعم البريد الإلكتروني", emailSub: "info@crossingate.com · رد خلال 24 ساعة", fileDispute: "تقديم نزاع", disputeSub: "لمشاكل الدفع والاحتيال", noResults: "لم يتم العثور على نتائج" },
+  hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाब खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · जल्द जवाब देंगे", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
 };
 
 interface ChatMsg {
@@ -88,6 +88,7 @@ export function Help() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const convIdRef = useRef<string | null>(null);
   const userIdRef = useRef<string | null>(null);
+  const setupDoneRef = useRef(false);
   const t = TRANSLATIONS[lang];
   const rtl = lang === "ar" || lang === "ur";
 
@@ -95,16 +96,15 @@ export function Help() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  async function openChat() {
-    setShowChat(true);
-    if (convIdRef.current) return; // already setup
-    setChatLoading(true);
+  async function setupChat(): Promise<string | null> {
+    if (convIdRef.current) return convIdRef.current;
+    if (setupDoneRef.current) return convIdRef.current;
+    setupDoneRef.current = true;
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
-      setChatLoading(false);
       void navigate({ to: "/login" });
-      return;
+      return null;
     }
 
     const uid = userData.user.id;
@@ -118,7 +118,6 @@ export function Help() {
       .single();
     const name = profile?.full_name ?? "User";
 
-    // Check existing
     const { data: existing } = await supabase
       .from("support_messages")
       .select("id, conversation_id")
@@ -131,11 +130,9 @@ export function Help() {
       convIdRef.current = existing.conversation_id;
       await loadMessages(existing.conversation_id);
       subscribeToReplies(existing.conversation_id);
-      setChatLoading(false);
-      return;
+      return existing.conversation_id;
     }
 
-    // Create new
     const newConvId = crypto.randomUUID();
     const { data: newMsg, error: msgError } = await supabase
       .from("support_messages")
@@ -151,8 +148,8 @@ export function Help() {
       .single();
 
     if (msgError || !newMsg) {
-      setChatLoading(false);
-      return;
+      setupDoneRef.current = false;
+      return null;
     }
 
     await supabase.from("support_replies").insert({
@@ -166,6 +163,14 @@ export function Help() {
     convIdRef.current = newMsg.conversation_id;
     await loadMessages(newMsg.conversation_id);
     subscribeToReplies(newMsg.conversation_id);
+    return newMsg.conversation_id;
+  }
+
+  async function openChat() {
+    setShowChat(true);
+    if (convIdRef.current) return;
+    setChatLoading(true);
+    await setupChat();
     setChatLoading(false);
   }
 
@@ -195,16 +200,33 @@ export function Help() {
 
   async function sendMessage() {
     const text = chatInput.trim();
-    const convId = convIdRef.current;
-    const uid = userIdRef.current;
-
-    if (!text || !convId || !uid || sending) return;
+    if (!text || sending) return;
 
     setSending(true);
     setChatInput("");
 
+    // اگر conversation نہیں بنی تو پہلے بناؤ
+    let convId = convIdRef.current;
+    let uid = userIdRef.current;
+
+    if (!convId) {
+      convId = await setupChat();
+      uid = userIdRef.current;
+    }
+
+    if (!convId || !uid) {
+      setSending(false);
+      setChatInput(text);
+      return;
+    }
+
     // Optimistic
-    const temp: ChatMsg = { id: "tmp_" + Date.now(), text, from_role: "user", created_at: new Date().toISOString() };
+    const temp: ChatMsg = {
+      id: "tmp_" + Date.now(),
+      text,
+      from_role: "user",
+      created_at: new Date().toISOString(),
+    };
     setChatMessages((prev) => [...prev, temp]);
 
     const { data: msgRow } = await supabase
@@ -421,7 +443,9 @@ export function Help() {
                 <div className="text-white font-black text-sm">Crossingate Support</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <div className={`w-1.5 h-1.5 rounded-full ${chatLoading ? "bg-yellow-400" : "bg-green-400"}`} />
-                  <span className="text-white/60 text-[10px]">{chatLoading ? "Connecting..." : "Online · Admin replies in minutes"}</span>
+                  <span className="text-white/60 text-[10px]">
+                    {chatLoading ? "Connecting..." : "Online · We'll reply soon"}
+                  </span>
                 </div>
               </div>
               <button onClick={() => setShowChat(false)}><X size={20} className="text-white/70" /></button>
@@ -491,7 +515,7 @@ export function Help() {
               <button
                 onClick={() => void sendMessage()}
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg transition-all ${
-                  chatInput.trim() && !sending && !chatLoading
+                  chatInput.trim() && !sending
                     ? "bg-[#004B49] shadow-[#004B49]/20"
                     : "bg-gray-200"
                 }`}>
@@ -499,7 +523,7 @@ export function Help() {
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke={chatInput.trim() && !chatLoading ? "white" : "#9ca3af"}
+                    stroke={chatInput.trim() ? "white" : "#9ca3af"}
                     strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13" />
                     <polygon points="22 2 15 22 11 13 2 9 22 2" />
