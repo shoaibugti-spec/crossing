@@ -1,98 +1,147 @@
-import { ArrowLeft, Search, ChevronDown, ChevronUp, MessageCircle, Shield, Mail } from "lucide-react";
+import { ArrowLeft, Search, ChevronDown, ChevronUp, MessageCircle, Shield, Mail, HeadphonesIcon, Globe, X } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const FAQS = [
   {
     category: "Payments & Escrow",
     icon: "🔒",
     questions: [
-      {
-        q: "How does Escrow work?",
-        a: "When you deposit funds, they are locked in Crossing Escrow — not sent to the provider. Funds are only released after you confirm receipt of your visa documents. If anything goes wrong, you can file a dispute and get a full refund.",
-      },
-      {
-        q: "What currency do you use?",
-        a: "Crossing uses USDT (Tether) on TRC-20 network for all payments. This ensures fast, borderless transactions with low fees. No bank account needed.",
-      },
-      {
-        q: "When are funds released to the provider?",
-        a: "Funds are released only after you confirm that your visa has been successfully received. You must click 'Confirm Visa Received' in the Transactions page. Never confirm before receiving your documents.",
-      },
-      {
-        q: "What if I want a refund?",
-        a: "If your visa is rejected or the provider fails to deliver, you can file a dispute. Admin will review evidence from both sides and issue a refund if fraud or failure is confirmed.",
-      },
+      { q: "How does Escrow work?", a: "When you deposit funds, they are locked in Crossingate Escrow — not sent to the provider. Funds are only released after you confirm receipt of your visa. If anything goes wrong, file a dispute for a full refund." },
+      { q: "What currency do you use?", a: "Crossingate uses USDT (Tether) on TRC-20 network. Fast, borderless, low fees. No bank account needed." },
+      { q: "When are funds released to the provider?", a: "Only after you click 'Confirm Visa Received' in the Transactions page. Never confirm before receiving your documents." },
+      { q: "What if I want a refund?", a: "File a dispute if visa is rejected or provider fails to deliver. Admin reviews evidence and issues refund if fraud or failure is confirmed." },
+      { q: "What is the Crossingate service fee?", a: "Crossingate charges a flat $72 service fee per transaction. This covers escrow protection, dispute resolution, and platform maintenance." },
     ],
   },
   {
     category: "Verification & KYC",
     icon: "✅",
     questions: [
-      {
-        q: "Why do I need to verify my identity?",
-        a: "KYC verification builds trust between buyers and sellers. Verified users get higher trust scores, can access Escrow payments, and are less likely to be scammed.",
-      },
-      {
-        q: "How long does KYC take?",
-        a: "Level 1 (Email) and Level 2 (Phone) are instant. Level 3 (Identity) takes 24-48 hours for admin review. Level 4 (Business) takes 3-5 business days.",
-      },
-      {
-        q: "What documents are accepted for Level 3?",
-        a: "Passport, National ID card, or Driving License. The document must be valid, clearly readable, and match your registered name.",
-      },
+      { q: "Why do I need to verify my identity?", a: "KYC builds trust between buyers and sellers. Verified users can access Escrow payments, post ads, and are protected from fraud." },
+      { q: "How long does KYC take?", a: "Level 3 (Identity) takes 24-48 hours for admin review. Make sure photos are clear and well-lit for faster approval." },
+      { q: "What documents are accepted?", a: "Passport, National ID card, or Driving License. Must be valid, clearly readable, and match your registered name." },
+      { q: "My KYC was rejected — what do I do?", a: "Check the rejection reason shown on your KYC page. Retake photos in good lighting, make sure your face and document are both clearly visible in the selfie, then resubmit." },
+      { q: "Is my data safe?", a: "Yes. All documents are encrypted and stored securely. They are only used for identity verification and never shared with third parties." },
     ],
   },
   {
     category: "Visa Providers",
     icon: "🏢",
     questions: [
-      {
-        q: "How are providers verified?",
-        a: "Providers must complete Level 4 KYC including business registration, trade license, and office address verification. All documents are reviewed by our admin team before approval.",
-      },
-      {
-        q: "What if a provider disappears after payment?",
-        a: "Your funds are safe in Escrow — the provider never receives your money until you confirm delivery. If they stop responding, file a dispute immediately and admin will intervene.",
-      },
-      {
-        q: "Can I negotiate the price?",
-        a: "Yes! Use the in-app chat to message the provider directly and negotiate pricing before making a deposit.",
-      },
+      { q: "How are providers verified?", a: "Providers complete full KYC including business registration, trade license, office address, and security deposit. All verified by our admin team." },
+      { q: "What if a provider disappears after payment?", a: "Your funds are safe in Escrow — provider never receives money until you confirm delivery. File a dispute immediately if they stop responding." },
+      { q: "Can I negotiate the price?", a: "Yes! Use in-app chat to message the provider before depositing. Chat unlocks automatically after you place an order." },
+      { q: "How do I become a provider?", a: "Sign up as Visa Provider → Complete KYC → Setup Services → Pay Security Deposit → Post your first ad. Admin reviews and approves each step." },
     ],
   },
   {
-    category: "Disputes",
+    category: "Disputes & Safety",
     icon: "⚖️",
     questions: [
-      {
-        q: "How do I file a dispute?",
-        a: "Go to Disputes page → File New Dispute → Select the transaction → Choose reason → Add details and evidence → Submit. Admin will review within 24 hours.",
-      },
-      {
-        q: "How long does a dispute take?",
-        a: "Most disputes are resolved within 3-7 business days. Complex cases may take up to 14 days. During this time, Escrow funds remain locked.",
-      },
-      {
-        q: "What evidence should I provide?",
-        a: "Screenshots of chat conversations, documents submitted, any promises made by the provider, and timeline of events. More evidence = faster resolution.",
-      },
+      { q: "How do I file a dispute?", a: "Go to Transactions → find your order → tap 'Raise Issue'. Describe the problem and submit. Admin will review within 24 hours." },
+      { q: "How long does a dispute take?", a: "Most disputes resolved within 3-7 business days. Complex cases up to 14 days. Escrow funds remain locked during review." },
+      { q: "What evidence should I provide?", a: "Screenshots of chat, documents submitted, promises made by provider, and timeline of events. More evidence = faster resolution." },
+      { q: "Can I cancel an order?", a: "Yes, but only before the first document is submitted. Once any document is submitted, the transaction is locked and you must raise a dispute to resolve issues." },
+    ],
+  },
+  {
+    category: "Account & Settings",
+    icon: "⚙️",
+    questions: [
+      { q: "How do I change my password?", a: "Go to Login page → tap 'Forgot Password' → enter your email → follow the reset link sent to your inbox." },
+      { q: "How do I deposit funds?", a: "Go to Wallet → Deposit → send USDT to our TRC-20 address → upload payment screenshot → Admin confirms within 24 hours." },
+      { q: "How do I withdraw funds?", a: "Go to Wallet → Withdraw → enter your USDT TRC-20 address and amount → Admin processes within 24-48 hours." },
+      { q: "Can I use Crossingate on mobile?", a: "Yes! Crossingate is a Progressive Web App (PWA). Tap 'Install' when prompted to add it to your home screen for the best experience." },
     ],
   },
 ];
+
+const LANGUAGES = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "ur", label: "اردو", flag: "🇵🇰" },
+  { code: "ar", label: "العربية", flag: "🇸🇦" },
+  { code: "hi", label: "हिंदी", flag: "🇮🇳" },
+];
+
+const TRANSLATIONS: Record<string, { hero: string; heroSub: string; searchPlaceholder: string; stillNeedHelp: string; liveChat: string; liveChatSub: string; emailSupport: string; emailSub: string; fileDispute: string; disputeSub: string; noResults: string }> = {
+  en: { hero: "How can we help?", heroSub: "Find answers or chat with our support team", searchPlaceholder: "Search help articles...", stillNeedHelp: "Still need help?", liveChat: "Live Chat Support", liveChatSub: "Available 24/7 · Usually replies in minutes", emailSupport: "Email Support", emailSub: "info@crossingate.com · 24h response", fileDispute: "File a Dispute", disputeSub: "For payment and fraud issues", noResults: "No results found" },
+  ur: { hero: "ہم آپ کی کیسے مدد کر سکتے ہیں؟", heroSub: "سوالات کے جوابات یا ہماری ٹیم سے چیٹ کریں", searchPlaceholder: "سوالات تلاش کریں...", stillNeedHelp: "ابھی بھی مدد چاہیے؟", liveChat: "لائیو چیٹ سپورٹ", liveChatSub: "24/7 دستیاب · چند منٹوں میں جواب", emailSupport: "ای میل سپورٹ", emailSub: "info@crossingate.com · 24 گھنٹے میں جواب", fileDispute: "شکایت درج کریں", disputeSub: "ادائیگی اور فراڈ کے مسائل کے لیے", noResults: "کوئی نتیجہ نہیں ملا" },
+  ar: { hero: "كيف يمكننا مساعدتك؟", heroSub: "ابحث عن الإجابات أو تحدث مع فريق الدعم", searchPlaceholder: "ابحث في مقالات المساعدة...", stillNeedHelp: "هل لا تزال بحاجة إلى مساعدة؟", liveChat: "دعم الدردشة المباشرة", liveChatSub: "متاح 24/7 · يرد عادةً في دقائق", emailSupport: "دعم البريد الإلكتروني", emailSub: "info@crossingate.com · رد خلال 24 ساعة", fileDispute: "تقديم نزاع", disputeSub: "لمشاكل الدفع والاحتيال", noResults: "لم يتم العثور على نتائج" },
+  hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाब खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · मिनटों में जवाब", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
+};
+
+// Support Chat
+interface ChatMsg { id: string; text: string; from: "user" | "support"; time: string; }
+
+const AUTO_REPLIES: Record<string, string> = {
+  "escrow": "Our Escrow system locks your funds safely until you confirm visa receipt. Provider never gets paid early. 🔒",
+  "kyc": "KYC verification takes 24-48 hours. Make sure your photos are clear and well-lit. If rejected, check the reason and resubmit. ✅",
+  "refund": "You can get a refund by filing a dispute if your visa was rejected or provider failed to deliver. Admin reviews within 24 hours. 💰",
+  "dispute": "Go to Transactions → find your order → tap 'Raise Issue'. Admin will review your case within 24 hours. ⚖️",
+  "deposit": "Go to Wallet → Deposit → send USDT to our TRC-20 address → upload screenshot. Admin confirms within 24 hours. 💳",
+  "withdraw": "Go to Wallet → Withdraw → enter your USDT address. Admin processes within 24-48 hours. 📤",
+  "provider": "Providers must complete full KYC, setup services, and pay security deposit before posting ads. All verified by admin. 🏢",
+  "password": "Go to Login page → tap 'Forgot Password' → enter your email → follow the reset link. 🔑",
+  "cancel": "Orders can only be cancelled before the first document is submitted. After that, raise a dispute if needed. ❌",
+  "fee": "Crossingate charges a flat $72 service fee per transaction for escrow protection and dispute resolution. 💼",
+};
+
+function getSupportReply(msg: string): string {
+  const lower = msg.toLowerCase();
+  for (const [key, reply] of Object.entries(AUTO_REPLIES)) {
+    if (lower.includes(key)) return reply;
+  }
+  return "Thank you for your message! Our support team will respond shortly. For urgent issues, please email info@crossingate.com 🙏";
+}
 
 export function Help() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [openQ, setOpenQ] = useState<string | null>(null);
+  const [lang, setLang] = useState("en");
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
+    { id: "1", text: "👋 Welcome to Crossingate Support! How can we help you today?", from: "support", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+  ]);
+  const [chatTyping, setChatTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const t = TRANSLATIONS[lang];
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, showChat]);
+
+  function sendMessage() {
+    if (!chatInput.trim()) return;
+    const userMsg: ChatMsg = {
+      id: Date.now().toString(),
+      text: chatInput.trim(),
+      from: "user",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setChatTyping(true);
+    setTimeout(() => {
+      const reply = getSupportReply(userMsg.text);
+      setChatMessages((prev) => [...prev, {
+        id: (Date.now() + 1).toString(),
+        text: reply,
+        from: "support",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
+      setChatTyping(false);
+    }, 1200);
+  }
 
   const filtered = FAQS.map((cat) => ({
     ...cat,
     questions: cat.questions.filter(
-      (q) =>
-        !search ||
-        q.q.toLowerCase().includes(search.toLowerCase()) ||
-        q.a.toLowerCase().includes(search.toLowerCase())
+      (q) => !search || q.q.toLowerCase().includes(search.toLowerCase()) || q.a.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter((cat) => cat.questions.length > 0);
 
@@ -101,129 +150,257 @@ export function Help() {
 
       {/* HEADER */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-        <button
-          onClick={() => void navigate({ to: "/" })}
-          className="p-1.5 rounded-full hover:bg-gray-100"
-        >
+        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
         <span className="font-bold text-gray-800 text-sm">Help & Safety Center</span>
+        <div className="ml-auto relative">
+          <button onClick={() => setShowLangPicker(!showLangPicker)}
+            className="flex items-center gap-1.5 bg-[#E8F0EF] text-[#004B49] text-xs font-bold px-3 py-1.5 rounded-xl">
+            <Globe size={13} />
+            {LANGUAGES.find((l) => l.code === lang)?.flag} {LANGUAGES.find((l) => l.code === lang)?.label}
+          </button>
+          {showLangPicker && (
+            <div className="absolute right-0 top-9 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 w-40">
+              {LANGUAGES.map((l) => (
+                <button key={l.code} onClick={() => { setLang(l.code); setShowLangPicker(false); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${lang === l.code ? "bg-[#E8F0EF] text-[#004B49]" : "text-gray-700 hover:bg-gray-50"}`}>
+                  <span>{l.flag}</span>{l.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* HERO */}
-      <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] px-6 py-6 text-center">
-        <div className="text-2xl mb-2">🎧</div>
-        <div className="text-white font-black text-lg mb-1">How can we help?</div>
-        <div className="text-white/60 text-xs mb-4">Find answers to common questions</div>
-        <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3">
-          <Search size={16} className="text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search help articles..."
-            className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-          />
+      <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#005c59] px-6 py-7 text-center relative overflow-hidden">
+        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[#D4AF37]/10 blur-2xl" />
+        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5 blur-2xl" />
+        <div className="relative z-10">
+          <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center mx-auto mb-3">
+            <HeadphonesIcon size={22} className="text-[#D4AF37]" />
+          </div>
+          <div className="text-white font-black text-lg mb-1" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.hero}</div>
+          <div className="text-white/60 text-xs mb-4" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.heroSub}</div>
+          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-4 py-3">
+            <Search size={16} className="text-white/50 flex-shrink-0" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+              dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"} />
+            {search && (
+              <button onClick={() => setSearch("")}><X size={14} className="text-white/50" /></button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* QUICK LINKS */}
       <div className="mx-4 mt-4">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {[
-            { icon: "🔒", label: "Escrow", link: "/wallet" },
-            { icon: "⚖️", label: "Disputes", link: "/disputes" },
-            { icon: "✅", label: "KYC", link: "/kyc" },
-          ].map(({ icon, label, link }) => (
-            <Link key={label} to={link as "/"}>
-              <div className="bg-white rounded-2xl p-3 text-center shadow-sm">
+            { icon: "🔒", label: "Escrow", to: "/wallet" },
+            { icon: "⚖️", label: "Disputes", to: "/disputes" },
+            { icon: "✅", label: "KYC", to: "/kyc" },
+            { icon: "💳", label: "Wallet", to: "/wallet" },
+          ].map(({ icon, label, to }) => (
+            <Link key={label} to={to as "/"}>
+              <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-gray-100 hover:border-[#004B49]/20 transition-all">
                 <div className="text-xl mb-1">{icon}</div>
-                <div className="text-xs font-bold text-gray-700">{label}</div>
+                <div className="text-[10px] font-bold text-gray-700">{label}</div>
               </div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* FAQS */}
+      {/* SEARCH RESULTS or FAQs */}
       <div className="mx-4 mt-4 flex flex-col gap-4">
-        {filtered.map((cat) => (
-          <div key={cat.category}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">{cat.icon}</span>
-              <span className="text-sm font-black text-gray-800">{cat.category}</span>
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {cat.questions.map((item, i) => (
-                <div key={item.q}>
-                  <button
-                    onClick={() => setOpenQ(openQ === item.q ? null : item.q)}
-                    className="w-full flex items-center justify-between px-4 py-3.5 text-left"
-                  >
-                    <span className="text-sm font-semibold text-gray-700 flex-1 pr-2">{item.q}</span>
-                    {openQ === item.q
-                      ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" />
-                      : <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />}
-                  </button>
-                  {openQ === item.q && (
-                    <div className="px-4 pb-4 text-xs text-gray-500 leading-relaxed border-t border-gray-50 pt-3">
-                      {item.a}
-                    </div>
-                  )}
-                  {i < cat.questions.length - 1 && (
-                    <div className="h-px bg-gray-50 mx-4" />
-                  )}
-                </div>
-              ))}
-            </div>
+        {search && (
+          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <Search size={13} className="text-[#004B49]" />
+            <span className="text-xs text-[#004B49] font-semibold">
+              {filtered.reduce((n, c) => n + c.questions.length, 0)} results for "{search}"
+            </span>
+            <button onClick={() => setSearch("")} className="ml-auto">
+              <X size={13} className="text-[#004B49]" />
+            </button>
           </div>
-        ))}
+        )}
 
-        {filtered.length === 0 && (
-          <div className="text-center py-8">
-            <div className="text-3xl mb-2">🔍</div>
-            <div className="text-sm font-bold text-gray-400">No results found</div>
-            <div className="text-xs text-gray-300 mt-1">Try different keywords</div>
+        {filtered.length === 0 ? (
+          <div className="text-center py-10">
+            <div className="text-4xl mb-3">🔍</div>
+            <div className="text-sm font-bold text-gray-500" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.noResults}</div>
+            <div className="text-xs text-gray-400 mt-1">Try different keywords or contact support below</div>
+            <button onClick={() => setShowChat(true)}
+              className="mt-4 bg-[#004B49] text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 mx-auto">
+              <MessageCircle size={14} /> Chat with Support
+            </button>
           </div>
+        ) : (
+          filtered.map((cat) => (
+            <div key={cat.category}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">{cat.icon}</span>
+                <span className="text-sm font-black text-gray-800">{cat.category}</span>
+                <span className="ml-auto text-[10px] text-gray-400 font-semibold">{cat.questions.length} articles</span>
+              </div>
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+                {cat.questions.map((item, i) => (
+                  <div key={item.q}>
+                    <button onClick={() => setOpenQ(openQ === item.q ? null : item.q)}
+                      className="w-full flex items-center justify-between px-4 py-3.5 text-left">
+                      <span className="text-sm font-semibold text-gray-700 flex-1 pr-2">{item.q}</span>
+                      {openQ === item.q
+                        ? <ChevronUp size={16} className="text-[#004B49] flex-shrink-0" />
+                        : <ChevronDown size={16} className="text-gray-300 flex-shrink-0" />}
+                    </button>
+                    {openQ === item.q && (
+                      <div className="px-4 pb-4 text-xs text-gray-500 leading-relaxed border-t border-gray-50 pt-3 bg-gray-50/50">
+                        {item.a}
+                      </div>
+                    )}
+                    {i < cat.questions.length - 1 && <div className="h-px bg-gray-100 mx-4" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
       {/* CONTACT */}
-      <div className="mx-4 mt-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="text-sm font-black text-gray-800 mb-3">Still need help?</div>
-          <div className="flex flex-col gap-2">
-            <Link to="/messages">
-              <button className="w-full flex items-center gap-3 bg-[#004B49]/5 border border-[#004B49]/20 rounded-xl px-4 py-3">
-                <MessageCircle size={18} className="text-[#004B49]" />
-                <div className="text-left">
-                  <div className="text-sm font-bold text-gray-800">Live Chat Support</div>
-                  <div className="text-xs text-gray-500">Available 24/7 · Usually replies in minutes</div>
-                </div>
-              </button>
-            </Link>
-            <button
-              onClick={() => alert("Email: support@crossing.app")}
-              className="w-full flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3"
-            >
-              <Mail size={18} className="text-gray-500" />
-              <div className="text-left">
-                <div className="text-sm font-bold text-gray-800">Email Support</div>
-                <div className="text-xs text-gray-500">support@crossing.app · 24h response</div>
-              </div>
-            </button>
-            <button
-              onClick={() => void navigate({ to: "/disputes" })}
-              className="w-full flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3"
-            >
-              <Shield size={18} className="text-gray-500" />
-              <div className="text-left">
-                <div className="text-sm font-bold text-gray-800">File a Dispute</div>
-                <div className="text-xs text-gray-500">For payment and fraud issues</div>
-              </div>
-            </button>
-          </div>
+      <div className="mx-4 mt-6">
+        <div className="font-black text-gray-800 text-sm mb-3" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
+        <div className="flex flex-col gap-2.5">
+
+          <button onClick={() => setShowChat(true)}
+            className="w-full flex items-center gap-3 bg-gradient-to-r from-[#004B49] to-[#005c59] rounded-2xl px-4 py-4 shadow-lg shadow-[#004B49]/20">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={18} className="text-white" />
+            </div>
+            <div className="text-left flex-1">
+              <div className="text-sm font-black text-white" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.liveChat}</div>
+              <div className="text-xs text-white/70" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.liveChatSub}</div>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+          </button>
+
+          <a href="mailto:info@crossingate.com"
+            className="w-full flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
+              <Mail size={18} className="text-[#004B49]" />
+            </div>
+            <div className="text-left flex-1">
+              <div className="text-sm font-bold text-gray-800" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.emailSupport}</div>
+              <div className="text-xs text-gray-400" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.emailSub}</div>
+            </div>
+          </a>
+
+          <button onClick={() => void navigate({ to: "/disputes" })}
+            className="w-full flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <Shield size={18} className="text-red-400" />
+            </div>
+            <div className="text-left flex-1">
+              <div className="text-sm font-bold text-gray-800" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.fileDispute}</div>
+              <div className="text-xs text-gray-400" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.disputeSub}</div>
+            </div>
+          </button>
+
         </div>
       </div>
+
+      {/* ── LIVE CHAT PANEL ── */}
+      {showChat && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
+          <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl flex flex-col" style={{ height: "85vh" }}>
+
+            {/* Chat header */}
+            <div className="bg-gradient-to-r from-[#004B49] to-[#005c59] px-5 py-4 rounded-t-3xl flex items-center gap-3 flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center">
+                <HeadphonesIcon size={18} className="text-[#D4AF37]" />
+              </div>
+              <div className="flex-1">
+                <div className="text-white font-black text-sm">Crossingate Support</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  <span className="text-white/60 text-[10px]">Online · Usually replies instantly</span>
+                </div>
+              </div>
+              <button onClick={() => setShowChat(false)}>
+                <X size={20} className="text-white/70" />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-[#F4F6F6]">
+              {chatMessages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.from === "support" && (
+                    <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
+                      <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+                    </div>
+                  )}
+                  <div className={`max-w-[78%] ${msg.from === "user" ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                      msg.from === "user"
+                        ? "bg-[#004B49] text-white rounded-br-sm"
+                        : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
+                    }`}>
+                      {msg.text}
+                    </div>
+                    <span className="text-[9px] text-gray-400 px-1">{msg.time}</span>
+                  </div>
+                </div>
+              ))}
+
+              {chatTyping && (
+                <div className="flex justify-start">
+                  <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0">
+                    <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+                  </div>
+                  <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-100">
+                    <div className="flex gap-1 items-center h-4">
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Quick replies */}
+            <div className="px-4 py-2 bg-white border-t border-gray-100 flex gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
+              {["How does Escrow work?", "KYC rejected", "Request refund", "File dispute", "Withdraw funds"].map((q) => (
+                <button key={q} onClick={() => { setChatInput(q); }}
+                  className="flex-shrink-0 text-[10px] font-semibold text-[#004B49] bg-[#E8F0EF] px-3 py-1.5 rounded-full whitespace-nowrap border border-[#004B49]/15">
+                  {q}
+                </button>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3 flex-shrink-0 pb-safe">
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder="Type your message..."
+                className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
+              <button onClick={sendMessage} disabled={!chatInput.trim()}
+                className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 disabled:opacity-40 shadow-lg shadow-[#004B49]/20">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
