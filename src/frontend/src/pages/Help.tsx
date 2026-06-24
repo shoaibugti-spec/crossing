@@ -64,7 +64,7 @@ const TRANSLATIONS: Record<string, any> = {
   en: { hero: "How can we help?", heroSub: "Find answers or chat with our support team", searchPlaceholder: "Search help articles...", stillNeedHelp: "Still need help?", liveChat: "Live Chat Support", liveChatSub: "Available 24/7 · Usually replies in minutes", emailSupport: "Email Support", emailSub: "info@crossingate.com · 24h response", fileDispute: "File a Dispute", disputeSub: "For payment and fraud issues", noResults: "No results found" },
   ur: { hero: "ہم آپ کی کیسے مدد کر سکتے ہیں؟", heroSub: "سوالات کے جوابات یا ہماری ٹیم سے چیٹ کریں", searchPlaceholder: "سوالات تلاش کریں...", stillNeedHelp: "ابھی بھی مدد چاہیے؟", liveChat: "لائیو چیٹ سپورٹ", liveChatSub: "24/7 دستیاب · چند منٹوں میں جواب", emailSupport: "ای میل سپورٹ", emailSub: "info@crossingate.com · 24 گھنٹے میں جواب", fileDispute: "شکایت درج کریں", disputeSub: "ادائیگی اور فراڈ کے مسائل کے لیے", noResults: "کوئی نتیجہ نہیں ملا" },
   ar: { hero: "كيف يمكننا مساعدتك؟", heroSub: "ابحث عن الإجابات أو تحدث مع فريق الدعم", searchPlaceholder: "ابحث في مقالات المساعدة...", stillNeedHelp: "هل لا تزال بحاجة إلى مساعدة؟", liveChat: "دعم الدردشة المباشرة", liveChatSub: "متاح 24/7 · يرد عادةً في دقائق", emailSupport: "دعم البريد الإلكتروني", emailSub: "info@crossingate.com · رد خلال 24 ساعة", fileDispute: "تقديم نزاع", disputeSub: "لمشاكل الدفع والاحتيال", noResults: "لم يتم العثور على نتائج" },
-  hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाब खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · मिनटों में जवाब", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
+  hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाب खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · मिनटों में जवाब", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
 };
 
 interface ChatMsg {
@@ -83,12 +83,11 @@ export function Help() {
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
-  const [convIdRef, setConvIdRef] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const [chatReady, setChatReady] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const convIdLocal = useRef<string | null>(null);
+  const convIdRef = useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
   const t = TRANSLATIONS[lang];
   const rtl = lang === "ar" || lang === "ur";
 
@@ -98,8 +97,8 @@ export function Help() {
 
   async function openChat() {
     setShowChat(true);
+    if (convIdRef.current) return; // already setup
     setChatLoading(true);
-    setChatReady(false);
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
@@ -109,6 +108,7 @@ export function Help() {
     }
 
     const uid = userData.user.id;
+    userIdRef.current = uid;
     const email = userData.user.email ?? "";
 
     const { data: profile } = await supabase
@@ -118,15 +118,7 @@ export function Help() {
       .single();
     const name = profile?.full_name ?? "User";
 
-    // If already have conversation
-    if (convIdLocal.current) {
-      await loadMessages(convIdLocal.current);
-      setChatLoading(false);
-      setChatReady(true);
-      return;
-    }
-
-    // Check existing conversation
+    // Check existing
     const { data: existing } = await supabase
       .from("support_messages")
       .select("id, conversation_id")
@@ -136,18 +128,15 @@ export function Help() {
       .maybeSingle();
 
     if (existing?.conversation_id) {
-      convIdLocal.current = existing.conversation_id;
-      setConvIdRef(existing.conversation_id);
+      convIdRef.current = existing.conversation_id;
       await loadMessages(existing.conversation_id);
       subscribeToReplies(existing.conversation_id);
       setChatLoading(false);
-      setChatReady(true);
       return;
     }
 
     // Create new
     const newConvId = crypto.randomUUID();
-
     const { data: newMsg, error: msgError } = await supabase
       .from("support_messages")
       .insert({
@@ -174,12 +163,10 @@ export function Help() {
       user_id: null,
     });
 
-    convIdLocal.current = newMsg.conversation_id;
-    setConvIdRef(newMsg.conversation_id);
+    convIdRef.current = newMsg.conversation_id;
     await loadMessages(newMsg.conversation_id);
     subscribeToReplies(newMsg.conversation_id);
     setChatLoading(false);
-    setChatReady(true);
   }
 
   async function loadMessages(convId: string) {
@@ -200,35 +187,25 @@ export function Help() {
         table: "support_replies",
         filter: `conversation_id=eq.${convId}`,
       }, (payload) => {
-        const newMsg = payload.new as ChatMsg;
-        setChatMessages((prev) => {
-          if (prev.find((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
+        const m = payload.new as ChatMsg;
+        setChatMessages((prev) => prev.find((x) => x.id === m.id) ? prev : [...prev, m]);
       })
       .subscribe();
   }
 
   async function sendMessage() {
-    const convId = convIdLocal.current;
     const text = chatInput.trim();
+    const convId = convIdRef.current;
+    const uid = userIdRef.current;
 
-    if (!text || !convId || sending) return;
-
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    if (!text || !convId || !uid || sending) return;
 
     setSending(true);
     setChatInput("");
 
-    // Optimistic update
-    const tempMsg: ChatMsg = {
-      id: "temp_" + Date.now(),
-      text,
-      from_role: "user",
-      created_at: new Date().toISOString(),
-    };
-    setChatMessages((prev) => [...prev, tempMsg]);
+    // Optimistic
+    const temp: ChatMsg = { id: "tmp_" + Date.now(), text, from_role: "user", created_at: new Date().toISOString() };
+    setChatMessages((prev) => [...prev, temp]);
 
     const { data: msgRow } = await supabase
       .from("support_messages")
@@ -242,12 +219,11 @@ export function Help() {
       message_id: msgRow?.id ?? null,
       text,
       from_role: "user",
-      user_id: userData.user.id,
+      user_id: uid,
     });
 
     if (error) {
-      // Remove optimistic message on error
-      setChatMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
+      setChatMessages((prev) => prev.filter((m) => m.id !== temp.id));
       setChatInput(text);
       setSending(false);
       return;
@@ -258,7 +234,6 @@ export function Help() {
       .update({ message: text, status: "open" })
       .eq("conversation_id", convId);
 
-    // Reload to get real IDs
     await loadMessages(convId);
     setSending(false);
   }
@@ -269,8 +244,6 @@ export function Help() {
       (q) => !search || q.q.toLowerCase().includes(search.toLowerCase()) || q.a.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter((cat) => cat.questions.length > 0);
-
-  const canSend = chatInput.trim().length > 0 && chatReady && !sending;
 
   return (
     <div className="flex flex-col pb-8">
@@ -398,7 +371,6 @@ export function Help() {
       <div className="mx-4 mt-6">
         <div className="font-black text-gray-800 text-sm mb-3" dir={rtl ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
         <div className="flex flex-col gap-2.5">
-
           <button onClick={() => void openChat()}
             className="w-full flex items-center gap-3 bg-gradient-to-r from-[#004B49] to-[#005c59] rounded-2xl px-4 py-4 shadow-lg shadow-[#004B49]/20">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
@@ -441,7 +413,6 @@ export function Help() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
           <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl flex flex-col" style={{ height: "85vh" }}>
 
-            {/* Header */}
             <div className="bg-gradient-to-r from-[#004B49] to-[#005c59] px-5 py-4 rounded-t-3xl flex items-center gap-3 flex-shrink-0">
               <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center">
                 <HeadphonesIcon size={18} className="text-[#D4AF37]" />
@@ -449,16 +420,13 @@ export function Help() {
               <div className="flex-1">
                 <div className="text-white font-black text-sm">Crossingate Support</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${chatReady ? "bg-green-400" : "bg-yellow-400"}`} />
-                  <span className="text-white/60 text-[10px]">
-                    {chatReady ? "Online · Admin replies in minutes" : "Connecting..."}
-                  </span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${chatLoading ? "bg-yellow-400" : "bg-green-400"}`} />
+                  <span className="text-white/60 text-[10px]">{chatLoading ? "Connecting..." : "Online · Admin replies in minutes"}</span>
                 </div>
               </div>
               <button onClick={() => setShowChat(false)}><X size={20} className="text-white/70" /></button>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-[#F4F6F6]">
               {chatLoading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -474,6 +442,9 @@ export function Help() {
                 </div>
               ) : (
                 <>
+                  {chatMessages.length === 0 && (
+                    <div className="text-center py-8 text-xs text-gray-400">No messages yet. Say hello! 👋</div>
+                  )}
                   {chatMessages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
                       {msg.from_role === "admin" && (
@@ -495,15 +466,11 @@ export function Help() {
                       </div>
                     </div>
                   ))}
-                  {chatMessages.length === 0 && (
-                    <div className="text-center py-8 text-xs text-gray-400">No messages yet. Say hello! 👋</div>
-                  )}
                 </>
               )}
               <div ref={chatEndRef} />
             </div>
 
-            {/* Quick replies */}
             <div className="px-4 py-2 bg-white border-t border-gray-100 flex gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
               {["How does Escrow work?", "KYC rejected", "Request refund", "File dispute", "Withdraw funds"].map((q) => (
                 <button key={q} onClick={() => setChatInput(q)}
@@ -513,24 +480,29 @@ export function Help() {
               ))}
             </div>
 
-            {/* Input */}
             <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3 flex-shrink-0">
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && canSend) void sendMessage(); }}
-                placeholder={chatReady ? "Type your message..." : "Please wait..."}
+                onKeyDown={(e) => { if (e.key === "Enter" && !sending && chatInput.trim()) void sendMessage(); }}
+                placeholder={chatLoading ? "Please wait..." : "Type your message..."}
                 className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]"
               />
               <button
-                onClick={() => { if (canSend) void sendMessage(); }}
-                style={{ opacity: canSend ? 1 : 0.4 }}
-                className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#004B49]/20">
+                onClick={() => void sendMessage()}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg transition-all ${
+                  chatInput.trim() && !sending && !chatLoading
+                    ? "bg-[#004B49] shadow-[#004B49]/20"
+                    : "bg-gray-200"
+                }`}>
                 {sending ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke={chatInput.trim() && !chatLoading ? "white" : "#9ca3af"}
+                    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
                   </svg>
                 )}
               </button>
