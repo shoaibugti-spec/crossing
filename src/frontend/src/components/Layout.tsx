@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon } from "lucide-react";
+import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -61,21 +61,9 @@ export function Layout({ children }: LayoutProps) {
 
   async function loadProfile() {
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) {
-      setProfile(null);
-      setChecked(true);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, role, kyc_status")
-      .eq("id", userData.user.id)
-      .single();
-    if (error) {
-      setProfile(null);
-    } else {
-      setProfile(data);
-    }
+    if (userError || !userData.user) { setProfile(null); setChecked(true); return; }
+    const { data, error } = await supabase.from("profiles").select("full_name, role, kyc_status").eq("id", userData.user.id).single();
+    setProfile(error ? null : data);
     setChecked(true);
   }
 
@@ -134,7 +122,16 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/">
             <span style={{ fontSize: "18px" }}>{BRAND_NAME}</span>
           </Link>
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1.5 ml-auto">
+
+            {/* Support Button */}
+            <Link to="/help">
+              <div className="flex items-center gap-1.5 bg-[#004B49] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl hover:bg-[#00342f] transition-all">
+                <HeadphonesIcon size={13} />
+                <span>Support</span>
+              </div>
+            </Link>
+
             <Link to="/notifications">
               <div className="relative p-2 rounded-full hover:bg-gray-50">
                 <Bell size={22} className="text-gray-600" />
@@ -153,14 +150,10 @@ export function Layout({ children }: LayoutProps) {
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
           <div className="w-72 bg-white h-full shadow-2xl flex flex-col overflow-y-auto">
-
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <span style={{ fontSize: "16px" }}>{BRAND_NAME}</span>
-              <button onClick={() => setMenuOpen(false)}>
-                <X size={20} className="text-gray-500" />
-              </button>
+              <button onClick={() => setMenuOpen(false)}><X size={20} className="text-gray-500" /></button>
             </div>
-
             <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white font-bold text-sm">
@@ -172,7 +165,6 @@ export function Layout({ children }: LayoutProps) {
                 </div>
               </div>
             </div>
-
             <nav className="flex-1 px-3 py-3">
               {sideMenuLinks.map((link) => (
                 <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}>
@@ -184,7 +176,6 @@ export function Layout({ children }: LayoutProps) {
                 </Link>
               ))}
             </nav>
-
             <div className="px-5 py-4 border-t border-gray-100">
               <button onClick={() => void handleLogout()} className="w-full text-center text-sm font-semibold text-red-500">
                 Logout
