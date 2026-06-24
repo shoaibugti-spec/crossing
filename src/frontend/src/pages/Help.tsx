@@ -5,8 +5,7 @@ import { supabase } from "../lib/supabaseClient";
 
 const FAQS = [
   {
-    category: "Payments & Escrow",
-    icon: "🔒",
+    category: "Payments & Escrow", icon: "🔒",
     questions: [
       { q: "How does Escrow work?", a: "When you deposit funds, they are locked in Crossingate Escrow — not sent to the provider. Funds are only released after you confirm receipt of your visa. If anything goes wrong, file a dispute for a full refund." },
       { q: "What currency do you use?", a: "Crossingate uses USDT (Tether) on TRC-20 network. Fast, borderless, low fees. No bank account needed." },
@@ -16,8 +15,7 @@ const FAQS = [
     ],
   },
   {
-    category: "Verification & KYC",
-    icon: "✅",
+    category: "Verification & KYC", icon: "✅",
     questions: [
       { q: "Why do I need to verify my identity?", a: "KYC builds trust between buyers and sellers. Verified users can access Escrow payments, post ads, and are protected from fraud." },
       { q: "How long does KYC take?", a: "Level 3 (Identity) takes 24-48 hours for admin review. Make sure photos are clear and well-lit for faster approval." },
@@ -27,8 +25,7 @@ const FAQS = [
     ],
   },
   {
-    category: "Visa Providers",
-    icon: "🏢",
+    category: "Visa Providers", icon: "🏢",
     questions: [
       { q: "How are providers verified?", a: "Providers complete full KYC including business registration, trade license, office address, and security deposit. All verified by our admin team." },
       { q: "What if a provider disappears after payment?", a: "Your funds are safe in Escrow — provider never receives money until you confirm delivery. File a dispute immediately if they stop responding." },
@@ -37,8 +34,7 @@ const FAQS = [
     ],
   },
   {
-    category: "Disputes & Safety",
-    icon: "⚖️",
+    category: "Disputes & Safety", icon: "⚖️",
     questions: [
       { q: "How do I file a dispute?", a: "Go to Transactions → find your order → tap 'Raise Issue'. Describe the problem and submit. Admin will review within 24 hours." },
       { q: "How long does a dispute take?", a: "Most disputes resolved within 3-7 business days. Complex cases up to 14 days. Escrow funds remain locked during review." },
@@ -47,8 +43,7 @@ const FAQS = [
     ],
   },
   {
-    category: "Account & Settings",
-    icon: "⚙️",
+    category: "Account & Settings", icon: "⚙️",
     questions: [
       { q: "How do I change my password?", a: "Go to Login page → tap 'Forgot Password' → enter your email → follow the reset link sent to your inbox." },
       { q: "How do I deposit funds?", a: "Go to Wallet → Deposit → send USDT to our TRC-20 address → upload payment screenshot → Admin confirms within 24 hours." },
@@ -65,35 +60,18 @@ const LANGUAGES = [
   { code: "hi", label: "हिंदी", flag: "🇮🇳" },
 ];
 
-const TRANSLATIONS: Record<string, { hero: string; heroSub: string; searchPlaceholder: string; stillNeedHelp: string; liveChat: string; liveChatSub: string; emailSupport: string; emailSub: string; fileDispute: string; disputeSub: string; noResults: string }> = {
+const TRANSLATIONS: Record<string, any> = {
   en: { hero: "How can we help?", heroSub: "Find answers or chat with our support team", searchPlaceholder: "Search help articles...", stillNeedHelp: "Still need help?", liveChat: "Live Chat Support", liveChatSub: "Available 24/7 · Usually replies in minutes", emailSupport: "Email Support", emailSub: "info@crossingate.com · 24h response", fileDispute: "File a Dispute", disputeSub: "For payment and fraud issues", noResults: "No results found" },
   ur: { hero: "ہم آپ کی کیسے مدد کر سکتے ہیں؟", heroSub: "سوالات کے جوابات یا ہماری ٹیم سے چیٹ کریں", searchPlaceholder: "سوالات تلاش کریں...", stillNeedHelp: "ابھی بھی مدد چاہیے؟", liveChat: "لائیو چیٹ سپورٹ", liveChatSub: "24/7 دستیاب · چند منٹوں میں جواب", emailSupport: "ای میل سپورٹ", emailSub: "info@crossingate.com · 24 گھنٹے میں جواب", fileDispute: "شکایت درج کریں", disputeSub: "ادائیگی اور فراڈ کے مسائل کے لیے", noResults: "کوئی نتیجہ نہیں ملا" },
   ar: { hero: "كيف يمكننا مساعدتك؟", heroSub: "ابحث عن الإجابات أو تحدث مع فريق الدعم", searchPlaceholder: "ابحث في مقالات المساعدة...", stillNeedHelp: "هل لا تزال بحاجة إلى مساعدة؟", liveChat: "دعم الدردشة المباشرة", liveChatSub: "متاح 24/7 · يرد عادةً في دقائق", emailSupport: "دعم البريد الإلكتروني", emailSub: "info@crossingate.com · رد خلال 24 ساعة", fileDispute: "تقديم نزاع", disputeSub: "لمشاكل الدفع والاحتيال", noResults: "لم يتم العثور على نتائج" },
   hi: { hero: "हम आपकी कैसे मदद कर सकते हैं?", heroSub: "जवाब खोजें या हमारी टीम से चैट करें", searchPlaceholder: "सहायता लेख खोजें...", stillNeedHelp: "अभी भी मदद चाहिए?", liveChat: "लाइव चैट सपोर्ट", liveChatSub: "24/7 उपलब्ध · मिनटों में जवाब", emailSupport: "ईमेल सपोर्ट", emailSub: "info@crossingate.com · 24 घंटे में जवाब", fileDispute: "विवाद दर्ज करें", disputeSub: "भुगतान और धोखाधड़ी के मुद्दों के लिए", noResults: "कोई परिणाम नहीं मिला" },
 };
 
-// Support Chat
-interface ChatMsg { id: string; text: string; from: "user" | "support"; time: string; }
-
-const AUTO_REPLIES: Record<string, string> = {
-  "escrow": "Our Escrow system locks your funds safely until you confirm visa receipt. Provider never gets paid early. 🔒",
-  "kyc": "KYC verification takes 24-48 hours. Make sure your photos are clear and well-lit. If rejected, check the reason and resubmit. ✅",
-  "refund": "You can get a refund by filing a dispute if your visa was rejected or provider failed to deliver. Admin reviews within 24 hours. 💰",
-  "dispute": "Go to Transactions → find your order → tap 'Raise Issue'. Admin will review your case within 24 hours. ⚖️",
-  "deposit": "Go to Wallet → Deposit → send USDT to our TRC-20 address → upload screenshot. Admin confirms within 24 hours. 💳",
-  "withdraw": "Go to Wallet → Withdraw → enter your USDT address. Admin processes within 24-48 hours. 📤",
-  "provider": "Providers must complete full KYC, setup services, and pay security deposit before posting ads. All verified by admin. 🏢",
-  "password": "Go to Login page → tap 'Forgot Password' → enter your email → follow the reset link. 🔑",
-  "cancel": "Orders can only be cancelled before the first document is submitted. After that, raise a dispute if needed. ❌",
-  "fee": "Crossingate charges a flat $72 service fee per transaction for escrow protection and dispute resolution. 💼",
-};
-
-function getSupportReply(msg: string): string {
-  const lower = msg.toLowerCase();
-  for (const [key, reply] of Object.entries(AUTO_REPLIES)) {
-    if (lower.includes(key)) return reply;
-  }
-  return "Thank you for your message! Our support team will respond shortly. For urgent issues, please email info@crossingate.com 🙏";
+interface ChatMsg {
+  id: string;
+  text: string;
+  from_role: "user" | "admin";
+  created_at: string;
 }
 
 export function Help() {
@@ -104,38 +82,136 @@ export function Help() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
-    { id: "1", text: "👋 Welcome to Crossingate Support! How can we help you today?", from: "support", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
-  ]);
-  const [chatTyping, setChatTyping] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [sending, setSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
+
+  useEffect(() => {
+    void loadUser();
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, showChat]);
 
-  function sendMessage() {
-    if (!chatInput.trim()) return;
-    const userMsg: ChatMsg = {
-      id: Date.now().toString(),
-      text: chatInput.trim(),
-      from: "user",
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setChatMessages((prev) => [...prev, userMsg]);
+  async function loadUser() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    setUserId(userData.user.id);
+    setUserEmail(userData.user.email ?? "");
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userData.user.id).single();
+    setUserName(profile?.full_name ?? "");
+  }
+
+  async function openChat() {
+    setShowChat(true);
+    if (conversationId) return;
+
+    // Check existing conversation
+    const { data: existing } = await supabase
+      .from("support_messages")
+      .select("conversation_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let convId = existing?.conversation_id;
+
+    if (!convId) {
+      // Create new conversation
+      const { data: newMsg } = await supabase
+        .from("support_messages")
+        .insert({
+          user_id: userId,
+          user_name: userName,
+          user_email: userEmail,
+          message: "👋 Chat started",
+          status: "open",
+        })
+        .select("conversation_id")
+        .single();
+      convId = newMsg?.conversation_id;
+
+      // Welcome message from admin
+      if (convId) {
+        await supabase.from("support_replies").insert({
+          conversation_id: convId,
+          message_id: newMsg?.id ?? null,
+          text: "👋 Welcome to Crossingate Support! How can we help you today?",
+          from_role: "admin",
+          user_id: null,
+        });
+      }
+    }
+
+    if (convId) {
+      setConversationId(convId);
+      await loadMessages(convId);
+      subscribeToReplies(convId);
+    }
+  }
+
+  async function loadMessages(convId: string) {
+    const { data } = await supabase
+      .from("support_replies")
+      .select("id, text, from_role, created_at")
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true });
+    if (data) setChatMessages(data as ChatMsg[]);
+  }
+
+  function subscribeToReplies(convId: string) {
+    supabase
+      .channel(`support_${convId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "support_replies",
+        filter: `conversation_id=eq.${convId}`,
+      }, (payload) => {
+        const newMsg = payload.new as ChatMsg;
+        setChatMessages((prev) => {
+          if (prev.find((m) => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      })
+      .subscribe();
+  }
+
+  async function sendMessage() {
+    if (!chatInput.trim() || !conversationId || !userId || sending) return;
+    setSending(true);
+    const text = chatInput.trim();
     setChatInput("");
-    setChatTyping(true);
-    setTimeout(() => {
-      const reply = getSupportReply(userMsg.text);
-      setChatMessages((prev) => [...prev, {
-        id: (Date.now() + 1).toString(),
-        text: reply,
-        from: "support",
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      }]);
-      setChatTyping(false);
-    }, 1200);
+
+    // Get message_id
+    const { data: msgRow } = await supabase
+      .from("support_messages")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .limit(1)
+      .single();
+
+    await supabase.from("support_replies").insert({
+      conversation_id: conversationId,
+      message_id: msgRow?.id ?? null,
+      text,
+      from_role: "user",
+      user_id: userId,
+    });
+
+    // Update support_messages status
+    await supabase.from("support_messages")
+      .update({ message: text, status: "open" })
+      .eq("conversation_id", conversationId);
+
+    setSending(false);
   }
 
   const filtered = FAQS.map((cat) => ({
@@ -144,6 +220,8 @@ export function Help() {
       (q) => !search || q.q.toLowerCase().includes(search.toLowerCase()) || q.a.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter((cat) => cat.questions.length > 0);
+
+  const rtl = lang === "ar" || lang === "ur";
 
   return (
     <div className="flex flex-col pb-8">
@@ -181,17 +259,15 @@ export function Help() {
           <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center mx-auto mb-3">
             <HeadphonesIcon size={22} className="text-[#D4AF37]" />
           </div>
-          <div className="text-white font-black text-lg mb-1" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.hero}</div>
-          <div className="text-white/60 text-xs mb-4" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.heroSub}</div>
+          <div className="text-white font-black text-lg mb-1" dir={rtl ? "rtl" : "ltr"}>{t.hero}</div>
+          <div className="text-white/60 text-xs mb-4" dir={rtl ? "rtl" : "ltr"}>{t.heroSub}</div>
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-4 py-3">
             <Search size={16} className="text-white/50 flex-shrink-0" />
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder={t.searchPlaceholder}
               className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
-              dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"} />
-            {search && (
-              <button onClick={() => setSearch("")}><X size={14} className="text-white/50" /></button>
-            )}
+              dir={rtl ? "rtl" : "ltr"} />
+            {search && <button onClick={() => setSearch("")}><X size={14} className="text-white/50" /></button>}
           </div>
         </div>
       </div>
@@ -206,7 +282,7 @@ export function Help() {
             { icon: "💳", label: "Wallet", to: "/wallet" },
           ].map(({ icon, label, to }) => (
             <Link key={label} to={to as "/"}>
-              <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-gray-100 hover:border-[#004B49]/20 transition-all">
+              <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-gray-100">
                 <div className="text-xl mb-1">{icon}</div>
                 <div className="text-[10px] font-bold text-gray-700">{label}</div>
               </div>
@@ -215,7 +291,7 @@ export function Help() {
         </div>
       </div>
 
-      {/* SEARCH RESULTS or FAQs */}
+      {/* FAQS */}
       <div className="mx-4 mt-4 flex flex-col gap-4">
         {search && (
           <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl px-4 py-2.5 flex items-center gap-2">
@@ -223,18 +299,16 @@ export function Help() {
             <span className="text-xs text-[#004B49] font-semibold">
               {filtered.reduce((n, c) => n + c.questions.length, 0)} results for "{search}"
             </span>
-            <button onClick={() => setSearch("")} className="ml-auto">
-              <X size={13} className="text-[#004B49]" />
-            </button>
+            <button onClick={() => setSearch("")} className="ml-auto"><X size={13} className="text-[#004B49]" /></button>
           </div>
         )}
 
         {filtered.length === 0 ? (
           <div className="text-center py-10">
             <div className="text-4xl mb-3">🔍</div>
-            <div className="text-sm font-bold text-gray-500" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.noResults}</div>
+            <div className="text-sm font-bold text-gray-500">{t.noResults}</div>
             <div className="text-xs text-gray-400 mt-1">Try different keywords or contact support below</div>
-            <button onClick={() => setShowChat(true)}
+            <button onClick={() => void openChat()}
               className="mt-4 bg-[#004B49] text-white text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 mx-auto">
               <MessageCircle size={14} /> Chat with Support
             </button>
@@ -273,17 +347,16 @@ export function Help() {
 
       {/* CONTACT */}
       <div className="mx-4 mt-6">
-        <div className="font-black text-gray-800 text-sm mb-3" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
+        <div className="font-black text-gray-800 text-sm mb-3" dir={rtl ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
         <div className="flex flex-col gap-2.5">
-
-          <button onClick={() => setShowChat(true)}
+          <button onClick={() => void openChat()}
             className="w-full flex items-center gap-3 bg-gradient-to-r from-[#004B49] to-[#005c59] rounded-2xl px-4 py-4 shadow-lg shadow-[#004B49]/20">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
               <MessageCircle size={18} className="text-white" />
             </div>
             <div className="text-left flex-1">
-              <div className="text-sm font-black text-white" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.liveChat}</div>
-              <div className="text-xs text-white/70" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.liveChatSub}</div>
+              <div className="text-sm font-black text-white">{t.liveChat}</div>
+              <div className="text-xs text-white/70">{t.liveChatSub}</div>
             </div>
             <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
           </button>
@@ -294,8 +367,8 @@ export function Help() {
               <Mail size={18} className="text-[#004B49]" />
             </div>
             <div className="text-left flex-1">
-              <div className="text-sm font-bold text-gray-800" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.emailSupport}</div>
-              <div className="text-xs text-gray-400" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.emailSub}</div>
+              <div className="text-sm font-bold text-gray-800">{t.emailSupport}</div>
+              <div className="text-xs text-gray-400">{t.emailSub}</div>
             </div>
           </a>
 
@@ -305,11 +378,10 @@ export function Help() {
               <Shield size={18} className="text-red-400" />
             </div>
             <div className="text-left flex-1">
-              <div className="text-sm font-bold text-gray-800" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.fileDispute}</div>
-              <div className="text-xs text-gray-400" dir={lang === "ar" || lang === "ur" ? "rtl" : "ltr"}>{t.disputeSub}</div>
+              <div className="text-sm font-bold text-gray-800">{t.fileDispute}</div>
+              <div className="text-xs text-gray-400">{t.disputeSub}</div>
             </div>
           </button>
-
         </div>
       </div>
 
@@ -319,7 +391,6 @@ export function Help() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
           <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl flex flex-col" style={{ height: "85vh" }}>
 
-            {/* Chat header */}
             <div className="bg-gradient-to-r from-[#004B49] to-[#005c59] px-5 py-4 rounded-t-3xl flex items-center gap-3 flex-shrink-0">
               <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center">
                 <HeadphonesIcon size={18} className="text-[#D4AF37]" />
@@ -328,70 +399,56 @@ export function Help() {
                 <div className="text-white font-black text-sm">Crossingate Support</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  <span className="text-white/60 text-[10px]">Online · Usually replies instantly</span>
+                  <span className="text-white/60 text-[10px]">Online · Admin replies in minutes</span>
                 </div>
               </div>
-              <button onClick={() => setShowChat(false)}>
-                <X size={20} className="text-white/70" />
-              </button>
+              <button onClick={() => setShowChat(false)}><X size={20} className="text-white/70" /></button>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-[#F4F6F6]">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8 text-gray-400 text-xs">Loading conversation...</div>
+              )}
               {chatMessages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}>
-                  {msg.from === "support" && (
+                <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.from_role === "admin" && (
                     <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
                       <HeadphonesIcon size={13} className="text-[#D4AF37]" />
                     </div>
                   )}
-                  <div className={`max-w-[78%] ${msg.from === "user" ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                  <div className={`max-w-[78%] flex flex-col gap-0.5 ${msg.from_role === "user" ? "items-end" : "items-start"}`}>
                     <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      msg.from === "user"
+                      msg.from_role === "user"
                         ? "bg-[#004B49] text-white rounded-br-sm"
                         : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
                     }`}>
                       {msg.text}
                     </div>
-                    <span className="text-[9px] text-gray-400 px-1">{msg.time}</span>
+                    <span className="text-[9px] text-gray-400 px-1">
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </div>
                 </div>
               ))}
-
-              {chatTyping && (
-                <div className="flex justify-start">
-                  <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0">
-                    <HeadphonesIcon size={13} className="text-[#D4AF37]" />
-                  </div>
-                  <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-100">
-                    <div className="flex gap-1 items-center h-4">
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  </div>
-                </div>
-              )}
               <div ref={chatEndRef} />
             </div>
 
             {/* Quick replies */}
             <div className="px-4 py-2 bg-white border-t border-gray-100 flex gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
               {["How does Escrow work?", "KYC rejected", "Request refund", "File dispute", "Withdraw funds"].map((q) => (
-                <button key={q} onClick={() => { setChatInput(q); }}
+                <button key={q} onClick={() => setChatInput(q)}
                   className="flex-shrink-0 text-[10px] font-semibold text-[#004B49] bg-[#E8F0EF] px-3 py-1.5 rounded-full whitespace-nowrap border border-[#004B49]/15">
                   {q}
                 </button>
               ))}
             </div>
 
-            {/* Input */}
-            <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3 flex-shrink-0 pb-safe">
+            <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3 flex-shrink-0">
               <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                onKeyDown={(e) => e.key === "Enter" && void sendMessage()}
                 placeholder="Type your message..."
                 className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
-              <button onClick={sendMessage} disabled={!chatInput.trim()}
+              <button onClick={() => void sendMessage()} disabled={!chatInput.trim() || sending}
                 className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 disabled:opacity-40 shadow-lg shadow-[#004B49]/20">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -401,7 +458,6 @@ export function Help() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
