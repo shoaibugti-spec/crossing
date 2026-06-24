@@ -120,7 +120,6 @@ export function Help() {
       .single();
     const name = profile?.full_name ?? email;
 
-    // Check existing conversation
     const { data: existing } = await supabase
       .from("support_messages")
       .select("id, conversation_id")
@@ -138,7 +137,6 @@ export function Help() {
       return;
     }
 
-    // Create new conversation
     const newConvId = crypto.randomUUID();
     const { data: newMsg, error: e1 } = await supabase
       .from("support_messages")
@@ -159,7 +157,6 @@ export function Help() {
       return;
     }
 
-    // Welcome message
     await supabase.from("support_replies").insert({
       conversation_id: newMsg.conversation_id,
       message_id: newMsg.id,
@@ -214,15 +211,6 @@ export function Help() {
     setChatInput("");
     setErrorMsg(null);
 
-    // Optimistic
-    const temp: ChatMsg = {
-      id: "tmp_" + Date.now(),
-      text,
-      from_role: "user",
-      created_at: new Date().toISOString(),
-    };
-    setChatMessages((prev) => [...prev, temp]);
-
     const { data: msgRow } = await supabase
       .from("support_messages")
       .select("id")
@@ -241,7 +229,6 @@ export function Help() {
       });
 
     if (error) {
-      setChatMessages((prev) => prev.filter((m) => m.id !== temp.id));
       setChatInput(text);
       setErrorMsg("Failed to send: " + error.message);
       setSending(false);
@@ -253,7 +240,6 @@ export function Help() {
       .update({ message: text, status: "open" })
       .eq("conversation_id", convId);
 
-    await loadMessages(convId);
     setSending(false);
   }
 
@@ -267,7 +253,6 @@ export function Help() {
   return (
     <div className="flex flex-col pb-8">
 
-      {/* HEADER */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
         <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
@@ -292,7 +277,6 @@ export function Help() {
         </div>
       </div>
 
-      {/* HERO */}
       <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#005c59] px-6 py-7 text-center relative overflow-hidden">
         <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-[#D4AF37]/10 blur-2xl" />
         <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5 blur-2xl" />
@@ -313,7 +297,6 @@ export function Help() {
         </div>
       </div>
 
-      {/* QUICK LINKS */}
       <div className="mx-4 mt-4">
         <div className="grid grid-cols-4 gap-2">
           {[
@@ -332,7 +315,6 @@ export function Help() {
         </div>
       </div>
 
-      {/* FAQS */}
       <div className="mx-4 mt-4 flex flex-col gap-4">
         {search && (
           <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl px-4 py-2.5 flex items-center gap-2">
@@ -386,7 +368,6 @@ export function Help() {
         )}
       </div>
 
-      {/* CONTACT */}
       <div className="mx-4 mt-6">
         <div className="font-black text-gray-800 text-sm mb-3" dir={rtl ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
         <div className="flex flex-col gap-2.5">
@@ -426,7 +407,6 @@ export function Help() {
         </div>
       </div>
 
-      {/* LIVE CHAT PANEL */}
       {showChat && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
