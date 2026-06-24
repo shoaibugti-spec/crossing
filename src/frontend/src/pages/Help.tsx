@@ -84,91 +84,115 @@ export function Help() {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("");
-  const [userEmail, setUserEmail] = useState<string>("");
   const [sending, setSending] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const t = TRANSLATIONS[lang];
-
-  useEffect(() => {
-    void loadUser();
-  }, []);
+  const rtl = lang === "ar" || lang === "ur";
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, showChat]);
 
-  async function loadUser() {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-    setUserId(userData.user.id);
-    setUserEmail(userData.user.email ?? "");
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userData.user.id).single();
-    setUserName(profile?.full_name ?? "");
-  }
-
   async function openChat() {
     setShowChat(true);
-    if (conversationId) return;
+    setChatLoading(true);
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      setChatLoading(false);
+      void navigate({ to: "/login" });
+      return;
+    }
+
+    const uid = userData.user.id;
+    const email = userData.user.email ?? "";
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", uid)
+      .single();
+    const name = profile?.full_name ?? "User";
+
+    // If already have conversation
+    if (conversationId) {
+      await loadMessages(conversationId);
+      setChatLoading(false);
+      return;
+    }
 
     // Check existing conversation
     const { data: existing } = await supabase
       .from("support_messages")
-      .select("conversation_id")
-      .eq("user_id", userId)
+      .select("id, conversation_id")
+      .eq("user_id", uid)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    let convId = existing?.conversation_id;
-
-    if (!convId) {
-      // Create new conversation
-      const { data: newMsg } = await supabase
-        .from("support_messages")
-        .insert({
-          user_id: userId,
-          user_name: userName,
-          user_email: userEmail,
-          message: "👋 Chat started",
-          status: "open",
-        })
-        .select("conversation_id")
-        .single();
-      convId = newMsg?.conversation_id;
-
-      // Welcome message from admin
-      if (convId) {
-        await supabase.from("support_replies").insert({
-          conversation_id: convId,
-          message_id: newMsg?.id ?? null,
-          text: "👋 Welcome to Crossingate Support! How can we help you today?",
-          from_role: "admin",
-          user_id: null,
-        });
-      }
+    if (existing?.conversation_id) {
+      setConversationId(existing.conversation_id);
+      await loadMessages(existing.conversation_id);
+      subscribeToReplies(existing.conversation_id);
+      setChatLoading(false);
+      return;
     }
 
-    if (convId) {
-      setConversationId(convId);
-      await loadMessages(convId);
-      subscribeToReplies(convId);
+    // Create new conversation with random UUID
+    const newConvId = crypto.randomUUID();
+
+    const { data: newMsg, error: msgError } = await supabase
+      .from("support_messages")
+      .insert({
+        user_id: uid,
+        user_name: name,
+        user_email: email,
+        message: "Chat started",
+        status: "open",
+        conversation_id: newConvId,
+      })
+      .select("id, conversation_id")
+      .single();
+
+    if (msgError || !newMsg) {
+      console.error("Support message error:", msgError);
+      setChatLoading(false);
+      return;
     }
+
+    // Welcome reply from admin
+    await supabase.from("support_replies").insert({
+      conversation_id: newMsg.conversation_id,
+      message_id: newMsg.id,
+      text: "👋 Welcome to Crossingate Support! How can we help you today?",
+      from_role: "admin",
+      user_id: null,
+    });
+
+    setConversationId(newMsg.conversation_id);
+    await loadMessages(newMsg.conversation_id);
+    subscribeToReplies(newMsg.conversation_id);
+    setChatLoading(false);
   }
 
   async function loadMessages(convId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("support_replies")
       .select("id, text, from_role, created_at")
       .eq("conversation_id", convId)
       .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Load messages error:", error);
+      return;
+    }
     if (data) setChatMessages(data as ChatMsg[]);
   }
 
   function subscribeToReplies(convId: string) {
     supabase
-      .channel(`support_${convId}`)
+      .channel(`support_user_${convId}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
@@ -185,29 +209,41 @@ export function Help() {
   }
 
   async function sendMessage() {
-    if (!chatInput.trim() || !conversationId || !userId || sending) return;
+    if (!chatInput.trim() || !conversationId || sending) return;
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
     setSending(true);
     const text = chatInput.trim();
     setChatInput("");
 
-    // Get message_id
+    // Get message_id for this conversation
     const { data: msgRow } = await supabase
       .from("support_messages")
       .select("id")
       .eq("conversation_id", conversationId)
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    await supabase.from("support_replies").insert({
+    const { error } = await supabase.from("support_replies").insert({
       conversation_id: conversationId,
       message_id: msgRow?.id ?? null,
       text,
       from_role: "user",
-      user_id: userId,
+      user_id: userData.user.id,
     });
 
-    // Update support_messages status
-    await supabase.from("support_messages")
+    if (error) {
+      console.error("Send error:", error);
+      setChatInput(text);
+      setSending(false);
+      return;
+    }
+
+    // Update last message in support_messages
+    await supabase
+      .from("support_messages")
       .update({ message: text, status: "open" })
       .eq("conversation_id", conversationId);
 
@@ -220,8 +256,6 @@ export function Help() {
       (q) => !search || q.q.toLowerCase().includes(search.toLowerCase()) || q.a.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter((cat) => cat.questions.length > 0);
-
-  const rtl = lang === "ar" || lang === "ur";
 
   return (
     <div className="flex flex-col pb-8">
@@ -349,6 +383,7 @@ export function Help() {
       <div className="mx-4 mt-6">
         <div className="font-black text-gray-800 text-sm mb-3" dir={rtl ? "rtl" : "ltr"}>{t.stillNeedHelp}</div>
         <div className="flex flex-col gap-2.5">
+
           <button onClick={() => void openChat()}
             className="w-full flex items-center gap-3 bg-gradient-to-r from-[#004B49] to-[#005c59] rounded-2xl px-4 py-4 shadow-lg shadow-[#004B49]/20">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
@@ -391,6 +426,7 @@ export function Help() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowChat(false)} />
           <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl flex flex-col" style={{ height: "85vh" }}>
 
+            {/* Chat header */}
             <div className="bg-gradient-to-r from-[#004B49] to-[#005c59] px-5 py-4 rounded-t-3xl flex items-center gap-3 flex-shrink-0">
               <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/20 border border-[#D4AF37]/30 flex items-center justify-center">
                 <HeadphonesIcon size={18} className="text-[#D4AF37]" />
@@ -405,31 +441,44 @@ export function Help() {
               <button onClick={() => setShowChat(false)}><X size={20} className="text-white/70" /></button>
             </div>
 
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-[#F4F6F6]">
-              {chatMessages.length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-xs">Loading conversation...</div>
-              )}
-              {chatMessages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
-                  {msg.from_role === "admin" && (
-                    <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
-                      <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+              {chatLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-[#004B49] flex items-center justify-center">
+                      <HeadphonesIcon size={16} className="text-[#D4AF37]" />
                     </div>
-                  )}
-                  <div className={`max-w-[78%] flex flex-col gap-0.5 ${msg.from_role === "user" ? "items-end" : "items-start"}`}>
-                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      msg.from_role === "user"
-                        ? "bg-[#004B49] text-white rounded-br-sm"
-                        : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
-                    }`}>
-                      {msg.text}
-                    </div>
-                    <span className="text-[9px] text-gray-400 px-1">
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+                    <span className="text-xs text-gray-400">Connecting...</span>
                   </div>
                 </div>
-              ))}
+              ) : chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <span className="text-xs text-gray-400">No messages yet. Say hello! 👋</span>
+                </div>
+              ) : (
+                chatMessages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.from_role === "user" ? "justify-end" : "justify-start"}`}>
+                    {msg.from_role === "admin" && (
+                      <div className="w-7 h-7 rounded-xl bg-[#004B49] flex items-center justify-center mr-2 flex-shrink-0 mt-auto">
+                        <HeadphonesIcon size={13} className="text-[#D4AF37]" />
+                      </div>
+                    )}
+                    <div className={`max-w-[78%] flex flex-col gap-0.5 ${msg.from_role === "user" ? "items-end" : "items-start"}`}>
+                      <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                        msg.from_role === "user"
+                          ? "bg-[#004B49] text-white rounded-br-sm"
+                          : "bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100"
+                      }`}>
+                        {msg.text}
+                      </div>
+                      <span className="text-[9px] text-gray-400 px-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
               <div ref={chatEndRef} />
             </div>
 
@@ -443,16 +492,27 @@ export function Help() {
               ))}
             </div>
 
+            {/* Input */}
             <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3 flex-shrink-0">
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void sendMessage()}
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !sending && void sendMessage()}
                 placeholder="Type your message..."
-                className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
-              <button onClick={() => void sendMessage()} disabled={!chatInput.trim() || sending}
+                disabled={chatLoading}
+                className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49] disabled:opacity-50"
+              />
+              <button
+                onClick={() => void sendMessage()}
+                disabled={!chatInput.trim() || sending || chatLoading}
                 className="w-11 h-11 rounded-2xl bg-[#004B49] flex items-center justify-center flex-shrink-0 disabled:opacity-40 shadow-lg shadow-[#004B49]/20">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                {sending ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>
