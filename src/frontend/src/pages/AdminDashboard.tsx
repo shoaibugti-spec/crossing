@@ -2,44 +2,50 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle, Ban, CheckCircle, Loader2, Lock,
-  Shield, Users, XCircle, ArrowDownLeft,
+  Shield, Users, XCircle, ArrowDownLeft, HeadphonesIcon, Send,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
+
+interface SupportConv {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  message: string;
+  status: string;
+  created_at: string;
+}
+
+interface SupportReply {
+  id: string;
+  text: string;
+  from_role: "user" | "admin";
+  created_at: string;
+}
 
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [accessChecked, setAccessChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminId, setAdminId] = useState<string | null>(null);
 
   const [kycUsers, setKycUsers] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
@@ -48,6 +54,7 @@ export function AdminDashboard() {
   const [deposits, setDeposits] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [providerServices, setProviderServices] = useState<any[]>([]);
+  const [supportConvs, setSupportConvs] = useState<SupportConv[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -63,18 +70,29 @@ export function AdminDashboard() {
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [selectedWithdraw, setSelectedWithdraw] = useState<any | null>(null);
 
-  // KYC reject with reason
   const [kycRejectDialogOpen, setKycRejectDialogOpen] = useState(false);
   const [selectedKyc, setSelectedKyc] = useState<any | null>(null);
   const [kycRejectionReason, setKycRejectionReason] = useState("");
+
+  // Support chat
+  const [selectedConv, setSelectedConv] = useState<SupportConv | null>(null);
+  const [convReplies, setConvReplies] = useState<SupportReply[]>([]);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void checkAccess();
   }, []);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [convReplies]);
+
   async function checkAccess() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) { setAccessChecked(true); void navigate({ to: "/login" }); return; }
+    setAdminId(userData.user.id);
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", userData.user.id).single();
     if (profile?.role === "admin") { setIsAdmin(true); void loadAllData(); }
     setAccessChecked(true);
@@ -127,7 +145,66 @@ export function AdminDashboard() {
       .order("created_at", { ascending: false });
     setProviderServices(servicesData ?? []);
 
+    const { data: supportData } = await supabase
+      .from("support_messages")
+      .select("id, conversation_id, user_id, user_name, user_email, message, status, created_at")
+      .order("created_at", { ascending: false });
+    setSupportConvs(supportData ?? []);
+
     setLoadingData(false);
+  }
+
+  async function openConversation(conv: SupportConv) {
+    setSelectedConv(conv);
+    const { data } = await supabase
+      .from("support_replies")
+      .select("id, text, from_role, created_at")
+      .eq("conversation_id", conv.conversation_id)
+      .order("created_at", { ascending: true });
+    setConvReplies((data ?? []) as SupportReply[]);
+
+    // Subscribe realtime
+    supabase
+      .channel(`admin_support_${conv.conversation_id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "support_replies",
+        filter: `conversation_id=eq.${conv.conversation_id}`,
+      }, (payload) => {
+        const newMsg = payload.new as SupportReply;
+        setConvReplies((prev) => {
+          if (prev.find((m) => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      })
+      .subscribe();
+  }
+
+  async function sendReply() {
+    if (!replyText.trim() || !selectedConv || !adminId || sendingReply) return;
+    setSendingReply(true);
+    const text = replyText.trim();
+    setReplyText("");
+
+    await supabase.from("support_replies").insert({
+      conversation_id: selectedConv.conversation_id,
+      message_id: selectedConv.id,
+      text,
+      from_role: "admin",
+      user_id: adminId,
+    });
+
+    await supabase.from("support_messages")
+      .update({ status: "replied" })
+      .eq("conversation_id", selectedConv.conversation_id);
+
+    setSupportConvs((prev) => prev.map((c) =>
+      c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c
+    ));
+
+    setSendingReply(false);
+    toast.success("Reply sent!");
   }
 
   // ── KYC ──
@@ -140,25 +217,13 @@ export function AdminDashboard() {
     toast.success("KYC approved ✅");
   };
 
-  const openRejectKyc = (kyc: any) => {
-    setSelectedKyc(kyc);
-    setKycRejectionReason("");
-    setKycRejectDialogOpen(true);
-  };
+  const openRejectKyc = (kyc: any) => { setSelectedKyc(kyc); setKycRejectionReason(""); setKycRejectDialogOpen(true); };
 
   const handleRejectKYC = async () => {
-    if (!selectedKyc) return;
-    if (!kycRejectionReason.trim()) { toast.error("Please enter a rejection reason"); return; }
+    if (!selectedKyc || !kycRejectionReason.trim()) { toast.error("Please enter a rejection reason"); return; }
     setProcessingId(selectedKyc.id);
-
-    await supabase.from("kyc_submissions").update({
-      status: "rejected",
-      reviewed_at: new Date().toISOString(),
-      rejection_reason: kycRejectionReason.trim(),
-    }).eq("id", selectedKyc.id);
-
+    await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: kycRejectionReason.trim() }).eq("id", selectedKyc.id);
     await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
-
     setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
     setKycRejectDialogOpen(false);
     setSelectedKyc(null);
@@ -177,10 +242,7 @@ export function AdminDashboard() {
     const newBalance = Number(profile?.wallet_balance ?? 0) + confirmedAmount;
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedDeposit.user_id);
     setDeposits((prev) => prev.map((d) => (d.id === selectedDeposit.id ? { ...d, status: "completed" } : d)));
-    setDepositDialogOpen(false);
-    setSelectedDeposit(null);
-    setDepositAmountOverride("");
-    setProcessingId(null);
+    setDepositDialogOpen(false); setSelectedDeposit(null); setDepositAmountOverride(""); setProcessingId(null);
     toast.success(`Deposit of $${confirmedAmount} confirmed`);
   }
 
@@ -198,13 +260,10 @@ export function AdminDashboard() {
     setProcessingId(selectedWithdraw.id);
     await supabase.from("wallet_transactions").update({ status: "completed" }).eq("id", selectedWithdraw.id);
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedWithdraw.user_id).single();
-    const withdrawAmount = Math.abs(selectedWithdraw.amount);
-    const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - withdrawAmount);
+    const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - Math.abs(selectedWithdraw.amount));
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedWithdraw.user_id);
     setWithdrawals((prev) => prev.map((w) => (w.id === selectedWithdraw.id ? { ...w, status: "completed" } : w)));
-    setWithdrawDialogOpen(false);
-    setSelectedWithdraw(null);
-    setProcessingId(null);
+    setWithdrawDialogOpen(false); setSelectedWithdraw(null); setProcessingId(null);
     toast.success("Withdrawal confirmed");
   }
 
@@ -221,9 +280,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     await supabase.from("provider_services").update({ status: "approved" }).eq("id", id);
     const { data: allServices } = await supabase.from("provider_services").select("max_price, capacity, status").eq("provider_id", providerId);
-    const totalDeposit = (allServices ?? [])
-      .filter((s: any) => s.status === "approved")
-      .reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
+    const totalDeposit = (allServices ?? []).filter((s: any) => s.status === "approved").reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
     setProcessingId(null);
@@ -238,7 +295,6 @@ export function AdminDashboard() {
     toast.success("Service rejected");
   }
 
-  // ── MISC ──
   const handleSuspendUser = async (userId: string) => {
     await supabase.from("profiles").update({ is_suspended: true }).eq("id", userId);
     setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: true } : u)));
@@ -287,6 +343,7 @@ export function AdminDashboard() {
   const pendingWithdrawals = withdrawals.filter((w) => w.status === "pending").length;
   const pendingServices = providerServices.filter((s) => s.status === "pending").length;
   const pendingKyc = kycUsers.filter((u) => u.status === "pending").length;
+  const openSupport = supportConvs.filter((s) => s.status === "open").length;
 
   const stats = [
     { label: "Total Users", value: adminUsers.length.toString(), icon: Users, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
@@ -342,6 +399,9 @@ export function AdminDashboard() {
             <TabsTrigger value="kyc">
               KYC {pendingKyc > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingKyc}</span>}
             </TabsTrigger>
+            <TabsTrigger value="support">
+              Support {openSupport > 0 && <span className="ml-1.5 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{openSupport}</span>}
+            </TabsTrigger>
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="disputes">Disputes</TabsTrigger>
@@ -353,17 +413,11 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {deposits.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No deposit requests yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Notes</TableHead>
-                        <TableHead>Receipt</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Notes</TableHead>
+                      <TableHead>Receipt</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {deposits.map((d) => (
                         <TableRow key={d.id}>
@@ -408,16 +462,10 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {withdrawals.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No withdrawal requests yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Wallet Address</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Wallet Address</TableHead>
+                      <TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {withdrawals.map((w) => (
                         <TableRow key={w.id}>
@@ -455,18 +503,11 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {providerServices.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No service requests yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Provider</TableHead>
-                        <TableHead>Route</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Price Range</TableHead>
-                        <TableHead>Capacity</TableHead>
-                        <TableHead>Deposit</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>Provider</TableHead><TableHead>Route</TableHead><TableHead>Category</TableHead>
+                      <TableHead>Price Range</TableHead><TableHead>Capacity</TableHead><TableHead>Deposit</TableHead>
+                      <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {providerServices.map((s) => (
                         <TableRow key={s.id}>
@@ -506,17 +547,11 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {kycUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Document</TableHead>
-                        <TableHead>Photos</TableHead>
-                        <TableHead>Submitted</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Rejection Reason</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>User</TableHead><TableHead>Document</TableHead><TableHead>Photos</TableHead>
+                      <TableHead>Submitted</TableHead><TableHead>Status</TableHead><TableHead>Rejection Reason</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {kycUsers.map((user) => (
                         <TableRow key={user.id}>
@@ -524,28 +559,14 @@ export function AdminDashboard() {
                           <TableCell className="text-sm text-muted-foreground capitalize">{user.document_type}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              {user.document_front_url && (
-                                <a href={user.document_front_url} target="_blank" rel="noopener noreferrer">
-                                  <img src={user.document_front_url} alt="front" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" />
-                                </a>
-                              )}
-                              {user.selfie_url && (
-                                <a href={user.selfie_url} target="_blank" rel="noopener noreferrer">
-                                  <img src={user.selfie_url} alt="selfie" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" />
-                                </a>
-                              )}
-                              {user.face_video_url && (
-                                <a href={user.face_video_url} target="_blank" rel="noopener noreferrer">
-                                  <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">▶</div>
-                                </a>
-                              )}
+                              {user.document_front_url && <a href={user.document_front_url} target="_blank" rel="noopener noreferrer"><img src={user.document_front_url} alt="front" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}
+                              {user.selfie_url && <a href={user.selfie_url} target="_blank" rel="noopener noreferrer"><img src={user.selfie_url} alt="selfie" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}
+                              {user.face_video_url && <a href={user.face_video_url} target="_blank" rel="noopener noreferrer"><div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">▶</div></a>}
                             </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(user.submitted_at).toLocaleDateString()}</TableCell>
                           <TableCell>{kycStatusBadge(user.status)}</TableCell>
-                          <TableCell className="text-xs text-red-500 max-w-xs">
-                            <span className="line-clamp-2">{user.rejection_reason ?? "—"}</span>
-                          </TableCell>
+                          <TableCell className="text-xs text-red-500 max-w-xs"><span className="line-clamp-2">{user.rejection_reason ?? "—"}</span></TableCell>
                           <TableCell className="text-right">
                             {user.status === "pending" && (
                               <div className="flex items-center justify-end gap-2">
@@ -569,21 +590,118 @@ export function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* ── SUPPORT CHAT ── */}
+          <TabsContent value="support">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              {/* Conversations list */}
+              <Card className="border-border/60 md:col-span-1">
+                <CardContent className="p-0">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                    <HeadphonesIcon size={16} className="text-[#004B49]" />
+                    <span className="font-bold text-sm text-gray-800">Conversations ({supportConvs.length})</span>
+                  </div>
+                  {supportConvs.length === 0 ? (
+                    <div className="text-center py-12 text-sm text-muted-foreground">No support messages yet.</div>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-gray-50">
+                      {supportConvs.map((conv) => (
+                        <button key={conv.id} onClick={() => void openConversation(conv)}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${selectedConv?.id === conv.id ? "bg-[#E8F0EF]" : ""}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                              {conv.user_name?.[0]?.toUpperCase() ?? "?"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm text-gray-800 truncate">{conv.user_name || "Unknown"}</div>
+                              <div className="text-[10px] text-gray-400 truncate">{conv.user_email}</div>
+                            </div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${conv.status === "open" ? "bg-blue-100 text-blue-600" : conv.status === "replied" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}>
+                              {conv.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 truncate pl-9">{conv.message}</div>
+                          <div className="text-[10px] text-gray-300 pl-9 mt-0.5">{new Date(conv.created_at).toLocaleDateString()}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Chat window */}
+              <Card className="border-border/60 md:col-span-2">
+                <CardContent className="p-0 flex flex-col" style={{ height: "500px" }}>
+                  {!selectedConv ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+                      <div className="w-14 h-14 rounded-2xl bg-[#E8F0EF] flex items-center justify-center mb-3">
+                        <HeadphonesIcon size={24} className="text-[#004B49]" />
+                      </div>
+                      <div className="font-bold text-gray-600 text-sm">Select a conversation</div>
+                      <div className="text-xs text-gray-400 mt-1">Click on a user from the left to view their messages</div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Chat header */}
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">
+                          {selectedConv.user_name?.[0]?.toUpperCase() ?? "?"}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-gray-800">{selectedConv.user_name}</div>
+                          <div className="text-xs text-gray-400">{selectedConv.user_email}</div>
+                        </div>
+                      </div>
+
+                      {/* Messages */}
+                      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 bg-gray-50/50">
+                        {convReplies.map((msg) => (
+                          <div key={msg.id} className={`flex ${msg.from_role === "admin" ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
+                              msg.from_role === "admin"
+                                ? "bg-[#004B49] text-white rounded-br-sm"
+                                : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"
+                            }`}>
+                              <div>{msg.text}</div>
+                              <div className={`text-[9px] mt-1 ${msg.from_role === "admin" ? "text-white/50" : "text-gray-400"}`}>
+                                {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {msg.from_role === "admin" && " · Admin"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={chatEndRef} />
+                      </div>
+
+                      {/* Reply input */}
+                      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
+                        <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && void sendReply()}
+                          placeholder="Type your reply..."
+                          className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
+                        <Button onClick={() => void sendReply()} disabled={!replyText.trim() || sendingReply}
+                          className="bg-[#004B49] hover:bg-[#00302e] text-white h-10 w-10 p-0 rounded-xl flex-shrink-0">
+                          {sendingReply ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           {/* ── ADS ── */}
           <TabsContent value="ads">
             <Card className="border-border/60">
               <CardContent className="p-0">
                 {adminAds.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>Title</TableHead><TableHead>Country</TableHead>
+                      <TableHead>Status</TableHead><TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {adminAds.map((ad) => (
                         <TableRow key={ad.id}>
@@ -595,9 +713,7 @@ export function AdminDashboard() {
                               : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200"
                               : ad.status === "pending_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
                               : "bg-gray-100 text-gray-600 border-gray-200"
-                            }`}>
-                              {ad.status.replace("_", " ")}
-                            </Badge>
+                            }`}>{ad.status.replace("_", " ")}</Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{new Date(ad.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
@@ -631,15 +747,11 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {adminUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>KYC</TableHead>
-                        <TableHead>Joined</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>Name</TableHead><TableHead>Role</TableHead>
+                      <TableHead>KYC</TableHead><TableHead>Joined</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {adminUsers.map((user) => (
                         <TableRow key={user.id}>
@@ -671,15 +783,11 @@ export function AdminDashboard() {
               <CardContent className="p-0">
                 {disputes.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div> : (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Transaction</TableHead>
-                        <TableHead>Reason</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Filed</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow>
+                      <TableHead>Transaction</TableHead><TableHead>Reason</TableHead>
+                      <TableHead>Status</TableHead><TableHead>Filed</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow></TableHeader>
                     <TableBody>
                       {disputes.map((dispute) => (
                         <TableRow key={dispute.id}>
@@ -721,23 +829,11 @@ export function AdminDashboard() {
             </div>
             <div className="space-y-1.5">
               <Label>Rejection Reason *</Label>
-              <Textarea
-                placeholder="e.g. Document not clear, selfie does not match, wrong document type..."
-                rows={4}
-                value={kycRejectionReason}
-                onChange={(e) => setKycRejectionReason(e.target.value)}
-              />
+              <Textarea placeholder="e.g. Document not clear, selfie does not match..." rows={4} value={kycRejectionReason} onChange={(e) => setKycRejectionReason(e.target.value)} />
               <p className="text-xs text-muted-foreground">This reason will be shown to the user so they can fix and resubmit.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {[
-                "Document not clearly visible",
-                "Selfie does not match document",
-                "Document expired",
-                "Wrong document type",
-                "Poor lighting — retake photos",
-                "Face video too short",
-              ].map((r) => (
+              {["Document not clearly visible", "Selfie does not match document", "Document expired", "Wrong document type", "Poor lighting — retake photos", "Face video too short"].map((r) => (
                 <button key={r} onClick={() => setKycRejectionReason(r)}
                   className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full border border-gray-200 hover:border-red-300 hover:text-red-600 transition-all">
                   {r}
@@ -747,15 +843,14 @@ export function AdminDashboard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setKycRejectDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void handleRejectKYC()} disabled={processingId !== null || !kycRejectionReason.trim()}
-              className="bg-red-500 hover:bg-red-600 text-white">
+            <Button onClick={() => void handleRejectKYC()} disabled={processingId !== null || !kycRejectionReason.trim()} className="bg-red-500 hover:bg-red-600 text-white">
               {processingId ? <Loader2 size={14} className="animate-spin" /> : "Reject & Notify User"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── DEPOSIT CONFIRM DIALOG ── */}
+      {/* ── DEPOSIT DIALOG ── */}
       <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirm Deposit</DialogTitle></DialogHeader>
@@ -783,7 +878,7 @@ export function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── WITHDRAWAL CONFIRM DIALOG ── */}
+      {/* ── WITHDRAWAL DIALOG ── */}
       <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirm Withdrawal Sent</DialogTitle></DialogHeader>
