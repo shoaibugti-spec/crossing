@@ -74,20 +74,14 @@ export function AdminDashboard() {
   const [selectedKyc, setSelectedKyc] = useState<any | null>(null);
   const [kycRejectionReason, setKycRejectionReason] = useState("");
 
-  // Support chat
   const [selectedConv, setSelectedConv] = useState<SupportConv | null>(null);
   const [convReplies, setConvReplies] = useState<SupportReply[]>([]);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    void checkAccess();
-  }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [convReplies]);
+  useEffect(() => { void checkAccess(); }, []);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [convReplies]);
 
   async function checkAccess() {
     const { data: userData } = await supabase.auth.getUser();
@@ -100,85 +94,39 @@ export function AdminDashboard() {
 
   async function loadAllData() {
     setLoadingData(true);
-
-    const { data: kyc } = await supabase
-      .from("kyc_submissions")
-      .select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason")
-      .order("submitted_at", { ascending: false });
+    const { data: kyc } = await supabase.from("kyc_submissions").select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason").order("submitted_at", { ascending: false });
     setKycUsers(kyc ?? []);
-
-    const { data: users } = await supabase
-      .from("profiles")
-      .select("id, full_name, role, kyc_status, trust_score, is_suspended, created_at, country")
-      .order("created_at", { ascending: false });
+    const { data: users } = await supabase.from("profiles").select("id, full_name, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false });
     setAdminUsers(users ?? []);
-
-    const { data: ads } = await supabase
-      .from("ads")
-      .select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)")
-      .order("created_at", { ascending: false });
+    const { data: ads } = await supabase.from("ads").select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)").order("created_at", { ascending: false });
     setAdminAds(ads ?? []);
-
-    const { data: disputesData } = await supabase
-      .from("disputes")
-      .select("id, transaction_id, reason, status, created_at, filed_by")
-      .order("created_at", { ascending: false });
+    const { data: disputesData } = await supabase.from("disputes").select("id, transaction_id, reason, status, created_at, filed_by").order("created_at", { ascending: false });
     setDisputes(disputesData ?? []);
-
-    const { data: depositsData } = await supabase
-      .from("wallet_transactions")
-      .select("id, user_id, amount, status, notes, receipt_url, reference_code, created_at, profiles:user_id(full_name)")
-      .eq("type", "deposit")
-      .order("created_at", { ascending: false });
+    const { data: depositsData } = await supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, reference_code, created_at, profiles:user_id(full_name)").eq("type", "deposit").order("created_at", { ascending: false });
     setDeposits(depositsData ?? []);
-
-    const { data: withdrawalsData } = await supabase
-      .from("wallet_transactions")
-      .select("id, user_id, amount, status, notes, created_at, profiles:user_id(full_name)")
-      .eq("type", "withdrawal")
-      .order("created_at", { ascending: false });
+    const { data: withdrawalsData } = await supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, created_at, profiles:user_id(full_name)").eq("type", "withdrawal").order("created_at", { ascending: false });
     setWithdrawals(withdrawalsData ?? []);
-
-    const { data: servicesData } = await supabase
-      .from("provider_services")
-      .select("id, provider_id, origin_country, destination_country, visa_category, min_price, max_price, capacity, status, created_at, profiles:provider_id(full_name)")
-      .order("created_at", { ascending: false });
+    const { data: servicesData } = await supabase.from("provider_services").select("id, provider_id, origin_country, destination_country, visa_category, min_price, max_price, capacity, status, created_at, profiles:provider_id(full_name)").order("created_at", { ascending: false });
     setProviderServices(servicesData ?? []);
-
-    const { data: supportData } = await supabase
-      .from("support_messages")
-      .select("id, conversation_id, user_id, user_name, user_email, message, status, created_at")
-      .order("created_at", { ascending: false });
+    const { data: supportData } = await supabase.from("support_messages").select("id, conversation_id, user_id, user_name, user_email, message, status, created_at").order("created_at", { ascending: false });
     setSupportConvs(supportData ?? []);
-
     setLoadingData(false);
   }
 
   async function openConversation(conv: SupportConv) {
     setSelectedConv(conv);
-    const { data } = await supabase
-      .from("support_replies")
-      .select("id, text, from_role, created_at")
-      .eq("conversation_id", conv.conversation_id)
-      .order("created_at", { ascending: true });
+    const { data } = await supabase.from("support_replies").select("id, text, from_role, created_at").eq("conversation_id", conv.conversation_id).order("created_at", { ascending: true });
     setConvReplies((data ?? []) as SupportReply[]);
 
-    // Subscribe realtime
-    supabase
-      .channel(`admin_support_${conv.conversation_id}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "support_replies",
-        filter: `conversation_id=eq.${conv.conversation_id}`,
-      }, (payload) => {
+    supabase.channel(`admin_support_${conv.conversation_id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_replies", filter: `conversation_id=eq.${conv.conversation_id}` }, (payload) => {
         const newMsg = payload.new as SupportReply;
-        setConvReplies((prev) => {
-          if (prev.find((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
-      })
-      .subscribe();
+        setConvReplies((prev) => prev.find((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+      }).subscribe();
+
+    // Mark as read
+    await supabase.from("support_messages").update({ status: "read" }).eq("conversation_id", conv.conversation_id);
+    setSupportConvs((prev) => prev.map((c) => c.conversation_id === conv.conversation_id ? { ...c, status: "read" } : c));
   }
 
   async function sendReply() {
@@ -195,19 +143,12 @@ export function AdminDashboard() {
       user_id: adminId,
     });
 
-    await supabase.from("support_messages")
-      .update({ status: "replied" })
-      .eq("conversation_id", selectedConv.conversation_id);
-
-    setSupportConvs((prev) => prev.map((c) =>
-      c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c
-    ));
-
+    await supabase.from("support_messages").update({ status: "replied" }).eq("conversation_id", selectedConv.conversation_id);
+    setSupportConvs((prev) => prev.map((c) => c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c));
     setSendingReply(false);
     toast.success("Reply sent!");
   }
 
-  // ── KYC ──
   const handleApproveKYC = async (kycId: string, userId: string) => {
     setProcessingId(kycId);
     await supabase.from("kyc_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", kycId);
@@ -225,14 +166,10 @@ export function AdminDashboard() {
     await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: kycRejectionReason.trim() }).eq("id", selectedKyc.id);
     await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
     setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
-    setKycRejectDialogOpen(false);
-    setSelectedKyc(null);
-    setKycRejectionReason("");
-    setProcessingId(null);
+    setKycRejectDialogOpen(false); setSelectedKyc(null); setKycRejectionReason(""); setProcessingId(null);
     toast.success("KYC rejected — reason saved");
   };
 
-  // ── DEPOSIT ──
   async function confirmDeposit() {
     if (!selectedDeposit) return;
     const confirmedAmount = Number(depositAmountOverride) || selectedDeposit.amount;
@@ -250,11 +187,9 @@ export function AdminDashboard() {
     setProcessingId(id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
     setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d)));
-    setProcessingId(null);
-    toast.success("Deposit rejected");
+    setProcessingId(null); toast.success("Deposit rejected");
   }
 
-  // ── WITHDRAWAL ──
   async function confirmWithdrawal() {
     if (!selectedWithdraw) return;
     setProcessingId(selectedWithdraw.id);
@@ -271,11 +206,9 @@ export function AdminDashboard() {
     setProcessingId(id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
     setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: "rejected" } : w)));
-    setProcessingId(null);
-    toast.success("Withdrawal rejected");
+    setProcessingId(null); toast.success("Withdrawal rejected");
   }
 
-  // ── SERVICES ──
   async function approveService(id: string, providerId: string) {
     setProcessingId(id);
     await supabase.from("provider_services").update({ status: "approved" }).eq("id", id);
@@ -283,16 +216,14 @@ export function AdminDashboard() {
     const totalDeposit = (allServices ?? []).filter((s: any) => s.status === "approved").reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
-    setProcessingId(null);
-    toast.success("Service approved");
+    setProcessingId(null); toast.success("Service approved");
   }
 
   async function rejectService(id: string) {
     setProcessingId(id);
     await supabase.from("provider_services").update({ status: "rejected" }).eq("id", id);
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s)));
-    setProcessingId(null);
-    toast.success("Service rejected");
+    setProcessingId(null); toast.success("Service rejected");
   }
 
   const handleSuspendUser = async (userId: string) => {
@@ -317,8 +248,7 @@ export function AdminDashboard() {
     if (!selectedDispute) return;
     await supabase.from("disputes").update({ status: disputeStatus, admin_notes: disputeNotes }).eq("id", selectedDispute);
     setDisputes((prev) => prev.map((d) => (d.id === selectedDispute ? { ...d, status: disputeStatus } : d)));
-    setDisputeDialogOpen(false);
-    toast.success("Dispute updated");
+    setDisputeDialogOpen(false); toast.success("Dispute updated");
   };
 
   const kycStatusBadge = (status: string) => {
@@ -326,13 +256,11 @@ export function AdminDashboard() {
     if (status === "approved") return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Approved</Badge>;
     return <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
   };
-
   const txStatusBadge = (status: string) => {
     if (status === "pending") return <Badge variant="outline" className="text-xs bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30">Pending</Badge>;
     if (status === "completed") return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Completed</Badge>;
     return <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
   };
-
   const svcStatusBadge = (status: string) => {
     if (status === "pending") return <Badge variant="outline" className="text-xs bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30">Pending</Badge>;
     if (status === "approved") return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Approved</Badge>;
@@ -353,16 +281,13 @@ export function AdminDashboard() {
   ];
 
   if (!accessChecked) return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><Lock size={28} className="text-red-400" /></div>
-        <div className="font-black text-gray-800 text-lg mb-1">Access Denied</div>
-        <div className="text-sm text-gray-500">Restricted to Crossingate administrators only.</div>
-      </div>
-    );
-  }
+  if (!isAdmin) return (
+    <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+      <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><Lock size={28} className="text-red-400" /></div>
+      <div className="font-black text-gray-800 text-lg mb-1">Access Denied</div>
+      <div className="text-sm text-gray-500">Restricted to Crossingate administrators only.</div>
+    </div>
+  );
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -372,9 +297,7 @@ export function AdminDashboard() {
         {stats.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label} className="border-border/60">
             <CardContent className="p-5">
-              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-                <Icon size={18} className={color} />
-              </div>
+              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}><Icon size={18} className={color} /></div>
               <p className="font-bold text-2xl text-foreground">{value}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
             </CardContent>
@@ -407,229 +330,149 @@ export function AdminDashboard() {
             <TabsTrigger value="disputes">Disputes</TabsTrigger>
           </TabsList>
 
-          {/* ── DEPOSITS ── */}
+          {/* DEPOSITS */}
           <TabsContent value="deposits">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {deposits.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No deposit requests yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Notes</TableHead>
-                      <TableHead>Receipt</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {deposits.map((d) => (
-                        <TableRow key={d.id}>
-                          <TableCell className="font-medium text-sm">{(d.profiles as any)?.full_name ?? "—"}</TableCell>
-                          <TableCell className="font-bold text-green-600">${d.amount}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-xs"><span className="line-clamp-2">{d.notes ?? "—"}</span></TableCell>
-                          <TableCell>
-                            {d.receipt_url ? (
-                              <a href={d.receipt_url} target="_blank" rel="noopener noreferrer">
-                                <img src={d.receipt_url} alt="receipt" className="w-10 h-10 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80" />
-                              </a>
-                            ) : <span className="text-xs text-muted-foreground">No receipt</span>}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(d.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{txStatusBadge(d.status)}</TableCell>
-                          <TableCell className="text-right">
-                            {d.status === "pending" && (
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" onClick={() => { setSelectedDeposit(d); setDepositAmountOverride(String(d.amount)); setDepositDialogOpen(true); }}
-                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  <CheckCircle size={11} /> Confirm
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => void rejectDeposit(d.id)} disabled={processingId === d.id}
-                                  className="gap-1 text-xs text-destructive border-destructive/30 h-7">
-                                  <XCircle size={11} /> Reject
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {deposits.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No deposit requests yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Notes</TableHead><TableHead>Receipt</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {deposits.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-medium text-sm">{(d.profiles as any)?.full_name ?? "—"}</TableCell>
+                        <TableCell className="font-bold text-green-600">${d.amount}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-xs"><span className="line-clamp-2">{d.notes ?? "—"}</span></TableCell>
+                        <TableCell>{d.receipt_url ? <a href={d.receipt_url} target="_blank" rel="noopener noreferrer"><img src={d.receipt_url} alt="receipt" className="w-10 h-10 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80" /></a> : <span className="text-xs text-muted-foreground">No receipt</span>}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(d.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{txStatusBadge(d.status)}</TableCell>
+                        <TableCell className="text-right">{d.status === "pending" && (<div className="flex items-center justify-end gap-2"><Button size="sm" onClick={() => { setSelectedDeposit(d); setDepositAmountOverride(String(d.amount)); setDepositDialogOpen(true); }} className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7"><CheckCircle size={11} /> Confirm</Button><Button size="sm" variant="outline" onClick={() => void rejectDeposit(d.id)} disabled={processingId === d.id} className="gap-1 text-xs text-destructive border-destructive/30 h-7"><XCircle size={11} /> Reject</Button></div>)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── WITHDRAWALS ── */}
+          {/* WITHDRAWALS */}
           <TabsContent value="withdrawals">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {withdrawals.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No withdrawal requests yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Wallet Address</TableHead>
-                      <TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {withdrawals.map((w) => (
-                        <TableRow key={w.id}>
-                          <TableCell className="font-medium text-sm">{(w.profiles as any)?.full_name ?? "—"}</TableCell>
-                          <TableCell className="font-bold text-orange-600">${Math.abs(w.amount)}</TableCell>
-                          <TableCell className="text-xs font-mono text-muted-foreground max-w-xs"><span className="line-clamp-1">{w.notes?.replace("Withdrawal request to ", "") ?? "—"}</span></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{txStatusBadge(w.status)}</TableCell>
-                          <TableCell className="text-right">
-                            {w.status === "pending" && (
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" onClick={() => { setSelectedWithdraw(w); setWithdrawDialogOpen(true); }}
-                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  <CheckCircle size={11} /> Mark Sent
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => void rejectWithdrawal(w.id)} disabled={processingId === w.id}
-                                  className="gap-1 text-xs text-destructive border-destructive/30 h-7">
-                                  <XCircle size={11} /> Reject
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {withdrawals.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No withdrawal requests yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Amount</TableHead><TableHead>Wallet Address</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {withdrawals.map((w) => (
+                      <TableRow key={w.id}>
+                        <TableCell className="font-medium text-sm">{(w.profiles as any)?.full_name ?? "—"}</TableCell>
+                        <TableCell className="font-bold text-orange-600">${Math.abs(w.amount)}</TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground max-w-xs"><span className="line-clamp-1">{w.notes?.replace("Withdrawal request to ", "") ?? "—"}</span></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(w.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{txStatusBadge(w.status)}</TableCell>
+                        <TableCell className="text-right">{w.status === "pending" && (<div className="flex items-center justify-end gap-2"><Button size="sm" onClick={() => { setSelectedWithdraw(w); setWithdrawDialogOpen(true); }} className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7"><CheckCircle size={11} /> Mark Sent</Button><Button size="sm" variant="outline" onClick={() => void rejectWithdrawal(w.id)} disabled={processingId === w.id} className="gap-1 text-xs text-destructive border-destructive/30 h-7"><XCircle size={11} /> Reject</Button></div>)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── SERVICES ── */}
+          {/* SERVICES */}
           <TabsContent value="services">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {providerServices.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No service requests yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Provider</TableHead><TableHead>Route</TableHead><TableHead>Category</TableHead>
-                      <TableHead>Price Range</TableHead><TableHead>Capacity</TableHead><TableHead>Deposit</TableHead>
-                      <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {providerServices.map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="font-medium text-sm">{(s.profiles as any)?.full_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{s.origin_country} → {s.destination_country}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{s.visa_category}</TableCell>
-                          <TableCell className="text-sm font-medium">${s.min_price}–${s.max_price}</TableCell>
-                          <TableCell className="text-sm text-center">{s.capacity}</TableCell>
-                          <TableCell className="text-sm font-bold text-[#004B49]">${s.max_price * 2 * s.capacity}</TableCell>
-                          <TableCell>{svcStatusBadge(s.status)}</TableCell>
-                          <TableCell className="text-right">
-                            {s.status === "pending" && (
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" onClick={() => void approveService(s.id, s.provider_id)} disabled={processingId === s.id}
-                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  {processingId === s.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => void rejectService(s.id)} disabled={processingId === s.id}
-                                  className="gap-1 text-xs text-destructive border-destructive/30 h-7">
-                                  <XCircle size={11} /> Reject
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {providerServices.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No service requests yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Provider</TableHead><TableHead>Route</TableHead><TableHead>Category</TableHead><TableHead>Price Range</TableHead><TableHead>Capacity</TableHead><TableHead>Deposit</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {providerServices.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium text-sm">{(s.profiles as any)?.full_name ?? "—"}</TableCell>
+                        <TableCell className="text-sm">{s.origin_country} → {s.destination_country}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{s.visa_category}</TableCell>
+                        <TableCell className="text-sm font-medium">${s.min_price}–${s.max_price}</TableCell>
+                        <TableCell className="text-sm text-center">{s.capacity}</TableCell>
+                        <TableCell className="text-sm font-bold text-[#004B49]">${s.max_price * 2 * s.capacity}</TableCell>
+                        <TableCell>{svcStatusBadge(s.status)}</TableCell>
+                        <TableCell className="text-right">{s.status === "pending" && (<div className="flex items-center justify-end gap-2"><Button size="sm" onClick={() => void approveService(s.id, s.provider_id)} disabled={processingId === s.id} className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">{processingId === s.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve</Button><Button size="sm" variant="outline" onClick={() => void rejectService(s.id)} disabled={processingId === s.id} className="gap-1 text-xs text-destructive border-destructive/30 h-7"><XCircle size={11} /> Reject</Button></div>)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── KYC ── */}
+          {/* KYC */}
           <TabsContent value="kyc">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {kycUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>User</TableHead><TableHead>Document</TableHead><TableHead>Photos</TableHead>
-                      <TableHead>Submitted</TableHead><TableHead>Status</TableHead><TableHead>Rejection Reason</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {kycUsers.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium text-sm">{user.full_name}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground capitalize">{user.document_type}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              {user.document_front_url && <a href={user.document_front_url} target="_blank" rel="noopener noreferrer"><img src={user.document_front_url} alt="front" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}
-                              {user.selfie_url && <a href={user.selfie_url} target="_blank" rel="noopener noreferrer"><img src={user.selfie_url} alt="selfie" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}
-                              {user.face_video_url && <a href={user.face_video_url} target="_blank" rel="noopener noreferrer"><div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">▶</div></a>}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(user.submitted_at).toLocaleDateString()}</TableCell>
-                          <TableCell>{kycStatusBadge(user.status)}</TableCell>
-                          <TableCell className="text-xs text-red-500 max-w-xs"><span className="line-clamp-2">{user.rejection_reason ?? "—"}</span></TableCell>
-                          <TableCell className="text-right">
-                            {user.status === "pending" && (
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" onClick={() => void handleApproveKYC(user.id, user.user_id)} disabled={processingId === user.id}
-                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  {processingId === user.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => openRejectKyc(user)} disabled={processingId === user.id}
-                                  className="gap-1 text-xs text-destructive border-destructive/30 h-7">
-                                  <XCircle size={11} /> Reject
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {kycUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No KYC submissions yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Document</TableHead><TableHead>Photos</TableHead><TableHead>Submitted</TableHead><TableHead>Status</TableHead><TableHead>Rejection Reason</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {kycUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium text-sm">{user.full_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground capitalize">{user.document_type}</TableCell>
+                        <TableCell><div className="flex gap-1">{user.document_front_url && <a href={user.document_front_url} target="_blank" rel="noopener noreferrer"><img src={user.document_front_url} alt="front" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}{user.selfie_url && <a href={user.selfie_url} target="_blank" rel="noopener noreferrer"><img src={user.selfie_url} alt="selfie" className="w-8 h-8 rounded object-cover border border-gray-100 hover:opacity-80" /></a>}{user.face_video_url && <a href={user.face_video_url} target="_blank" rel="noopener noreferrer"><div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-500 font-bold">▶</div></a>}</div></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(user.submitted_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{kycStatusBadge(user.status)}</TableCell>
+                        <TableCell className="text-xs text-red-500 max-w-xs"><span className="line-clamp-2">{user.rejection_reason ?? "—"}</span></TableCell>
+                        <TableCell className="text-right">{user.status === "pending" && (<div className="flex items-center justify-end gap-2"><Button size="sm" onClick={() => void handleApproveKYC(user.id, user.user_id)} disabled={processingId === user.id} className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">{processingId === user.id ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={11} />} Approve</Button><Button size="sm" variant="outline" onClick={() => openRejectKyc(user)} disabled={processingId === user.id} className="gap-1 text-xs text-destructive border-destructive/30 h-7"><XCircle size={11} /> Reject</Button></div>)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── SUPPORT CHAT ── */}
+          {/* SUPPORT */}
           <TabsContent value="support">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-              {/* Conversations list */}
               <Card className="border-border/60 md:col-span-1">
                 <CardContent className="p-0">
-                  <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                    <HeadphonesIcon size={16} className="text-[#004B49]" />
-                    <span className="font-bold text-sm text-gray-800">Conversations ({supportConvs.length})</span>
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HeadphonesIcon size={16} className="text-[#004B49]" />
+                      <span className="font-bold text-sm text-gray-800">Conversations</span>
+                    </div>
+                    <span className="text-xs text-gray-400">{supportConvs.length} total</span>
                   </div>
                   {supportConvs.length === 0 ? (
                     <div className="text-center py-12 text-sm text-muted-foreground">No support messages yet.</div>
                   ) : (
                     <div className="flex flex-col divide-y divide-gray-50">
-                      {supportConvs.map((conv) => (
-                        <button key={conv.id} onClick={() => void openConversation(conv)}
-                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${selectedConv?.id === conv.id ? "bg-[#E8F0EF]" : ""}`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                              {conv.user_name?.[0]?.toUpperCase() ?? "?"}
+                      {supportConvs.map((conv) => {
+                        const isUnread = conv.status === "open";
+                        return (
+                          <button key={conv.id} onClick={() => void openConversation(conv)}
+                            className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${selectedConv?.id === conv.id ? "bg-[#E8F0EF]" : ""}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${isUnread ? "bg-blue-500" : "bg-gradient-to-br from-[#004B49] to-[#00746f]"}`}>
+                                {conv.user_name?.[0]?.toUpperCase() ?? "?"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm truncate ${isUnread ? "font-black text-gray-900" : "font-semibold text-gray-800"}`}>{conv.user_name || "Unknown"}</div>
+                                <div className="text-[10px] text-gray-400 truncate">{conv.user_email}</div>
+                              </div>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                conv.status === "open" ? "bg-blue-100 text-blue-600"
+                                : conv.status === "replied" ? "bg-green-100 text-green-600"
+                                : "bg-gray-100 text-gray-500"
+                              }`}>
+                                {conv.status === "open" ? "● new" : conv.status === "replied" ? "replied" : conv.status}
+                              </span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm text-gray-800 truncate">{conv.user_name || "Unknown"}</div>
-                              <div className="text-[10px] text-gray-400 truncate">{conv.user_email}</div>
-                            </div>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${conv.status === "open" ? "bg-blue-100 text-blue-600" : conv.status === "replied" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}>
-                              {conv.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 truncate pl-9">{conv.message}</div>
-                          <div className="text-[10px] text-gray-300 pl-9 mt-0.5">{new Date(conv.created_at).toLocaleDateString()}</div>
-                        </button>
-                      ))}
+                            <div className={`text-xs truncate pl-9 ${isUnread ? "text-gray-700 font-semibold" : "text-gray-500"}`}>{conv.message}</div>
+                            <div className="text-[10px] text-gray-300 pl-9 mt-0.5">{new Date(conv.created_at).toLocaleDateString()}</div>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Chat window */}
               <Card className="border-border/60 md:col-span-2">
                 <CardContent className="p-0 flex flex-col" style={{ height: "500px" }}>
                   {!selectedConv ? (
@@ -638,22 +481,25 @@ export function AdminDashboard() {
                         <HeadphonesIcon size={24} className="text-[#004B49]" />
                       </div>
                       <div className="font-bold text-gray-600 text-sm">Select a conversation</div>
-                      <div className="text-xs text-gray-400 mt-1">Click on a user from the left to view their messages</div>
+                      <div className="text-xs text-gray-400 mt-1">Click on a user from the left</div>
                     </div>
                   ) : (
                     <>
-                      {/* Chat header */}
                       <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">
                           {selectedConv.user_name?.[0]?.toUpperCase() ?? "?"}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <div className="font-bold text-sm text-gray-800">{selectedConv.user_name}</div>
                           <div className="text-xs text-gray-400">{selectedConv.user_email}</div>
                         </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          selectedConv.status === "open" ? "bg-blue-100 text-blue-600"
+                          : selectedConv.status === "replied" ? "bg-green-100 text-green-600"
+                          : "bg-gray-100 text-gray-500"
+                        }`}>{selectedConv.status}</span>
                       </div>
 
-                      {/* Messages */}
                       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 bg-gray-50/50">
                         {convReplies.map((msg) => (
                           <div key={msg.id} className={`flex ${msg.from_role === "admin" ? "justify-end" : "justify-start"}`}>
@@ -673,11 +519,10 @@ export function AdminDashboard() {
                         <div ref={chatEndRef} />
                       </div>
 
-                      {/* Reply input */}
                       <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
                         <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && void sendReply()}
-                          placeholder="Type your reply..."
+                          placeholder="Type your reply to the user..."
                           className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                         <Button onClick={() => void sendReply()} disabled={!replyText.trim() || sendingReply}
                           className="bg-[#004B49] hover:bg-[#00302e] text-white h-10 w-10 p-0 rounded-xl flex-shrink-0">
@@ -691,134 +536,75 @@ export function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* ── ADS ── */}
+          {/* ADS */}
           <TabsContent value="ads">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {adminAds.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Title</TableHead><TableHead>Country</TableHead>
-                      <TableHead>Status</TableHead><TableHead>Created</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {adminAds.map((ad) => (
-                        <TableRow key={ad.id}>
-                          <TableCell className="font-medium text-sm max-w-xs"><span className="line-clamp-1">{ad.title}</span></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{ad.country}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs capitalize ${
-                              ad.status === "active" ? "bg-green-50 text-green-700 border-green-200"
-                              : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200"
-                              : ad.status === "pending_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
-                              : "bg-gray-100 text-gray-600 border-gray-200"
-                            }`}>{ad.status.replace("_", " ")}</Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(ad.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {ad.status === "pending_review" && (
-                                <Button size="sm" onClick={() => void handleApproveAd(ad.id)}
-                                  className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7">
-                                  <CheckCircle size={11} /> Approve
-                                </Button>
-                              )}
-                              {ad.status !== "suspended" && (
-                                <Button size="sm" variant="outline" onClick={() => void handleSuspendAd(ad.id)}
-                                  className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
-                                  <Ban size={11} /> Suspend
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {adminAds.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No listings yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Country</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {adminAds.map((ad) => (
+                      <TableRow key={ad.id}>
+                        <TableCell className="font-medium text-sm max-w-xs"><span className="line-clamp-1">{ad.title}</span></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{ad.country}</TableCell>
+                        <TableCell><Badge variant="outline" className={`text-xs capitalize ${ad.status === "active" ? "bg-green-50 text-green-700 border-green-200" : ad.status === "suspended" ? "bg-red-50 text-red-700 border-red-200" : ad.status === "pending_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30" : "bg-gray-100 text-gray-600 border-gray-200"}`}>{ad.status.replace("_", " ")}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(ad.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right"><div className="flex items-center justify-end gap-2">{ad.status === "pending_review" && <Button size="sm" onClick={() => void handleApproveAd(ad.id)} className="gap-1 text-xs bg-[#004B49] hover:bg-[#00302e] text-white h-7"><CheckCircle size={11} /> Approve</Button>}{ad.status !== "suspended" && <Button size="sm" variant="outline" onClick={() => void handleSuspendAd(ad.id)} className="gap-1 text-xs text-orange-600 border-orange-200 h-7"><Ban size={11} /> Suspend</Button>}</div></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── USERS ── */}
+          {/* USERS */}
           <TabsContent value="users">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {adminUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Name</TableHead><TableHead>Role</TableHead>
-                      <TableHead>KYC</TableHead><TableHead>Joined</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {adminUsers.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium text-sm">{user.full_name || "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs capitalize">{user.role}</Badge></TableCell>
-                          <TableCell className="text-xs capitalize text-muted-foreground">{user.kyc_status}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right">
-                            {!user.is_suspended && user.role !== "admin" && (
-                              <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)}
-                                className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
-                                <Ban size={11} /> Suspend
-                              </Button>
-                            )}
-                            {user.is_suspended && <span className="text-xs text-red-500 font-bold">Suspended</span>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {adminUsers.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No users yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>KYC</TableHead><TableHead>Joined</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {adminUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium text-sm">{user.full_name || "—"}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs capitalize">{user.role}</Badge></TableCell>
+                        <TableCell className="text-xs capitalize text-muted-foreground">{user.kyc_status}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">{!user.is_suspended && user.role !== "admin" && <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)} className="gap-1 text-xs text-orange-600 border-orange-200 h-7"><Ban size={11} /> Suspend</Button>}{user.is_suspended && <span className="text-xs text-red-500 font-bold">Suspended</span>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
 
-          {/* ── DISPUTES ── */}
+          {/* DISPUTES */}
           <TabsContent value="disputes">
-            <Card className="border-border/60">
-              <CardContent className="p-0">
-                {disputes.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div> : (
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Transaction</TableHead><TableHead>Reason</TableHead>
-                      <TableHead>Status</TableHead><TableHead>Filed</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {disputes.map((dispute) => (
-                        <TableRow key={dispute.id}>
-                          <TableCell className="font-mono text-xs">{dispute.transaction_id}</TableCell>
-                          <TableCell className="text-sm max-w-xs"><span className="line-clamp-1">{dispute.reason}</span></TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs capitalize ${
-                              dispute.status === "open" ? "bg-[#E8F0EF] text-[#004B49] border-[#004B49]/20"
-                              : dispute.status === "under_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30"
-                              : "bg-green-50 text-green-700 border-green-200"
-                            }`}>{dispute.status}</Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="outline" className="text-xs h-7"
-                              onClick={() => { setSelectedDispute(dispute.id); setDisputeStatus(dispute.status); setDisputeDialogOpen(true); }}>
-                              Update
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+            <Card className="border-border/60"><CardContent className="p-0">
+              {disputes.length === 0 ? <div className="text-center py-12 text-sm text-muted-foreground">No disputes filed yet.</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Transaction</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Filed</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {disputes.map((dispute) => (
+                      <TableRow key={dispute.id}>
+                        <TableCell className="font-mono text-xs">{dispute.transaction_id}</TableCell>
+                        <TableCell className="text-sm max-w-xs"><span className="line-clamp-1">{dispute.reason}</span></TableCell>
+                        <TableCell><Badge variant="outline" className={`text-xs capitalize ${dispute.status === "open" ? "bg-[#E8F0EF] text-[#004B49] border-[#004B49]/20" : dispute.status === "under_review" ? "bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30" : "bg-green-50 text-green-700 border-green-200"}`}>{dispute.status}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right"><Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setSelectedDispute(dispute.id); setDisputeStatus(dispute.status); setDisputeDialogOpen(true); }}>Update</Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
         </Tabs>
       )}
 
-      {/* ── KYC REJECT DIALOG ── */}
+      {/* KYC REJECT DIALOG */}
       <Dialog open={kycRejectDialogOpen} onOpenChange={setKycRejectDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reject KYC — Add Reason</DialogTitle></DialogHeader>
@@ -829,15 +615,12 @@ export function AdminDashboard() {
             </div>
             <div className="space-y-1.5">
               <Label>Rejection Reason *</Label>
-              <Textarea placeholder="e.g. Document not clear, selfie does not match..." rows={4} value={kycRejectionReason} onChange={(e) => setKycRejectionReason(e.target.value)} />
+              <Textarea placeholder="e.g. Document not clear..." rows={4} value={kycRejectionReason} onChange={(e) => setKycRejectionReason(e.target.value)} />
               <p className="text-xs text-muted-foreground">This reason will be shown to the user so they can fix and resubmit.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {["Document not clearly visible", "Selfie does not match document", "Document expired", "Wrong document type", "Poor lighting — retake photos", "Face video too short"].map((r) => (
-                <button key={r} onClick={() => setKycRejectionReason(r)}
-                  className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full border border-gray-200 hover:border-red-300 hover:text-red-600 transition-all">
-                  {r}
-                </button>
+                <button key={r} onClick={() => setKycRejectionReason(r)} className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full border border-gray-200 hover:border-red-300 hover:text-red-600 transition-all">{r}</button>
               ))}
             </div>
           </div>
@@ -850,19 +633,12 @@ export function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── DEPOSIT DIALOG ── */}
+      {/* DEPOSIT DIALOG */}
       <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirm Deposit</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {selectedDeposit?.receipt_url && (
-              <div>
-                <Label className="mb-2 block">Payment Receipt</Label>
-                <a href={selectedDeposit.receipt_url} target="_blank" rel="noopener noreferrer">
-                  <img src={selectedDeposit.receipt_url} alt="receipt" className="w-full max-h-64 object-contain rounded-xl border border-gray-100 cursor-pointer" />
-                </a>
-              </div>
-            )}
+            {selectedDeposit?.receipt_url && (<div><Label className="mb-2 block">Payment Receipt</Label><a href={selectedDeposit.receipt_url} target="_blank" rel="noopener noreferrer"><img src={selectedDeposit.receipt_url} alt="receipt" className="w-full max-h-64 object-contain rounded-xl border border-gray-100 cursor-pointer" /></a></div>)}
             <div className="space-y-1.5">
               <Label>Confirm Amount (USDT)</Label>
               <Input type="number" value={depositAmountOverride} onChange={(e) => setDepositAmountOverride(e.target.value)} placeholder="Enter confirmed amount" />
@@ -878,7 +654,7 @@ export function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── WITHDRAWAL DIALOG ── */}
+      {/* WITHDRAWAL DIALOG */}
       <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirm Withdrawal Sent</DialogTitle></DialogHeader>
@@ -901,7 +677,7 @@ export function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── DISPUTE DIALOG ── */}
+      {/* DISPUTE DIALOG */}
       <Dialog open={disputeDialogOpen} onOpenChange={setDisputeDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Update Dispute Status</DialogTitle></DialogHeader>
