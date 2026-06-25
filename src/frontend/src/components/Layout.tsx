@@ -26,7 +26,6 @@ const BRAND_NAME = (
   </span>
 );
 
-// Translate icon — Givethra style
 const TranslateIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 8l6 6" />
@@ -38,23 +37,23 @@ const TranslateIcon = () => (
   </svg>
 );
 
-function injectGoogleTranslate() {
-  if (document.getElementById("google-translate-script")) return;
-  (window as any).googleTranslateElementInit = function () {
-    new (window as any).google.translate.TranslateElement(
-      {
-        pageLanguage: "en",
-        includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw,am",
-        layout: 0,
-        autoDisplay: false,
-      },
-      "google_translate_box"
-    );
-  };
-  const script = document.createElement("script");
-  script.id = "google-translate-script";
-  script.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
-  document.body.appendChild(script);
+function initGoogleTranslate() {
+  if ((window as any).google?.translate?.TranslateElement) {
+    try {
+      new (window as any).google.translate.TranslateElement(
+        {
+          pageLanguage: "en",
+          includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw,am,so,tl",
+          layout: 0,
+          autoDisplay: false,
+        },
+        "google_translate_dropdown"
+      );
+    } catch (_) {}
+  } else {
+    // script ابھی load نہیں ہوئی — دوبارہ try
+    setTimeout(initGoogleTranslate, 500);
+  }
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -63,18 +62,55 @@ export function Layout({ children }: LayoutProps) {
   const [checked, setChecked] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showTranslate, setShowTranslate] = useState(false);
+  const [translateReady, setTranslateReady] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
 
   useEffect(() => {
     void loadProfile();
-    injectGoogleTranslate();
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
       void loadProfile();
     });
+
+    // Google Translate script load کریں
+    if (!document.getElementById("gt-script")) {
+      (window as any).googleTranslateElementInit = () => {
+        setTranslateReady(true);
+      };
+      const s = document.createElement("script");
+      s.id = "gt-script";
+      s.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+      s.async = true;
+      document.head.appendChild(s);
+    } else if ((window as any).google?.translate) {
+      setTranslateReady(true);
+    }
+
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // جب translate ready ہو اور panel کھلے تو init کریں
+  useEffect(() => {
+    if (showTranslate && translateReady) {
+      setTimeout(() => {
+        const el = document.getElementById("google_translate_dropdown");
+        if (el && el.children.length === 0) {
+          try {
+            new (window as any).google.translate.TranslateElement(
+              {
+                pageLanguage: "en",
+                includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw",
+                layout: 0,
+                autoDisplay: false,
+              },
+              "google_translate_dropdown"
+            );
+          } catch (_) {}
+        }
+      }, 200);
+    }
+  }, [showTranslate, translateReady]);
 
   useEffect(() => {
     if (menuOpen) void loadProfile();
@@ -170,32 +206,6 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
-      {/* Google Translate hidden mount point */}
-      <div id="google_translate_box" style={{ display: "none", position: "absolute" }} />
-
-      {/* Google Translate CSS */}
-      <style>{`
-        .goog-te-banner-frame { display: none !important; }
-        .skiptranslate { display: none !important; }
-        body { top: 0 !important; }
-        #google_translate_dropdown .goog-te-gadget {
-          font-family: inherit !important;
-          font-size: 0 !important;
-        }
-        #google_translate_dropdown .goog-te-gadget select {
-          font-size: 13px !important;
-          border-radius: 12px !important;
-          border: 1.5px solid #e5e7eb !important;
-          padding: 8px 12px !important;
-          outline: none !important;
-          width: 100% !important;
-          background: #f9fafb !important;
-          color: #1f2937 !important;
-          cursor: pointer !important;
-        }
-        #google_translate_dropdown .goog-te-gadget > span { display: none !important; }
-      `}</style>
-
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
@@ -205,14 +215,14 @@ export function Layout({ children }: LayoutProps) {
 
           <div className="flex items-center gap-0.5 ml-auto">
 
-            {/* 🎧 Help — icon only */}
+            {/* 🎧 Help icon only */}
             <Link to="/help">
               <div className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
                 <HeadphonesIcon size={21} className="text-[#004B49]" />
               </div>
             </Link>
 
-            {/* 🌐 Translate icon */}
+            {/* 文A Translate */}
             <div className="relative">
               <button
                 onClick={() => setShowTranslate(!showTranslate)}
@@ -222,9 +232,9 @@ export function Layout({ children }: LayoutProps) {
 
               {showTranslate && (
                 <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
-                  style={{ width: "240px" }}>
+                  style={{ width: "250px" }}>
                   <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-[#004B49]">
                       <TranslateIcon />
                       <span className="text-xs font-black text-gray-700">Translate Page</span>
                     </div>
@@ -232,12 +242,12 @@ export function Layout({ children }: LayoutProps) {
                       <X size={16} />
                     </button>
                   </div>
-
                   <div className="p-3">
-                    <p className="text-[10px] text-gray-400 mb-2 text-center">Select your language</p>
-                    <div id="google_translate_dropdown">
-                      {/* Google Translate widget یہاں inject ہو گا */}
-                    </div>
+                    <p className="text-[10px] text-gray-400 mb-2.5 text-center">Select your language</p>
+                    <div id="google_translate_dropdown" className="w-full" />
+                    {!translateReady && (
+                      <p className="text-[11px] text-gray-400 text-center py-2">Loading languages...</p>
+                    )}
                     <p className="text-[9px] text-gray-300 text-center mt-2">Powered by Google Translate</p>
                   </div>
                 </div>
