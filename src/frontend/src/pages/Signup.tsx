@@ -1,465 +1,233 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Lock, Mail, User, Phone, Building, FileText, MapPin, Globe, ChevronRight } from "lucide-react";
-import { useState } from "react";
-import { COUNTRIES } from "../lib/mockData";
+import { ArrowLeft, Bell, CheckCircle, Lock, MessageCircle, AlertTriangle, Star, Shield, Loader2, Wallet, FileText, Zap } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-const BUSINESS_TYPES = [
-  { key: "company", label: "🏢 Registered Company", desc: "Ltd / LLC / Pvt Limited" },
-  { key: "consultant", label: "👤 Licensed Consultant", desc: "Individual immigration consultant" },
-  { key: "agency", label: "✈️ Travel Agency", desc: "Licensed travel & visa agency" },
-  { key: "recruiter", label: "👥 Recruitment Agency", desc: "HR & manpower recruitment firm" },
-];
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
 
-const LICENSE_BODIES = [
-  "ICCRC (Canada)", "MARA (Australia)", "OISC (UK)", "ICCRC-IRB (Canada)",
-  "AIRC (Australia)", "ACMIGRATION (Australia)", "Pakistan BEOE",
-  "UAE MOHRE", "Saudi MOL", "Local Government License", "Other",
-];
+function getIcon(type: string) {
+  switch (type) {
+    case "message":   return { icon: MessageCircle, color: "bg-[#E8F0EF] text-[#004B49]" };
+    case "escrow":    return { icon: Lock,          color: "bg-[#FBF3E1] text-[#9c7a1f]" };
+    case "kyc":       return { icon: Shield,        color: "bg-purple-50 text-purple-500" };
+    case "review":    return { icon: Star,          color: "bg-[#FBF3E1] text-[#9c7a1f]" };
+    case "success":   return { icon: CheckCircle,   color: "bg-green-50 text-green-500" };
+    case "dispute":   return { icon: AlertTriangle, color: "bg-red-50 text-red-500" };
+    case "wallet":    return { icon: Wallet,        color: "bg-green-50 text-green-600" };
+    case "document":  return { icon: FileText,      color: "bg-blue-50 text-blue-500" };
+    case "promo":     return { icon: Zap,           color: "bg-[#FBF3E1] text-[#D4AF37]" };
+    default:          return { icon: Bell,          color: "bg-gray-50 text-gray-400" };
+  }
+}
 
-const BrandLight = (
-  <span style={{
-    fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
-    fontWeight: 700,
-    fontStyle: "normal",
-    fontSize: "24px",
-    letterSpacing: "0px",
-    lineHeight: 1,
-  }}>
-    <span style={{ color: "#ffffff" }}>Crossin</span>
-    <span style={{ color: "#D4AF37" }}>gate</span>
-  </span>
-);
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} minute${mins > 1 ? "s" : ""} ago`;
+  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+  if (days === 1) return "Yesterday";
+  return `${days} days ago`;
+}
 
-export function Signup() {
+export function Notifications() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState<"seeker" | "provider" | "">("");
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  const [form, setForm] = useState({
-    name: "", email: "", phone: "", country: "", password: "", confirm: "",
-    businessType: "", companyName: "", licenseNumber: "", licenseBody: "", licenseExpiry: "",
-    companyReg: "", tradeLicense: "", officeAddress: "", officeCity: "", officeCountry: "", website: "",
-    directorName: "", directorTitle: "",
-  });
+  useEffect(() => {
+    void loadNotifications();
+    void subscribeRealtime();
+  }, []);
 
-  const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-  const totalSteps = role === "provider" ? 5 : 3;
-
-  const validate = () => {
-    if (step === 1 && !role) { setError("Please select your role"); return false; }
-    if (step === 2) {
-      if (!form.name || !form.email || !form.phone || !form.country) { setError("Please fill all required fields"); return false; }
-    }
-    if (step === 3 && role === "seeker") {
-      if (!form.password || form.password.length < 8) { setError("Password must be at least 8 characters"); return false; }
-      if (form.password !== form.confirm) { setError("Passwords do not match"); return false; }
-    }
-    if (step === 3 && role === "provider") {
-      if (!form.businessType) { setError("Please select business type"); return false; }
-      if (!form.companyName) { setError("Company/Business name is required"); return false; }
-    }
-    if (step === 4 && role === "provider") {
-      if (!form.licenseNumber || !form.licenseBody) { setError("License details are required"); return false; }
-    }
-    if (step === 5 && role === "provider") {
-      if (!form.password || form.password.length < 8) { setError("Password must be at least 8 characters"); return false; }
-      if (form.password !== form.confirm) { setError("Passwords do not match"); return false; }
-    }
-    setError("");
-    return true;
-  };
-
-  const handleNext = async () => {
-    if (!validate()) return;
-    const isFinalStep = (step === 3 && role === "seeker") || (step === 5 && role === "provider");
-    if (!isFinalStep) { setStep(step + 1); return; }
-
+  async function loadNotifications() {
     setLoading(true);
-    setError("");
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: { data: { full_name: form.name, role } },
-      });
-      if (signUpError) { setError(signUpError.message); setLoading(false); return; }
-      const userId = data.user?.id;
-      if (!userId) { setError("Account created but no session returned."); setLoading(false); return; }
-      await supabase.from("profiles").update({ phone: form.phone, country: form.country }).eq("id", userId);
-      if (role === "provider") {
-        await supabase.from("provider_business_info").insert({
-          user_id: userId,
-          business_type: form.businessType,
-          company_name: form.companyName,
-          director_name: form.directorName,
-          office_address: form.officeAddress,
-          office_city: form.officeCity,
-          office_country: form.officeCountry,
-          website: form.website,
-          license_number: form.licenseNumber,
-          license_body: form.licenseBody,
-          license_expiry: form.licenseExpiry || null,
-          status: "pending",
-        });
-      }
-      setLoading(false);
-      void navigate({ to: "/" });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setLoading(false);
-    }
-  };
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) { setLoading(false); return; }
 
-  const stepLabels = role === "provider"
-    ? ["Role", "Details", "Business", "License", "Password"]
-    : ["Role", "Details", "Password"];
+    const { data } = await supabase
+      .from("notifications")
+      .select("id, type, title, body, link, is_read, created_at")
+      .eq("user_id", userData.user.id)
+      .order("created_at", { ascending: false });
+
+    setNotifications(data ?? []);
+    setLoading(false);
+
+    // سب unread mark as read نہیں کرتے — صرف page visit پر auto-mark نہیں
+  }
+
+  async function subscribeRealtime() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    supabase
+      .channel(`notif_page_${userData.user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${userData.user.id}`,
+      }, (payload) => {
+        const n = payload.new as Notification;
+        setNotifications((prev) => [n, ...prev]);
+      })
+      .subscribe();
+  }
+
+  async function markAllRead() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userData.user.id)
+      .eq("is_read", false);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  }
+
+  async function markRead(id: string) {
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+  }
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const filtered = notifications.filter((n) => filter === "all" ? true : !n.is_read);
+
+  // group by date
+  function getDateLabel(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return "This Week";
+    return "Earlier";
+  }
+
+  const grouped: { label: string; items: Notification[] }[] = [];
+  for (const n of filtered) {
+    const label = getDateLabel(n.created_at);
+    const existing = grouped.find((g) => g.label === label);
+    if (existing) existing.items.push(n);
+    else grouped.push({ label, items: [n] });
+  }
 
   return (
-    <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
-      <div className="bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-14 pb-6">
-        <div className="flex justify-center mb-4">{BrandLight}</div>
-        <div className="flex items-center justify-center gap-1.5">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                i + 1 < step ? "bg-[#D4AF37] text-white" : i + 1 === step ? "bg-white text-[#004B49]" : "bg-white/20 text-white/50"
-              }`}>
-                {i + 1 < step ? "✓" : i + 1}
-              </div>
-              {i < totalSteps - 1 && <div className={`w-5 h-0.5 ${i + 1 < step ? "bg-[#D4AF37]" : "bg-white/20"}`} />}
-            </div>
-          ))}
-        </div>
-        <div className="text-white/60 text-xs text-center mt-2">Step {step} of {totalSteps} — {stepLabels[step - 1]}</div>
+    <div className="flex flex-col pb-8">
+
+      {/* HEADER */}
+      <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100 sticky top-0 z-10">
+        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+          <ArrowLeft size={20} className="text-gray-600" />
+        </button>
+        <span className="font-bold text-gray-800 text-sm flex-1">Notifications</span>
+        {unreadCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5">
+              {unreadCount} new
+            </span>
+            <button onClick={() => void markAllRead()} className="text-xs font-semibold text-[#004B49]">
+              Mark all read
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 px-5 py-5">
-        <div className="bg-white rounded-3xl p-5 shadow-sm">
-          {error && (
-            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
-              ⚠️ {error}
-            </div>
-          )}
+      {/* TABS */}
+      <div className="bg-white px-4 pb-3 border-b border-gray-100">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
+          {(["all", "unread"] as const).map((t) => (
+            <button key={t} onClick={() => setFilter(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                filter === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"
+              }`}>
+              {t === "all" ? `All (${notifications.length})` : `Unread (${unreadCount})`}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          {step === 1 && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">Join Crossingate</div>
-              <div className="text-sm text-gray-500 mb-5">Select your role to get started</div>
-              <div onClick={() => setRole("seeker")}
-                className={`border-2 rounded-2xl p-4 mb-3 cursor-pointer transition-all ${role === "seeker" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">🔎</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="font-bold text-gray-800">Visa Seeker</div>
-                    <div className="text-xs text-gray-500">I want to find & buy visa services</div>
-                  </div>
-                  {role === "seeker" && <span className="text-[#004B49] font-bold text-lg">✓</span>}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {["Work Visa", "Study Visa", "Immigration", "Sponsorship"].map((t) => (
-                    <span key={t} className="text-[10px] bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-full text-gray-500">{t}</span>
-                  ))}
-                </div>
-              </div>
-              <div onClick={() => setRole("provider")}
-                className={`border-2 rounded-2xl p-4 cursor-pointer transition-all ${role === "provider" ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100"}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">🏢</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="font-bold text-gray-800">Visa Provider</div>
-                    <div className="text-xs text-gray-500">I offer visa & immigration services</div>
-                  </div>
-                  {role === "provider" && <span className="text-[#004B49] font-bold text-lg">✓</span>}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {["Licensed Agent", "Immigration Consultant", "Recruitment Agency", "Travel Agency"].map((t) => (
-                    <span key={t} className="text-[10px] bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-full text-gray-500">{t}</span>
-                  ))}
-                </div>
-                {role === "provider" && (
-                  <div className="mt-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-2.5 flex gap-2">
-                    <span className="text-[#9c7a1f] text-xs flex-shrink-0">⚠️</span>
-                    <span className="text-[11px] text-[#9c7a1f]">Provider accounts require business license verification. Review takes 3-5 business days.</span>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">Your Details</div>
-              <div className="text-sm text-gray-500 mb-4">Tell us about yourself</div>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Full Name *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <User size={15} className="text-gray-400" />
-                    <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ahmad Khan"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Email Address *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Mail size={15} className="text-gray-400" />
-                    <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@email.com"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Mobile Number *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Phone size={15} className="text-gray-400" />
-                    <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+92 300 0000000"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Country of Residence *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Globe size={15} className="text-gray-400" />
-                    <select value={form.country} onChange={(e) => set("country", e.target.value)}
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none">
-                      <option value="">Select country...</option>
-                      {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {step === 3 && role === "seeker" && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">Set Password</div>
-              <div className="text-sm text-gray-500 mb-4">Choose a strong password</div>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Password *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Lock size={15} className="text-gray-400" />
-                    <input type={showPass ? "text" : "password"} value={form.password} onChange={(e) => set("password", e.target.value)}
-                      placeholder="Min. 8 characters"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                    <button onClick={() => setShowPass(!showPass)}>
-                      {showPass ? <EyeOff size={15} className="text-gray-400" /> : <Eye size={15} className="text-gray-400" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Confirm Password *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Lock size={15} className="text-gray-400" />
-                    <input type="password" value={form.confirm} onChange={(e) => set("confirm", e.target.value)} placeholder="Repeat password"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
-                  <div className="text-xs text-[#004B49]">
-                    By creating an account you agree to our <span className="font-bold">Terms of Service</span> and <span className="font-bold">Privacy Policy</span>.
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {step === 3 && role === "provider" && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">Business Information</div>
-              <div className="text-sm text-gray-500 mb-4">Tell us about your business</div>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block">Business Type *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {BUSINESS_TYPES.map((b) => (
-                      <button key={b.key} onClick={() => set("businessType", b.key)}
-                        className={`border-2 rounded-xl p-2.5 text-left transition-all ${form.businessType === b.key ? "border-[#004B49] bg-[#E8F0EF]" : "border-gray-100 bg-gray-50"}`}>
-                        <div className="text-sm font-bold text-gray-700">{b.label}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{b.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Company / Business Name *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Building size={15} className="text-gray-400" />
-                    <input value={form.companyName} onChange={(e) => set("companyName", e.target.value)} placeholder="ImmigrationPro Inc."
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Director / Owner Name *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <User size={15} className="text-gray-400" />
-                    <input value={form.directorName} onChange={(e) => set("directorName", e.target.value)} placeholder="Full name of owner/director"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Office Address *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <MapPin size={15} className="text-gray-400" />
-                    <input value={form.officeAddress} onChange={(e) => set("officeAddress", e.target.value)} placeholder="Full office address"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">City *</label>
-                    <input value={form.officeCity} onChange={(e) => set("officeCity", e.target.value)} placeholder="Karachi"
-                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49]" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Country *</label>
-                    <select value={form.officeCountry} onChange={(e) => set("officeCountry", e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49]">
-                      <option value="">Select...</option>
-                      {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Website (optional)</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Globe size={15} className="text-gray-400" />
-                    <input value={form.website} onChange={(e) => set("website", e.target.value)} placeholder="https://yourcompany.com"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {step === 4 && role === "provider" && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">License Verification</div>
-              <div className="text-sm text-gray-500 mb-4">Your license details for verification</div>
-              <div className="bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl p-3 mb-4 flex gap-2">
-                <span className="text-[#9c7a1f] flex-shrink-0">⚠️</span>
-                <span className="text-[11px] text-[#9c7a1f]">Only licensed professionals can operate as Visa Providers on Crossingate. Fake licenses result in permanent ban.</span>
-              </div>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">License / Registration Number *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <FileText size={15} className="text-gray-400" />
-                    <input value={form.licenseNumber} onChange={(e) => set("licenseNumber", e.target.value)} placeholder="e.g. R123456 or BEOE-2024-001"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Issuing Authority *</label>
-                  <select value={form.licenseBody} onChange={(e) => set("licenseBody", e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
-                    <option value="">Select authority...</option>
-                    {LICENSE_BODIES.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">License Expiry Date *</label>
-                  <input type="date" value={form.licenseExpiry} onChange={(e) => set("licenseExpiry", e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload License Document *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40"
-                    onClick={() => alert("File upload coming soon.")}>
-                    <div className="text-2xl mb-1">📄</div>
-                    <div className="text-xs font-semibold text-gray-500">Tap to upload license</div>
-                    <div className="text-[10px] text-gray-400">PDF or Image · Max 5MB</div>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Upload Company Registration *</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-4 text-center cursor-pointer hover:border-[#004B49]/40"
-                    onClick={() => alert("File upload coming soon.")}>
-                    <div className="text-2xl mb-1">🏢</div>
-                    <div className="text-xs font-semibold text-gray-500">Company registration certificate</div>
-                    <div className="text-[10px] text-gray-400">PDF or Image · Max 5MB</div>
-                  </div>
-                </div>
-                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
-                  <span className="text-[#004B49] flex-shrink-0">ℹ️</span>
-                  <div className="text-[11px] text-[#004B49]">
-                    <div className="font-black mb-0.5">After submission:</div>
-                    <div>1. Admin verifies your license</div>
-                    <div>2. Account approved within 3-5 days</div>
-                    <div>3. You receive email confirmation</div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {step === 5 && role === "provider" && (
-            <>
-              <div className="font-black text-gray-800 text-xl mb-1">Set Password</div>
-              <div className="text-sm text-gray-500 mb-4">Almost done!</div>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Password *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Lock size={15} className="text-gray-400" />
-                    <input type={showPass ? "text" : "password"} value={form.password} onChange={(e) => set("password", e.target.value)}
-                      placeholder="Min. 8 characters"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                    <button onClick={() => setShowPass(!showPass)}>
-                      {showPass ? <EyeOff size={15} className="text-gray-400" /> : <Eye size={15} className="text-gray-400" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Confirm Password *</label>
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                    <Lock size={15} className="text-gray-400" />
-                    <input type="password" value={form.confirm} onChange={(e) => set("confirm", e.target.value)} placeholder="Repeat password"
-                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400" />
-                  </div>
-                </div>
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-                  <div className="text-xs font-black text-green-700 mb-1">✓ Application Summary</div>
-                  <div className="text-[11px] text-green-600 flex flex-col gap-0.5">
-                    <div>Business: {form.companyName}</div>
-                    <div>License: {form.licenseNumber} — {form.licenseBody}</div>
-                    <div>Location: {form.officeCity}, {form.officeCountry}</div>
-                  </div>
-                </div>
-                <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
-                  <div className="text-[11px] text-[#004B49]">
-                    By submitting you agree to our <span className="font-bold">Terms of Service</span>, <span className="font-bold">Privacy Policy</span>, and <span className="font-bold">Provider Agreement</span>.
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          <button onClick={() => void handleNext()} disabled={loading}
-            className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm mt-5 disabled:opacity-60 flex items-center justify-center gap-2">
-            {loading ? "Creating account..." : (step === totalSteps
-              ? (role === "provider" ? "Submit for Review 🚀" : "Create Account 🚀")
-              : (<><span>Continue</span><ChevronRight size={16} /></>))}
-          </button>
-
-          {step === 1 && (
-            <div className="text-center text-sm text-gray-500 mt-4">
-              Already have an account?{" "}
-              <Link to="/login"><span className="font-bold text-[#004B49]">Login</span></Link>
-            </div>
-          )}
-
-          {step > 1 && (
-            <button onClick={() => { setStep(step - 1); setError(""); }} className="w-full text-gray-400 text-sm font-semibold py-2 mt-1">
-              ← Back
+      {/* LIST */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="animate-spin text-gray-300" size={28} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            <Bell size={28} className="text-gray-200" />
+          </div>
+          <div className="text-sm font-bold text-gray-400">
+            {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+          </div>
+          <div className="text-xs text-gray-300 mt-1">
+            {filter === "unread" ? "You're all caught up! ✅" : "Complete your profile to get started"}
+          </div>
+          {filter === "all" && (
+            <button onClick={() => void navigate({ to: "/kyc" })}
+              className="mt-4 bg-[#004B49] text-white text-xs font-bold px-5 py-2.5 rounded-xl mx-auto block">
+              Complete KYC →
             </button>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col">
+          {grouped.map((group) => (
+            <div key={group.label}>
+              <div className="px-4 py-2 bg-gray-50/80 border-b border-gray-100">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{group.label}</span>
+              </div>
+              {group.items.map((n) => {
+                const { icon: Icon, color } = getIcon(n.type);
+                return (
+                  <button key={n.id}
+                    onClick={() => {
+                      void markRead(n.id);
+                      if (n.link) void navigate({ to: n.link as "/" });
+                    }}
+                    className={`flex items-start gap-3 px-4 py-4 border-b border-gray-50 text-left w-full transition-all active:bg-gray-50 ${
+                      !n.is_read ? "bg-[#E8F0EF]/40" : "bg-white"
+                    }`}>
+                    <div className={`w-11 h-11 rounded-2xl ${color} flex items-center justify-center flex-shrink-0`}>
+                      <Icon size={19} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={`text-sm leading-snug ${!n.is_read ? "font-bold text-gray-800" : "font-semibold text-gray-600"}`}>
+                          {n.title}
+                        </span>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {!n.is_read && <div className="w-2 h-2 bg-[#D4AF37] rounded-full" />}
+                          <span className="text-[10px] text-gray-300 whitespace-nowrap">{timeAgo(n.created_at)}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.body}</p>
+                      {n.link && (
+                        <div className="mt-1.5">
+                          <span className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2 py-0.5 rounded-full">
+                            Tap to view →
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
