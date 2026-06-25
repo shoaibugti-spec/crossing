@@ -26,23 +26,11 @@ const BRAND_NAME = (
   </span>
 );
 
-const BRAND_NAME_LIGHT = (
-  <span style={{
-    fontFamily: "'Montserrat', 'Inter', Arial, sans-serif",
-    fontWeight: 700,
-    fontStyle: "normal",
-    letterSpacing: "0px",
-    lineHeight: 1,
-  }}>
-    <span style={{ color: "#ffffff" }}>Crossin</span>
-    <span style={{ color: "#D4AF37" }}>gate</span>
-  </span>
-);
-
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [checked, setChecked] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
@@ -65,6 +53,39 @@ export function Layout({ children }: LayoutProps) {
     const { data, error } = await supabase.from("profiles").select("full_name, role, kyc_status").eq("id", userData.user.id).single();
     setProfile(error ? null : data);
     setChecked(true);
+    void loadUnreadCount(userData.user.id);
+    subscribeToNotifications(userData.user.id);
+  }
+
+  async function loadUnreadCount(uid: string) {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid)
+      .eq("is_read", false);
+    setUnreadCount(count ?? 0);
+  }
+
+  function subscribeToNotifications(uid: string) {
+    supabase
+      .channel(`notif_badge_${uid}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${uid}`,
+      }, () => {
+        setUnreadCount((prev) => prev + 1);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${uid}`,
+      }, () => {
+        void loadUnreadCount(uid);
+      })
+      .subscribe();
   }
 
   async function handleLogout() {
@@ -124,7 +145,6 @@ export function Layout({ children }: LayoutProps) {
           </Link>
           <div className="flex items-center gap-1.5 ml-auto">
 
-            {/* Support Button */}
             <Link to="/help">
               <div className="flex items-center gap-1.5 bg-[#004B49] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl hover:bg-[#00342f] transition-all">
                 <HeadphonesIcon size={13} />
@@ -135,9 +155,16 @@ export function Layout({ children }: LayoutProps) {
             <Link to="/notifications">
               <div className="relative p-2 rounded-full hover:bg-gray-50">
                 <Bell size={22} className="text-gray-600" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4AF37] rounded-full border border-white" />
+                {unreadCount > 0 && (
+                  <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
+                    <span className="text-[9px] font-black text-white px-0.5">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  </div>
+                )}
               </div>
             </Link>
+
             <button onClick={() => setMenuOpen(true)} className="p-2 rounded-full hover:bg-gray-50">
               <Menu size={22} className="text-gray-600" />
             </button>
@@ -172,6 +199,11 @@ export function Layout({ children }: LayoutProps) {
                     isActive(link.to) ? "bg-[#004B49]/10 text-[#004B49]" : "text-gray-600 hover:bg-gray-100"
                   }`}>
                     {link.label}
+                    {link.to === "/notifications" && unreadCount > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </div>
                 </Link>
               ))}
