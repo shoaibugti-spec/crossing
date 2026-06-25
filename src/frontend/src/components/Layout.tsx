@@ -37,22 +37,48 @@ const TranslateIcon = () => (
   </svg>
 );
 
-function initGoogleTranslate() {
-  if ((window as any).google?.translate?.TranslateElement) {
-    try {
-      new (window as any).google.translate.TranslateElement(
-        {
-          pageLanguage: "en",
-          includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw,am,so,tl",
-          layout: 0,
-          autoDisplay: false,
-        },
-        "google_translate_dropdown"
-      );
-    } catch (_) {}
+const LANGUAGES = [
+  { code: "en",    label: "English",    flag: "🇬🇧" },
+  { code: "ur",    label: "اردو",       flag: "🇵🇰" },
+  { code: "ar",    label: "العربية",    flag: "🇸🇦" },
+  { code: "hi",    label: "हिंदी",      flag: "🇮🇳" },
+  { code: "zh-CN", label: "中文",       flag: "🇨🇳" },
+  { code: "fr",    label: "Français",   flag: "🇫🇷" },
+  { code: "de",    label: "Deutsch",    flag: "🇩🇪" },
+  { code: "tr",    label: "Türkçe",     flag: "🇹🇷" },
+  { code: "ru",    label: "Русский",    flag: "🇷🇺" },
+  { code: "es",    label: "Español",    flag: "🇪🇸" },
+  { code: "pt",    label: "Português",  flag: "🇧🇷" },
+  { code: "id",    label: "Indonesia",  flag: "🇮🇩" },
+  { code: "ms",    label: "Melayu",     flag: "🇲🇾" },
+  { code: "bn",    label: "বাংলা",      flag: "🇧🇩" },
+  { code: "fa",    label: "فارسی",      flag: "🇮🇷" },
+  { code: "ps",    label: "پښتو",       flag: "🇦🇫" },
+  { code: "tl",    label: "Filipino",   flag: "🇵🇭" },
+  { code: "sw",    label: "Swahili",    flag: "🌍" },
+];
+
+function translatePage(langCode: string) {
+  if (langCode === "en") {
+    // English پر واپس جائیں
+    const el = document.querySelector(".goog-te-combo") as HTMLSelectElement;
+    if (el) { el.value = "en"; el.dispatchEvent(new Event("change")); }
+    else { window.location.href = window.location.href.replace("#googtrans", "") + "#googtrans(en|en)"; window.location.reload(); }
+    return;
+  }
+  // Google Translate cookie method
+  const value = `en|${langCode}`;
+  document.cookie = `googtrans=/en/${langCode}; path=/`;
+  document.cookie = `googtrans=/en/${langCode}; domain=.${window.location.hostname}; path=/`;
+
+  // Select element ڈھونڈیں
+  const selectEl = document.querySelector(".goog-te-combo") as HTMLSelectElement;
+  if (selectEl) {
+    selectEl.value = langCode;
+    selectEl.dispatchEvent(new Event("change"));
   } else {
-    // script ابھی load نہیں ہوئی — دوبارہ try
-    setTimeout(initGoogleTranslate, 500);
+    // Widget نہیں ملا — Google Translate URL method
+    window.location.href = `https://translate.google.com/translate?sl=en&tl=${langCode}&u=${encodeURIComponent(window.location.href)}`;
   }
 }
 
@@ -62,55 +88,45 @@ export function Layout({ children }: LayoutProps) {
   const [checked, setChecked] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showTranslate, setShowTranslate] = useState(false);
-  const [translateReady, setTranslateReady] = useState(false);
+  const [activeLang, setActiveLang] = useState("en");
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
 
   useEffect(() => {
     void loadProfile();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      void loadProfile();
-    });
 
-    // Google Translate script load کریں
+    // Google Translate widget silently load کریں
     if (!document.getElementById("gt-script")) {
-      (window as any).googleTranslateElementInit = () => {
-        setTranslateReady(true);
-      };
+      (window as any).googleTranslateElementInit = () => {};
       const s = document.createElement("script");
       s.id = "gt-script";
       s.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
       s.async = true;
       document.head.appendChild(s);
-    } else if ((window as any).google?.translate) {
-      setTranslateReady(true);
     }
 
+    // Hidden widget mount کریں
+    if (!document.getElementById("gt-hidden-mount")) {
+      const div = document.createElement("div");
+      div.id = "gt-hidden-mount";
+      div.style.cssText = "position:absolute;top:-9999px;left:-9999px;visibility:hidden;";
+      document.body.appendChild(div);
+      setTimeout(() => {
+        if ((window as any).google?.translate?.TranslateElement) {
+          new (window as any).google.translate.TranslateElement(
+            { pageLanguage: "en", autoDisplay: false },
+            "gt-hidden-mount"
+          );
+        }
+      }, 2000);
+    }
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void loadProfile();
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  // جب translate ready ہو اور panel کھلے تو init کریں
-  useEffect(() => {
-    if (showTranslate && translateReady) {
-      setTimeout(() => {
-        const el = document.getElementById("google_translate_dropdown");
-        if (el && el.children.length === 0) {
-          try {
-            new (window as any).google.translate.TranslateElement(
-              {
-                pageLanguage: "en",
-                includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw",
-                layout: 0,
-                autoDisplay: false,
-              },
-              "google_translate_dropdown"
-            );
-          } catch (_) {}
-        }
-      }, 200);
-    }
-  }, [showTranslate, translateReady]);
 
   useEffect(() => {
     if (menuOpen) void loadProfile();
@@ -164,6 +180,12 @@ export function Layout({ children }: LayoutProps) {
     void navigate({ to: "/login" });
   }
 
+  function handleLangSelect(code: string) {
+    setActiveLang(code);
+    setShowTranslate(false);
+    translatePage(code);
+  }
+
   const isAdmin = profile?.role === "admin";
   const isProvider = profile?.role === "provider";
   const loggedIn = !!profile;
@@ -203,8 +225,18 @@ export function Layout({ children }: LayoutProps) {
     return <div className="min-h-screen bg-[#F4F6F6]" />;
   }
 
+  const currentLang = LANGUAGES.find((l) => l.code === activeLang);
+
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
+
+      {/* Google Translate CSS fix */}
+      <style>{`
+        .goog-te-banner-frame, #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
+        .skiptranslate { display: none !important; }
+        body { top: 0 !important; }
+        font { background-color: transparent !important; box-shadow: none !important; }
+      `}</style>
 
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -215,7 +247,7 @@ export function Layout({ children }: LayoutProps) {
 
           <div className="flex items-center gap-0.5 ml-auto">
 
-            {/* 🎧 Help icon only */}
+            {/* 🎧 Help */}
             <Link to="/help">
               <div className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
                 <HeadphonesIcon size={21} className="text-[#004B49]" />
@@ -226,31 +258,52 @@ export function Layout({ children }: LayoutProps) {
             <div className="relative">
               <button
                 onClick={() => setShowTranslate(!showTranslate)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all text-[#004B49]">
-                <TranslateIcon />
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${showTranslate ? "bg-[#E8F0EF]" : "hover:bg-gray-50"} text-[#004B49]`}>
+                {activeLang !== "en" ? (
+                  <span className="text-base">{currentLang?.flag}</span>
+                ) : (
+                  <TranslateIcon />
+                )}
               </button>
 
               {showTranslate && (
-                <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
-                  style={{ width: "250px" }}>
-                  <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[#004B49]">
-                      <TranslateIcon />
-                      <span className="text-xs font-black text-gray-700">Translate Page</span>
+                <>
+                  {/* backdrop */}
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTranslate(false)} />
+                  <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
+                    style={{ width: "260px", maxHeight: "70vh" }}>
+                    <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between sticky top-0 bg-white">
+                      <div className="flex items-center gap-2 text-[#004B49]">
+                        <TranslateIcon />
+                        <span className="text-xs font-black text-gray-700">Select Language</span>
+                      </div>
+                      <button onClick={() => setShowTranslate(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={16} />
+                      </button>
                     </div>
-                    <button onClick={() => setShowTranslate(false)} className="text-gray-400 hover:text-gray-600">
-                      <X size={16} />
-                    </button>
+                    <div className="overflow-y-auto" style={{ maxHeight: "55vh" }}>
+                      {LANGUAGES.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => handleLangSelect(lang.code)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left border-b border-gray-50 last:border-0 ${
+                            activeLang === lang.code ? "bg-[#E8F0EF]" : ""
+                          }`}>
+                          <span className="text-xl flex-shrink-0">{lang.flag}</span>
+                          <span className={`text-sm flex-1 ${activeLang === lang.code ? "font-bold text-[#004B49]" : "font-medium text-gray-700"}`}>
+                            {lang.label}
+                          </span>
+                          {activeLang === lang.code && (
+                            <span className="text-[#004B49] text-xs font-black">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+                      <p className="text-[9px] text-gray-400 text-center">Powered by Google Translate</p>
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <p className="text-[10px] text-gray-400 mb-2.5 text-center">Select your language</p>
-                    <div id="google_translate_dropdown" className="w-full" />
-                    {!translateReady && (
-                      <p className="text-[11px] text-gray-400 text-center py-2">Loading languages...</p>
-                    )}
-                    <p className="text-[9px] text-gray-300 text-center mt-2">Powered by Google Translate</p>
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
