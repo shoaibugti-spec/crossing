@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon } from "lucide-react";
+import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon, Globe } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -26,17 +26,34 @@ const BRAND_NAME = (
   </span>
 );
 
+// Google Translate inject
+function injectGoogleTranslate() {
+  if (document.getElementById("google-translate-script")) return;
+  (window as any).googleTranslateElementInit = function () {
+    new (window as any).google.translate.TranslateElement(
+      { pageLanguage: "en", layout: 0, autoDisplay: false },
+      "google_translate_element"
+    );
+  };
+  const script = document.createElement("script");
+  script.id = "google-translate-script";
+  script.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+  document.body.appendChild(script);
+}
+
 export function Layout({ children }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [checked, setChecked] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showTranslate, setShowTranslate] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
 
   useEffect(() => {
     void loadProfile();
+    injectGoogleTranslate();
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
       void loadProfile();
     });
@@ -137,24 +154,51 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
+      {/* Google Translate hidden element */}
+      <div id="google_translate_element" style={{ display: "none" }} />
+
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
           <Link to="/">
             <span style={{ fontSize: "18px" }}>{BRAND_NAME}</span>
           </Link>
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center gap-1 ml-auto">
 
+            {/* Help icon only */}
             <Link to="/help">
-              <div className="flex items-center gap-1.5 bg-[#004B49] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl hover:bg-[#00342f] transition-all">
-                <HeadphonesIcon size={13} />
-                <span>Support</span>
+              <div className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
+                <HeadphonesIcon size={20} className="text-[#004B49]" />
               </div>
             </Link>
 
+            {/* Google Translate */}
+            <div className="relative">
+              <button
+                onClick={() => setShowTranslate(!showTranslate)}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
+                <Globe size={20} className="text-[#004B49]" />
+              </button>
+              {showTranslate && (
+                <div className="absolute right-0 top-11 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 p-3 min-w-[200px]">
+                  <div className="text-xs font-black text-gray-500 mb-2 px-1">🌐 Translate Page</div>
+                  <div id="google_translate_element_visible" className="min-h-[40px]" />
+                  <div className="mt-2 text-[10px] text-gray-400 text-center px-1">
+                    Powered by Google Translate
+                  </div>
+                  <button
+                    onClick={() => setShowTranslate(false)}
+                    className="mt-2 w-full text-xs text-gray-400 py-1 hover:text-gray-600">
+                    Close ✕
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Notifications */}
             <Link to="/notifications">
-              <div className="relative p-2 rounded-full hover:bg-gray-50">
-                <Bell size={22} className="text-gray-600" />
+              <div className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50">
+                <Bell size={20} className="text-gray-600" />
                 {unreadCount > 0 && (
                   <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
                     <span className="text-[9px] font-black text-white px-0.5">
@@ -165,7 +209,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </Link>
 
-            <button onClick={() => setMenuOpen(true)} className="p-2 rounded-full hover:bg-gray-50">
+            <button onClick={() => setMenuOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50">
               <Menu size={22} className="text-gray-600" />
             </button>
           </div>
@@ -269,6 +313,14 @@ export function Layout({ children }: LayoutProps) {
           </Link>
         </div>
       </nav>
+
+      {/* Google Translate CSS fix — toolbar ہٹائیں */}
+      <style>{`
+        .goog-te-banner-frame, .skiptranslate { display: none !important; }
+        body { top: 0 !important; }
+        .goog-te-gadget { font-size: 0 !important; }
+        .goog-te-gadget select { font-size: 13px !important; border-radius: 10px !important; border: 1px solid #e5e7eb !important; padding: 6px 10px !important; outline: none !important; width: 100% !important; }
+      `}</style>
     </div>
   );
 }
