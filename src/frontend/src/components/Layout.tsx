@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon, Globe } from "lucide-react";
+import { Bell, Home, Menu, MessageCircle, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -26,13 +26,29 @@ const BRAND_NAME = (
   </span>
 );
 
-// Google Translate inject
+// Translate icon — Givethra style
+const TranslateIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 8l6 6" />
+    <path d="M4 14l6-6 2-3" />
+    <path d="M2 5h12" />
+    <path d="M7 2h1" />
+    <path d="M22 22l-5-10-5 10" />
+    <path d="M14 18h6" />
+  </svg>
+);
+
 function injectGoogleTranslate() {
   if (document.getElementById("google-translate-script")) return;
   (window as any).googleTranslateElementInit = function () {
     new (window as any).google.translate.TranslateElement(
-      { pageLanguage: "en", layout: 0, autoDisplay: false },
-      "google_translate_element"
+      {
+        pageLanguage: "en",
+        includedLanguages: "en,ur,ar,hi,fr,de,tr,zh-CN,ru,es,pt,id,ms,bn,fa,ps,sw,am",
+        layout: 0,
+        autoDisplay: false,
+      },
+      "google_translate_box"
     );
   };
   const script = document.createElement("script");
@@ -154,8 +170,31 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
-      {/* Google Translate hidden element */}
-      <div id="google_translate_element" style={{ display: "none" }} />
+      {/* Google Translate hidden mount point */}
+      <div id="google_translate_box" style={{ display: "none", position: "absolute" }} />
+
+      {/* Google Translate CSS */}
+      <style>{`
+        .goog-te-banner-frame { display: none !important; }
+        .skiptranslate { display: none !important; }
+        body { top: 0 !important; }
+        #google_translate_dropdown .goog-te-gadget {
+          font-family: inherit !important;
+          font-size: 0 !important;
+        }
+        #google_translate_dropdown .goog-te-gadget select {
+          font-size: 13px !important;
+          border-radius: 12px !important;
+          border: 1.5px solid #e5e7eb !important;
+          padding: 8px 12px !important;
+          outline: none !important;
+          width: 100% !important;
+          background: #f9fafb !important;
+          color: #1f2937 !important;
+          cursor: pointer !important;
+        }
+        #google_translate_dropdown .goog-te-gadget > span { display: none !important; }
+      `}</style>
 
       {/* TOP NAV */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -163,42 +202,52 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/">
             <span style={{ fontSize: "18px" }}>{BRAND_NAME}</span>
           </Link>
-          <div className="flex items-center gap-1 ml-auto">
 
-            {/* Help icon only */}
+          <div className="flex items-center gap-0.5 ml-auto">
+
+            {/* 🎧 Help — icon only */}
             <Link to="/help">
-              <div className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
-                <HeadphonesIcon size={20} className="text-[#004B49]" />
+              <div className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
+                <HeadphonesIcon size={21} className="text-[#004B49]" />
               </div>
             </Link>
 
-            {/* Google Translate */}
+            {/* 🌐 Translate icon */}
             <div className="relative">
               <button
                 onClick={() => setShowTranslate(!showTranslate)}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
-                <Globe size={20} className="text-[#004B49]" />
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all text-[#004B49]">
+                <TranslateIcon />
               </button>
+
               {showTranslate && (
-                <div className="absolute right-0 top-11 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 p-3 min-w-[200px]">
-                  <div className="text-xs font-black text-gray-500 mb-2 px-1">🌐 Translate Page</div>
-                  <div id="google_translate_element_visible" className="min-h-[40px]" />
-                  <div className="mt-2 text-[10px] text-gray-400 text-center px-1">
-                    Powered by Google Translate
+                <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
+                  style={{ width: "240px" }}>
+                  <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TranslateIcon />
+                      <span className="text-xs font-black text-gray-700">Translate Page</span>
+                    </div>
+                    <button onClick={() => setShowTranslate(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={16} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setShowTranslate(false)}
-                    className="mt-2 w-full text-xs text-gray-400 py-1 hover:text-gray-600">
-                    Close ✕
-                  </button>
+
+                  <div className="p-3">
+                    <p className="text-[10px] text-gray-400 mb-2 text-center">Select your language</p>
+                    <div id="google_translate_dropdown">
+                      {/* Google Translate widget یہاں inject ہو گا */}
+                    </div>
+                    <p className="text-[9px] text-gray-300 text-center mt-2">Powered by Google Translate</p>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Notifications */}
+            {/* 🔔 Notifications */}
             <Link to="/notifications">
-              <div className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50">
-                <Bell size={20} className="text-gray-600" />
+              <div className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50">
+                <Bell size={21} className="text-gray-600" />
                 {unreadCount > 0 && (
                   <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
                     <span className="text-[9px] font-black text-white px-0.5">
@@ -209,7 +258,8 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </Link>
 
-            <button onClick={() => setMenuOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-50">
+            {/* ☰ Menu */}
+            <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50">
               <Menu size={22} className="text-gray-600" />
             </button>
           </div>
@@ -313,14 +363,6 @@ export function Layout({ children }: LayoutProps) {
           </Link>
         </div>
       </nav>
-
-      {/* Google Translate CSS fix — toolbar ہٹائیں */}
-      <style>{`
-        .goog-te-banner-frame, .skiptranslate { display: none !important; }
-        body { top: 0 !important; }
-        .goog-te-gadget { font-size: 0 !important; }
-        .goog-te-gadget select { font-size: 13px !important; border-radius: 10px !important; border: 1px solid #e5e7eb !important; padding: 6px 10px !important; outline: none !important; width: 100% !important; }
-      `}</style>
     </div>
   );
 }
