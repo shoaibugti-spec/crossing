@@ -41,6 +41,12 @@ interface SupportReply {
   created_at: string;
 }
 
+async function sendNotification(userId: string, type: string, title: string, body: string, link?: string) {
+  await supabase.from("notifications").insert({
+    user_id: userId, type, title, body, link: link ?? null, is_read: false,
+  });
+}
+
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [accessChecked, setAccessChecked] = useState(false);
@@ -117,14 +123,11 @@ export function AdminDashboard() {
     setSelectedConv(conv);
     const { data } = await supabase.from("support_replies").select("id, text, from_role, created_at").eq("conversation_id", conv.conversation_id).order("created_at", { ascending: true });
     setConvReplies((data ?? []) as SupportReply[]);
-
     supabase.channel(`admin_support_${conv.conversation_id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_replies", filter: `conversation_id=eq.${conv.conversation_id}` }, (payload) => {
         const newMsg = payload.new as SupportReply;
         setConvReplies((prev) => prev.find((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]);
       }).subscribe();
-
-    // Mark as read
     await supabase.from("support_messages").update({ status: "read" }).eq("conversation_id", conv.conversation_id);
     setSupportConvs((prev) => prev.map((c) => c.conversation_id === conv.conversation_id ? { ...c, status: "read" } : c));
   }
@@ -134,7 +137,6 @@ export function AdminDashboard() {
     setSendingReply(true);
     const text = replyText.trim();
     setReplyText("");
-
     await supabase.from("support_replies").insert({
       conversation_id: selectedConv.conversation_id,
       message_id: selectedConv.id,
@@ -142,9 +144,10 @@ export function AdminDashboard() {
       from_role: "admin",
       user_id: adminId,
     });
-
     await supabase.from("support_messages").update({ status: "replied" }).eq("conversation_id", selectedConv.conversation_id);
     setSupportConvs((prev) => prev.map((c) => c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c));
+    // Notification to user
+    await sendNotification(selectedConv.user_id, "message", "💬 Support Reply Received", `Admin replied to your support message: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`, "/help");
     setSendingReply(false);
     toast.success("Reply sent!");
   }
@@ -153,6 +156,8 @@ export function AdminDashboard() {
     setProcessingId(kycId);
     await supabase.from("kyc_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", kycId);
     await supabase.from("profiles").update({ kyc_status: "approved", kyc_level: 3 }).eq("id", userId);
+    await sendNotification(userId, "kyc", "✅ KYC Approved!", "Your identity has been verified successfully. You can now use Escrow payments and place orders.", "/wallet");
+    await sendNotification(userId, "promo", "🎉 You're Verified!", "Browse visa services and place your first order with full Escrow protection.", "/ads");
     setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "approved" } : u)));
     setProcessingId(null);
     toast.success("KYC approved ✅");
@@ -165,6 +170,7 @@ export function AdminDashboard() {
     setProcessingId(selectedKyc.id);
     await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: kycRejectionReason.trim() }).eq("id", selectedKyc.id);
     await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
+    await sendNotification(selectedKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${kycRejectionReason.trim()}. Please fix the issue and resubmit your documents.`, "/kyc");
     setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
     setKycRejectDialogOpen(false); setSelectedKyc(null); setKycRejectionReason(""); setProcessingId(null);
     toast.success("KYC rejected — reason saved");
@@ -178,6 +184,8 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedDeposit.user_id).single();
     const newBalance = Number(profile?.wallet_balance ?? 0) + confirmedAmount;
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedDeposit.user_id);
+    await sendNotification(selectedDeposit.user_id, "wallet", "💰 Deposit Confirmed!", `$${confirmedAmount} USDT has been credited to your wallet. Your new balance is $${newBalance.toFixed(2)}.`, "/wallet");
+    await sendNotification(selectedDeposit.user_id, "promo", "🛍️ Ready to Order!", "Your wallet is funded. Browse visa services and place your first order securely.", "/ads");
     setDeposits((prev) => prev.map((d) => (d.id === selectedDeposit.id ? { ...d, status: "completed" } : d)));
     setDepositDialogOpen(false); setSelectedDeposit(null); setDepositAmountOverride(""); setProcessingId(null);
     toast.success(`Deposit of $${confirmedAmount} confirmed`);
@@ -185,7 +193,11 @@ export function AdminDashboard() {
 
   async function rejectDeposit(id: string) {
     setProcessingId(id);
+    const dep = deposits.find((d) => d.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
+    if (dep) {
+      await sendNotification(dep.user_id, "dispute", "❌ Deposit Rejected", "Your deposit request was rejected. Please check your payment details and try again.", "/wallet");
+    }
     setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d)));
     setProcessingId(null); toast.success("Deposit rejected");
   }
@@ -197,6 +209,7 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedWithdraw.user_id).single();
     const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - Math.abs(selectedWithdraw.amount));
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedWithdraw.user_id);
+    await sendNotification(selectedWithdraw.user_id, "wallet", "✅ Withdrawal Sent!", `$${Math.abs(selectedWithdraw.amount)} USDT has been sent to your wallet address. Check your TRC-20 wallet.`, "/wallet");
     setWithdrawals((prev) => prev.map((w) => (w.id === selectedWithdraw.id ? { ...w, status: "completed" } : w)));
     setWithdrawDialogOpen(false); setSelectedWithdraw(null); setProcessingId(null);
     toast.success("Withdrawal confirmed");
@@ -204,7 +217,11 @@ export function AdminDashboard() {
 
   async function rejectWithdrawal(id: string) {
     setProcessingId(id);
+    const wd = withdrawals.find((w) => w.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
+    if (wd) {
+      await sendNotification(wd.user_id, "dispute", "❌ Withdrawal Rejected", "Your withdrawal request was rejected. Your funds remain in your wallet. Contact support if needed.", "/wallet");
+    }
     setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: "rejected" } : w)));
     setProcessingId(null); toast.success("Withdrawal rejected");
   }
@@ -215,31 +232,45 @@ export function AdminDashboard() {
     const { data: allServices } = await supabase.from("provider_services").select("max_price, capacity, status").eq("provider_id", providerId);
     const totalDeposit = (allServices ?? []).filter((s: any) => s.status === "approved").reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
+    await sendNotification(providerId, "success", "✅ Service Approved!", "Your visa service has been approved. Post your first ad to start receiving orders from clients.", "/post-ad");
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
     setProcessingId(null); toast.success("Service approved");
   }
 
   async function rejectService(id: string) {
     setProcessingId(id);
+    const svc = providerServices.find((s) => s.id === id);
     await supabase.from("provider_services").update({ status: "rejected" }).eq("id", id);
+    if (svc) {
+      await sendNotification(svc.provider_id, "dispute", "❌ Service Rejected", "Your service request was rejected. Please review your details and resubmit.", "/setup-services");
+    }
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s)));
     setProcessingId(null); toast.success("Service rejected");
   }
 
   const handleSuspendUser = async (userId: string) => {
     await supabase.from("profiles").update({ is_suspended: true }).eq("id", userId);
+    await sendNotification(userId, "dispute", "🚫 Account Suspended", "Your account has been suspended. Contact support for more information.", "/help");
     setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: true } : u)));
     toast.success("User suspended");
   };
 
   const handleApproveAd = async (id: string) => {
     await supabase.from("ads").update({ status: "active" }).eq("id", id);
+    const ad = adminAds.find((a) => a.id === id);
+    if (ad) {
+      await sendNotification(ad.provider_id, "success", "✅ Ad Approved & Live!", `Your ad "${ad.title}" is now live. Clients can find and contact you.`, "/my-ads");
+    }
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "active" } : a)));
     toast.success("Ad approved and live");
   };
 
   const handleSuspendAd = async (id: string) => {
     await supabase.from("ads").update({ status: "suspended" }).eq("id", id);
+    const ad = adminAds.find((a) => a.id === id);
+    if (ad) {
+      await sendNotification(ad.provider_id, "dispute", "⚠️ Ad Suspended", `Your ad "${ad.title}" has been suspended. Contact support for details.`, "/help");
+    }
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "suspended" } : a)));
     toast.success("Ad suspended");
   };
@@ -247,6 +278,11 @@ export function AdminDashboard() {
   const handleUpdateDispute = async () => {
     if (!selectedDispute) return;
     await supabase.from("disputes").update({ status: disputeStatus, admin_notes: disputeNotes }).eq("id", selectedDispute);
+    const dispute = disputes.find((d) => d.id === selectedDispute);
+    if (dispute) {
+      const statusLabel = disputeStatus === "resolved_buyer" ? "Resolved in your favor ✅" : disputeStatus === "resolved_seller" ? "Resolved in favor of provider" : disputeStatus;
+      await sendNotification(dispute.filed_by, "dispute", "⚖️ Dispute Update", `Your dispute status has been updated to: ${statusLabel}. ${disputeNotes ? `Note: ${disputeNotes.slice(0, 80)}` : ""}`, "/disputes");
+    }
     setDisputes((prev) => prev.map((d) => (d.id === selectedDispute ? { ...d, status: disputeStatus } : d)));
     setDisputeDialogOpen(false); toast.success("Dispute updated");
   };
@@ -310,21 +346,11 @@ export function AdminDashboard() {
       ) : (
         <Tabs defaultValue="deposits">
           <TabsList className="mb-6 flex-wrap gap-1">
-            <TabsTrigger value="deposits">
-              Deposits {pendingDeposits > 0 && <span className="ml-1.5 bg-green-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingDeposits}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="withdrawals">
-              Withdrawals {pendingWithdrawals > 0 && <span className="ml-1.5 bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingWithdrawals}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="services">
-              Services {pendingServices > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingServices}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="kyc">
-              KYC {pendingKyc > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingKyc}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="support">
-              Support {openSupport > 0 && <span className="ml-1.5 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{openSupport}</span>}
-            </TabsTrigger>
+            <TabsTrigger value="deposits">Deposits {pendingDeposits > 0 && <span className="ml-1.5 bg-green-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingDeposits}</span>}</TabsTrigger>
+            <TabsTrigger value="withdrawals">Withdrawals {pendingWithdrawals > 0 && <span className="ml-1.5 bg-orange-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingWithdrawals}</span>}</TabsTrigger>
+            <TabsTrigger value="services">Services {pendingServices > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingServices}</span>}</TabsTrigger>
+            <TabsTrigger value="kyc">KYC {pendingKyc > 0 && <span className="ml-1.5 bg-[#D4AF37] text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{pendingKyc}</span>}</TabsTrigger>
+            <TabsTrigger value="support">Support {openSupport > 0 && <span className="ml-1.5 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">{openSupport}</span>}</TabsTrigger>
             <TabsTrigger value="ads">Ads</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="disputes">Disputes</TabsTrigger>
@@ -432,10 +458,7 @@ export function AdminDashboard() {
               <Card className="border-border/60 md:col-span-1">
                 <CardContent className="p-0">
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <HeadphonesIcon size={16} className="text-[#004B49]" />
-                      <span className="font-bold text-sm text-gray-800">Conversations</span>
-                    </div>
+                    <div className="flex items-center gap-2"><HeadphonesIcon size={16} className="text-[#004B49]" /><span className="font-bold text-sm text-gray-800">Conversations</span></div>
                     <span className="text-xs text-gray-400">{supportConvs.length} total</span>
                   </div>
                   {supportConvs.length === 0 ? (
@@ -455,11 +478,7 @@ export function AdminDashboard() {
                                 <div className={`text-sm truncate ${isUnread ? "font-black text-gray-900" : "font-semibold text-gray-800"}`}>{conv.user_name || "Unknown"}</div>
                                 <div className="text-[10px] text-gray-400 truncate">{conv.user_email}</div>
                               </div>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                                conv.status === "open" ? "bg-blue-100 text-blue-600"
-                                : conv.status === "replied" ? "bg-green-100 text-green-600"
-                                : "bg-gray-100 text-gray-500"
-                              }`}>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${conv.status === "open" ? "bg-blue-100 text-blue-600" : conv.status === "replied" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}>
                                 {conv.status === "open" ? "● new" : conv.status === "replied" ? "replied" : conv.status}
                               </span>
                             </div>
@@ -477,37 +496,24 @@ export function AdminDashboard() {
                 <CardContent className="p-0 flex flex-col" style={{ height: "500px" }}>
                   {!selectedConv ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
-                      <div className="w-14 h-14 rounded-2xl bg-[#E8F0EF] flex items-center justify-center mb-3">
-                        <HeadphonesIcon size={24} className="text-[#004B49]" />
-                      </div>
+                      <div className="w-14 h-14 rounded-2xl bg-[#E8F0EF] flex items-center justify-center mb-3"><HeadphonesIcon size={24} className="text-[#004B49]" /></div>
                       <div className="font-bold text-gray-600 text-sm">Select a conversation</div>
                       <div className="text-xs text-gray-400 mt-1">Click on a user from the left</div>
                     </div>
                   ) : (
                     <>
                       <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">
-                          {selectedConv.user_name?.[0]?.toUpperCase() ?? "?"}
-                        </div>
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">{selectedConv.user_name?.[0]?.toUpperCase() ?? "?"}</div>
                         <div className="flex-1">
                           <div className="font-bold text-sm text-gray-800">{selectedConv.user_name}</div>
                           <div className="text-xs text-gray-400">{selectedConv.user_email}</div>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          selectedConv.status === "open" ? "bg-blue-100 text-blue-600"
-                          : selectedConv.status === "replied" ? "bg-green-100 text-green-600"
-                          : "bg-gray-100 text-gray-500"
-                        }`}>{selectedConv.status}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedConv.status === "open" ? "bg-blue-100 text-blue-600" : selectedConv.status === "replied" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}>{selectedConv.status}</span>
                       </div>
-
                       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 bg-gray-50/50">
                         {convReplies.map((msg) => (
                           <div key={msg.id} className={`flex ${msg.from_role === "admin" ? "justify-end" : "justify-start"}`}>
-                            <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
-                              msg.from_role === "admin"
-                                ? "bg-[#004B49] text-white rounded-br-sm"
-                                : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"
-                            }`}>
+                            <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${msg.from_role === "admin" ? "bg-[#004B49] text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm"}`}>
                               <div>{msg.text}</div>
                               <div className={`text-[9px] mt-1 ${msg.from_role === "admin" ? "text-white/50" : "text-gray-400"}`}>
                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -518,7 +524,6 @@ export function AdminDashboard() {
                         ))}
                         <div ref={chatEndRef} />
                       </div>
-
                       <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
                         <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && void sendReply()}
