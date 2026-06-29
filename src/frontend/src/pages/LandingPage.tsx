@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download, Mail } from "lucide-react";
+import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download, Mail, Users, CreditCard, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
@@ -58,14 +58,126 @@ const BrandLight = (
   </span>
 );
 
-// Social links footer — same for both logged in and logged out
+// ── HOW IT WORKS ──
+function HowItWorks({ role }: { role: "buyer" | "provider" }) {
+  const buyerSteps = [
+    {
+      icon: "🔍",
+      title: "Find a Provider",
+      desc: "Browse KYC-verified visa agents by country and visa type.",
+    },
+    {
+      icon: "💰",
+      title: "Deposit to Escrow",
+      desc: "Fund your wallet with USDT. Money is locked safely — not sent to provider yet.",
+    },
+    {
+      icon: "📋",
+      title: "Submit Documents",
+      desc: "Upload required documents. Provider starts your visa process immediately.",
+    },
+    {
+      icon: "✅",
+      title: "Confirm & Release",
+      desc: "Once visa is approved, confirm receipt. Funds are released to the provider.",
+    },
+  ];
+
+  const providerSteps = [
+    {
+      icon: "📝",
+      title: "Create Account",
+      desc: "Sign up as a Visa Provider and submit your business details.",
+    },
+    {
+      icon: "✅",
+      title: "Get KYC Verified",
+      desc: "Complete identity and license verification. Build trust with clients worldwide.",
+    },
+    {
+      icon: "📢",
+      title: "Post Your Services",
+      desc: "List your visa services with pricing, processing time, and details.",
+    },
+    {
+      icon: "💸",
+      title: "Receive Payments",
+      desc: "Get paid securely via Escrow. Funds released after client confirmation.",
+    },
+  ];
+
+  const steps = role === "buyer" ? buyerSteps : providerSteps;
+  const [activeRole, setActiveRole] = useState<"buyer" | "provider">(role);
+  const activeSteps = activeRole === "buyer" ? buyerSteps : providerSteps;
+
+  return (
+    <div className="mx-4 mt-7">
+      <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Simple & Safe</span>
+      <h2 className="font-black text-gray-800 text-base mb-3">How Crossingate Works</h2>
+
+      {/* Toggle */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+        <button
+          onClick={() => setActiveRole("buyer")}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeRole === "buyer" ? "bg-white text-[#004B49] shadow-sm" : "text-gray-400"}`}>
+          🔎 I'm a Visa Buyer
+        </button>
+        <button
+          onClick={() => setActiveRole("provider")}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeRole === "provider" ? "bg-white text-[#004B49] shadow-sm" : "text-gray-400"}`}>
+          🏢 I'm a Provider
+        </button>
+      </div>
+
+      {/* Steps */}
+      <div className="flex flex-col gap-3">
+        {activeSteps.map((step, i) => (
+          <div key={i} className="flex gap-3 items-start">
+            <div className="flex flex-col items-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-white border-2 border-[#004B49]/10 flex items-center justify-center text-xl shadow-sm">
+                {step.icon}
+              </div>
+              {i < activeSteps.length - 1 && (
+                <div className="w-0.5 h-5 bg-[#004B49]/10 mt-1" />
+              )}
+            </div>
+            <div className="flex-1 pb-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[10px] font-black text-[#004B49] bg-[#E8F0EF] px-2 py-0.5 rounded-full">Step {i + 1}</span>
+              </div>
+              <div className="font-bold text-gray-800 text-sm">{step.title}</div>
+              <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">{step.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div className="mt-4 bg-gradient-to-r from-[#004B49] to-[#00615e] rounded-2xl p-4 flex items-center gap-3">
+        <div className="flex-1">
+          <div className="text-white font-black text-sm">
+            {activeRole === "buyer" ? "Ready to find your visa agent?" : "Ready to grow your business?"}
+          </div>
+          <div className="text-white/60 text-xs mt-0.5">
+            {activeRole === "buyer" ? "Browse verified providers now" : "Join thousands of providers"}
+          </div>
+        </div>
+        <Link to="/signup">
+          <div className="bg-[#D4AF37] text-white text-xs font-black px-3 py-2 rounded-xl flex-shrink-0">
+            Get Started
+          </div>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function SocialFooter() {
   return (
     <div className="mx-4 mt-4 mb-2">
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-3">Contact & Follow Us</div>
         <div className="flex flex-col gap-1">
-
           <a href="mailto:info@crossingate.com"
             className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
             <div className="w-9 h-9 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
@@ -76,7 +188,6 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">info@crossingate.com</div>
             </div>
           </a>
-
           <a href="https://www.instagram.com/crossingate.insta?igsh=amU0ZmxyaTE3bnB3"
             target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
@@ -89,7 +200,6 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">@crossingate.insta</div>
             </div>
           </a>
-
           <a href="https://facebook.com/crossingate"
             target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
@@ -101,7 +211,6 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">facebook.com/crossingate</div>
             </div>
           </a>
-
         </div>
       </div>
     </div>
@@ -138,9 +247,7 @@ export function LandingPage() {
     if (outcome === "accepted") setShowInstallBanner(false);
   };
 
-  useEffect(() => {
-    void loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, []);
 
   async function loadData() {
     const { data: userData } = await supabase.auth.getUser();
@@ -150,7 +257,6 @@ export function LandingPage() {
       setWalletBalance(Number(profile?.wallet_balance ?? 0));
     }
     setChecked(true);
-
     setLoading(true);
     const { data } = await supabase
       .from("ads")
@@ -161,20 +267,12 @@ export function LandingPage() {
 
     if (data) {
       const mapped: AdRow[] = data.map((row: any) => ({
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        country: row.country,
-        visa_type: row.visa_type,
-        price: Number(row.price),
-        currency: row.currency,
-        processing_time: row.processing_time,
-        provider_id: row.provider_id,
-        provider_name: row.profiles?.full_name ?? null,
-        provider_kyc_status: row.profiles?.kyc_status ?? null,
+        id: row.id, title: row.title, description: row.description, country: row.country,
+        visa_type: row.visa_type, price: Number(row.price), currency: row.currency,
+        processing_time: row.processing_time, provider_id: row.provider_id,
+        provider_name: row.profiles?.full_name ?? null, provider_kyc_status: row.profiles?.kyc_status ?? null,
       }));
       setAds(mapped);
-
       const seen = new Set<string>();
       const providers: ProviderSummary[] = [];
       for (const ad of mapped) {
@@ -196,11 +294,7 @@ export function LandingPage() {
   const featuredAds = ads.slice(3, 7);
 
   if (!checked) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="animate-spin text-gray-300" size={28} />
-      </div>
-    );
+    return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
   }
 
   const InstallBanner = showInstallBanner ? (
@@ -249,6 +343,7 @@ export function LandingPage() {
     </div>
   );
 
+  // ── NOT LOGGED IN ──
   if (!loggedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F4F6F6]">
@@ -300,6 +395,9 @@ export function LandingPage() {
           </Link>
         </div>
 
+        {/* HOW IT WORKS */}
+        <HowItWorks role="buyer" />
+
         {verifiedProviders.length > 0 && (
           <div className="mt-7 px-5">
             <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Handpicked</span>
@@ -340,9 +438,7 @@ export function LandingPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="animate-spin text-gray-300" size={28} />
-          </div>
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-300" size={28} /></div>
         ) : ads.length > 0 && (
           <div className="mt-7 px-5">
             <div className="flex items-center justify-between mb-3">
@@ -386,6 +482,7 @@ export function LandingPage() {
     );
   }
 
+  // ── LOGGED IN ──
   return (
     <div className="flex flex-col bg-[#F4F6F6]">
       {InstallBanner}
@@ -446,9 +543,7 @@ export function LandingPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10">
-          <Loader2 className="animate-spin text-gray-300" size={28} />
-        </div>
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-300" size={28} /></div>
       ) : ads.length === 0 ? (
         <div className="mx-4 mt-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
@@ -488,6 +583,9 @@ export function LandingPage() {
         </>
       )}
 
+      {/* HOW IT WORKS — logged in users بھی دیکھ سکتے ہیں */}
+      <HowItWorks role="buyer" />
+
       <div className="mx-4 mt-6">
         <div className="bg-[#11201f] rounded-2xl p-4 grid grid-cols-3 divide-x divide-white/10">
           {[
@@ -505,7 +603,6 @@ export function LandingPage() {
       </div>
 
       <SocialFooter />
-
       <div className="h-6" />
     </div>
   );
