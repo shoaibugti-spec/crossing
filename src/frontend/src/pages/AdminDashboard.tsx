@@ -146,8 +146,7 @@ export function AdminDashboard() {
     });
     await supabase.from("support_messages").update({ status: "replied" }).eq("conversation_id", selectedConv.conversation_id);
     setSupportConvs((prev) => prev.map((c) => c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c));
-    // Notification to user
-    await sendNotification(selectedConv.user_id, "message", "💬 Support Reply Received", `Admin replied to your support message: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`, "/help");
+    await sendNotification(selectedConv.user_id, "message", "💬 Support Reply Received", `Admin replied: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`, "/help");
     setSendingReply(false);
     toast.success("Reply sent!");
   }
@@ -156,7 +155,7 @@ export function AdminDashboard() {
     setProcessingId(kycId);
     await supabase.from("kyc_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", kycId);
     await supabase.from("profiles").update({ kyc_status: "approved", kyc_level: 3 }).eq("id", userId);
-    await sendNotification(userId, "kyc", "✅ KYC Approved!", "Your identity has been verified successfully. You can now use Escrow payments and place orders.", "/wallet");
+    await sendNotification(userId, "kyc", "✅ KYC Approved!", "Your identity has been verified. You can now use Escrow payments and place orders.", "/wallet");
     await sendNotification(userId, "promo", "🎉 You're Verified!", "Browse visa services and place your first order with full Escrow protection.", "/ads");
     setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "approved" } : u)));
     setProcessingId(null);
@@ -170,7 +169,7 @@ export function AdminDashboard() {
     setProcessingId(selectedKyc.id);
     await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: kycRejectionReason.trim() }).eq("id", selectedKyc.id);
     await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
-    await sendNotification(selectedKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${kycRejectionReason.trim()}. Please fix the issue and resubmit your documents.`, "/kyc");
+    await sendNotification(selectedKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${kycRejectionReason.trim()}. Please fix and resubmit.`, "/kyc");
     setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
     setKycRejectDialogOpen(false); setSelectedKyc(null); setKycRejectionReason(""); setProcessingId(null);
     toast.success("KYC rejected — reason saved");
@@ -184,8 +183,8 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedDeposit.user_id).single();
     const newBalance = Number(profile?.wallet_balance ?? 0) + confirmedAmount;
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedDeposit.user_id);
-    await sendNotification(selectedDeposit.user_id, "wallet", "💰 Deposit Confirmed!", `$${confirmedAmount} USDT has been credited to your wallet. Your new balance is $${newBalance.toFixed(2)}.`, "/wallet");
-    await sendNotification(selectedDeposit.user_id, "promo", "🛍️ Ready to Order!", "Your wallet is funded. Browse visa services and place your first order securely.", "/ads");
+    await sendNotification(selectedDeposit.user_id, "wallet", "💰 Deposit Confirmed!", `$${confirmedAmount} USDT credited. New balance: $${newBalance.toFixed(2)}.`, "/wallet");
+    await sendNotification(selectedDeposit.user_id, "promo", "🛍️ Ready to Order!", "Your wallet is funded. Browse visa services now.", "/ads");
     setDeposits((prev) => prev.map((d) => (d.id === selectedDeposit.id ? { ...d, status: "completed" } : d)));
     setDepositDialogOpen(false); setSelectedDeposit(null); setDepositAmountOverride(""); setProcessingId(null);
     toast.success(`Deposit of $${confirmedAmount} confirmed`);
@@ -195,9 +194,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     const dep = deposits.find((d) => d.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
-    if (dep) {
-      await sendNotification(dep.user_id, "dispute", "❌ Deposit Rejected", "Your deposit request was rejected. Please check your payment details and try again.", "/wallet");
-    }
+    if (dep) await sendNotification(dep.user_id, "dispute", "❌ Deposit Rejected", "Your deposit was rejected. Please check details and try again.", "/wallet");
     setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d)));
     setProcessingId(null); toast.success("Deposit rejected");
   }
@@ -209,7 +206,7 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedWithdraw.user_id).single();
     const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - Math.abs(selectedWithdraw.amount));
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedWithdraw.user_id);
-    await sendNotification(selectedWithdraw.user_id, "wallet", "✅ Withdrawal Sent!", `$${Math.abs(selectedWithdraw.amount)} USDT has been sent to your wallet address. Check your TRC-20 wallet.`, "/wallet");
+    await sendNotification(selectedWithdraw.user_id, "wallet", "✅ Withdrawal Sent!", `$${Math.abs(selectedWithdraw.amount)} USDT sent to your wallet address.`, "/wallet");
     setWithdrawals((prev) => prev.map((w) => (w.id === selectedWithdraw.id ? { ...w, status: "completed" } : w)));
     setWithdrawDialogOpen(false); setSelectedWithdraw(null); setProcessingId(null);
     toast.success("Withdrawal confirmed");
@@ -219,9 +216,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     const wd = withdrawals.find((w) => w.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
-    if (wd) {
-      await sendNotification(wd.user_id, "dispute", "❌ Withdrawal Rejected", "Your withdrawal request was rejected. Your funds remain in your wallet. Contact support if needed.", "/wallet");
-    }
+    if (wd) await sendNotification(wd.user_id, "dispute", "❌ Withdrawal Rejected", "Your withdrawal was rejected. Funds remain in wallet.", "/wallet");
     setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: "rejected" } : w)));
     setProcessingId(null); toast.success("Withdrawal rejected");
   }
@@ -232,7 +227,7 @@ export function AdminDashboard() {
     const { data: allServices } = await supabase.from("provider_services").select("max_price, capacity, status").eq("provider_id", providerId);
     const totalDeposit = (allServices ?? []).filter((s: any) => s.status === "approved").reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
-    await sendNotification(providerId, "success", "✅ Service Approved!", "Your visa service has been approved. Post your first ad to start receiving orders from clients.", "/post-ad");
+    await sendNotification(providerId, "success", "✅ Service Approved!", "Your visa service is live. Post your first ad to start receiving orders.", "/post-ad");
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
     setProcessingId(null); toast.success("Service approved");
   }
@@ -241,9 +236,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     const svc = providerServices.find((s) => s.id === id);
     await supabase.from("provider_services").update({ status: "rejected" }).eq("id", id);
-    if (svc) {
-      await sendNotification(svc.provider_id, "dispute", "❌ Service Rejected", "Your service request was rejected. Please review your details and resubmit.", "/setup-services");
-    }
+    if (svc) await sendNotification(svc.provider_id, "dispute", "❌ Service Rejected", "Your service was rejected. Please review and resubmit.", "/setup-services");
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s)));
     setProcessingId(null); toast.success("Service rejected");
   }
@@ -255,12 +248,17 @@ export function AdminDashboard() {
     toast.success("User suspended");
   };
 
+  const handleUnsuspendUser = async (userId: string) => {
+    await supabase.from("profiles").update({ is_suspended: false }).eq("id", userId);
+    await sendNotification(userId, "success", "✅ Account Restored", "Your account has been restored. You can now use Crossingate normally.", "/");
+    setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: false } : u)));
+    toast.success("User unsuspended ✅");
+  };
+
   const handleApproveAd = async (id: string) => {
     await supabase.from("ads").update({ status: "active" }).eq("id", id);
     const ad = adminAds.find((a) => a.id === id);
-    if (ad) {
-      await sendNotification(ad.provider_id, "success", "✅ Ad Approved & Live!", `Your ad "${ad.title}" is now live. Clients can find and contact you.`, "/my-ads");
-    }
+    if (ad) await sendNotification(ad.provider_id, "success", "✅ Ad Approved & Live!", `Your ad "${ad.title}" is now live.`, "/my-ads");
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "active" } : a)));
     toast.success("Ad approved and live");
   };
@@ -268,9 +266,7 @@ export function AdminDashboard() {
   const handleSuspendAd = async (id: string) => {
     await supabase.from("ads").update({ status: "suspended" }).eq("id", id);
     const ad = adminAds.find((a) => a.id === id);
-    if (ad) {
-      await sendNotification(ad.provider_id, "dispute", "⚠️ Ad Suspended", `Your ad "${ad.title}" has been suspended. Contact support for details.`, "/help");
-    }
+    if (ad) await sendNotification(ad.provider_id, "dispute", "⚠️ Ad Suspended", `Your ad "${ad.title}" has been suspended.`, "/help");
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "suspended" } : a)));
     toast.success("Ad suspended");
   };
@@ -281,7 +277,7 @@ export function AdminDashboard() {
     const dispute = disputes.find((d) => d.id === selectedDispute);
     if (dispute) {
       const statusLabel = disputeStatus === "resolved_buyer" ? "Resolved in your favor ✅" : disputeStatus === "resolved_seller" ? "Resolved in favor of provider" : disputeStatus;
-      await sendNotification(dispute.filed_by, "dispute", "⚖️ Dispute Update", `Your dispute status has been updated to: ${statusLabel}. ${disputeNotes ? `Note: ${disputeNotes.slice(0, 80)}` : ""}`, "/disputes");
+      await sendNotification(dispute.filed_by, "dispute", "⚖️ Dispute Update", `Status: ${statusLabel}. ${disputeNotes ? `Note: ${disputeNotes.slice(0, 80)}` : ""}`, "/disputes");
     }
     setDisputes((prev) => prev.map((d) => (d.id === selectedDispute ? { ...d, status: disputeStatus } : d)));
     setDisputeDialogOpen(false); toast.success("Dispute updated");
@@ -527,7 +523,7 @@ export function AdminDashboard() {
                       <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
                         <input value={replyText} onChange={(e) => setReplyText(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && void sendReply()}
-                          placeholder="Type your reply to the user..."
+                          placeholder="Type your reply..."
                           className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
                         <Button onClick={() => void sendReply()} disabled={!replyText.trim() || sendingReply}
                           className="bg-[#004B49] hover:bg-[#00302e] text-white h-10 w-10 p-0 rounded-xl flex-shrink-0">
@@ -576,7 +572,26 @@ export function AdminDashboard() {
                         <TableCell><Badge variant="outline" className="text-xs capitalize">{user.role}</Badge></TableCell>
                         <TableCell className="text-xs capitalize text-muted-foreground">{user.kyc_status}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right">{!user.is_suspended && user.role !== "admin" && <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)} className="gap-1 text-xs text-orange-600 border-orange-200 h-7"><Ban size={11} /> Suspend</Button>}{user.is_suspended && <span className="text-xs text-red-500 font-bold">Suspended</span>}</TableCell>
+                        <TableCell className="text-right">
+                          {user.role !== "admin" && (
+                            <div className="flex items-center justify-end gap-2">
+                              {!user.is_suspended ? (
+                                <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)}
+                                  className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
+                                  <Ban size={11} /> Suspend
+                                </Button>
+                              ) : (
+                                <>
+                                  <span className="text-xs text-red-500 font-bold">Suspended</span>
+                                  <Button size="sm" variant="outline" onClick={() => void handleUnsuspendUser(user.id)}
+                                    className="gap-1 text-xs text-green-600 border-green-200 h-7">
+                                    <CheckCircle size={11} /> Restore
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -621,7 +636,6 @@ export function AdminDashboard() {
             <div className="space-y-1.5">
               <Label>Rejection Reason *</Label>
               <Textarea placeholder="e.g. Document not clear..." rows={4} value={kycRejectionReason} onChange={(e) => setKycRejectionReason(e.target.value)} />
-              <p className="text-xs text-muted-foreground">This reason will be shown to the user so they can fix and resubmit.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {["Document not clearly visible", "Selfie does not match document", "Document expired", "Wrong document type", "Poor lighting — retake photos", "Face video too short"].map((r) => (
@@ -647,7 +661,7 @@ export function AdminDashboard() {
             <div className="space-y-1.5">
               <Label>Confirm Amount (USDT)</Label>
               <Input type="number" value={depositAmountOverride} onChange={(e) => setDepositAmountOverride(e.target.value)} placeholder="Enter confirmed amount" />
-              <p className="text-xs text-muted-foreground">User claimed: ${selectedDeposit?.amount}. Adjust if actual amount differs.</p>
+              <p className="text-xs text-muted-foreground">User claimed: ${selectedDeposit?.amount}.</p>
             </div>
           </div>
           <DialogFooter>
