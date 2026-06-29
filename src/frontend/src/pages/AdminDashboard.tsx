@@ -1,50 +1,30 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  AlertTriangle, Ban, CheckCircle, Loader2, Lock,
-  Shield, Users, XCircle, ArrowDownLeft, HeadphonesIcon, Send,
-} from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle, Loader2, Lock, Shield, Users, XCircle, ArrowDownLeft, HeadphonesIcon, Send } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 
 interface SupportConv {
-  id: string;
-  conversation_id: string;
-  user_id: string;
-  user_name: string;
-  user_email: string;
-  message: string;
-  status: string;
-  created_at: string;
+  id: string; conversation_id: string; user_id: string;
+  user_name: string; user_email: string; message: string;
+  status: string; created_at: string;
 }
-
 interface SupportReply {
-  id: string;
-  text: string;
-  from_role: "user" | "admin";
-  created_at: string;
+  id: string; text: string; from_role: "user" | "admin"; created_at: string;
 }
 
 async function sendNotification(userId: string, type: string, title: string, body: string, link?: string) {
-  await supabase.from("notifications").insert({
-    user_id: userId, type, title, body, link: link ?? null, is_read: false,
-  });
+  await supabase.from("notifications").insert({ user_id: userId, type, title, body, link: link ?? null, is_read: false });
 }
 
 export function AdminDashboard() {
@@ -52,7 +32,6 @@ export function AdminDashboard() {
   const [accessChecked, setAccessChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminId, setAdminId] = useState<string | null>(null);
-
   const [kycUsers, setKycUsers] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminAds, setAdminAds] = useState<any[]>([]);
@@ -62,24 +41,19 @@ export function AdminDashboard() {
   const [providerServices, setProviderServices] = useState<any[]>([]);
   const [supportConvs, setSupportConvs] = useState<SupportConv[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState<string | null>(null);
   const [disputeStatus, setDisputeStatus] = useState("under_review");
   const [disputeNotes, setDisputeNotes] = useState("");
-
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
   const [depositAmountOverride, setDepositAmountOverride] = useState("");
-
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [selectedWithdraw, setSelectedWithdraw] = useState<any | null>(null);
-
   const [kycRejectDialogOpen, setKycRejectDialogOpen] = useState(false);
   const [selectedKyc, setSelectedKyc] = useState<any | null>(null);
   const [kycRejectionReason, setKycRejectionReason] = useState("");
-
   const [selectedConv, setSelectedConv] = useState<SupportConv | null>(null);
   const [convReplies, setConvReplies] = useState<SupportReply[]>([]);
   const [replyText, setReplyText] = useState("");
@@ -137,13 +111,7 @@ export function AdminDashboard() {
     setSendingReply(true);
     const text = replyText.trim();
     setReplyText("");
-    await supabase.from("support_replies").insert({
-      conversation_id: selectedConv.conversation_id,
-      message_id: selectedConv.id,
-      text,
-      from_role: "admin",
-      user_id: adminId,
-    });
+    await supabase.from("support_replies").insert({ conversation_id: selectedConv.conversation_id, message_id: selectedConv.id, text, from_role: "admin", user_id: adminId });
     await supabase.from("support_messages").update({ status: "replied" }).eq("conversation_id", selectedConv.conversation_id);
     setSupportConvs((prev) => prev.map((c) => c.conversation_id === selectedConv.conversation_id ? { ...c, status: "replied" } : c));
     await sendNotification(selectedConv.user_id, "message", "💬 Support Reply Received", `Admin replied: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`, "/help");
@@ -155,11 +123,10 @@ export function AdminDashboard() {
     setProcessingId(kycId);
     await supabase.from("kyc_submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", kycId);
     await supabase.from("profiles").update({ kyc_status: "approved", kyc_level: 3 }).eq("id", userId);
-    await sendNotification(userId, "kyc", "✅ KYC Approved!", "Your identity has been verified. You can now use Escrow payments and place orders.", "/wallet");
-    await sendNotification(userId, "promo", "🎉 You're Verified!", "Browse visa services and place your first order with full Escrow protection.", "/ads");
+    await sendNotification(userId, "kyc", "✅ KYC Approved!", "Your identity has been verified.", "/wallet");
+    await sendNotification(userId, "promo", "🎉 You're Verified!", "Browse visa services now.", "/ads");
     setKycUsers((prev) => prev.map((u) => (u.id === kycId ? { ...u, status: "approved" } : u)));
-    setProcessingId(null);
-    toast.success("KYC approved ✅");
+    setProcessingId(null); toast.success("KYC approved ✅");
   };
 
   const openRejectKyc = (kyc: any) => { setSelectedKyc(kyc); setKycRejectionReason(""); setKycRejectDialogOpen(true); };
@@ -169,10 +136,10 @@ export function AdminDashboard() {
     setProcessingId(selectedKyc.id);
     await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: kycRejectionReason.trim() }).eq("id", selectedKyc.id);
     await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", selectedKyc.user_id);
-    await sendNotification(selectedKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${kycRejectionReason.trim()}. Please fix and resubmit.`, "/kyc");
+    await sendNotification(selectedKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${kycRejectionReason.trim()}`, "/kyc");
     setKycUsers((prev) => prev.map((u) => (u.id === selectedKyc.id ? { ...u, status: "rejected", rejection_reason: kycRejectionReason.trim() } : u)));
     setKycRejectDialogOpen(false); setSelectedKyc(null); setKycRejectionReason(""); setProcessingId(null);
-    toast.success("KYC rejected — reason saved");
+    toast.success("KYC rejected");
   };
 
   async function confirmDeposit() {
@@ -183,8 +150,7 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedDeposit.user_id).single();
     const newBalance = Number(profile?.wallet_balance ?? 0) + confirmedAmount;
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedDeposit.user_id);
-    await sendNotification(selectedDeposit.user_id, "wallet", "💰 Deposit Confirmed!", `$${confirmedAmount} USDT credited. New balance: $${newBalance.toFixed(2)}.`, "/wallet");
-    await sendNotification(selectedDeposit.user_id, "promo", "🛍️ Ready to Order!", "Your wallet is funded. Browse visa services now.", "/ads");
+    await sendNotification(selectedDeposit.user_id, "wallet", "💰 Deposit Confirmed!", `$${confirmedAmount} USDT credited.`, "/wallet");
     setDeposits((prev) => prev.map((d) => (d.id === selectedDeposit.id ? { ...d, status: "completed" } : d)));
     setDepositDialogOpen(false); setSelectedDeposit(null); setDepositAmountOverride(""); setProcessingId(null);
     toast.success(`Deposit of $${confirmedAmount} confirmed`);
@@ -194,7 +160,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     const dep = deposits.find((d) => d.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
-    if (dep) await sendNotification(dep.user_id, "dispute", "❌ Deposit Rejected", "Your deposit was rejected. Please check details and try again.", "/wallet");
+    if (dep) await sendNotification(dep.user_id, "dispute", "❌ Deposit Rejected", "Your deposit was rejected.", "/wallet");
     setDeposits((prev) => prev.map((d) => (d.id === id ? { ...d, status: "rejected" } : d)));
     setProcessingId(null); toast.success("Deposit rejected");
   }
@@ -206,7 +172,7 @@ export function AdminDashboard() {
     const { data: profile } = await supabase.from("profiles").select("wallet_balance").eq("id", selectedWithdraw.user_id).single();
     const newBalance = Math.max(0, Number(profile?.wallet_balance ?? 0) - Math.abs(selectedWithdraw.amount));
     await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", selectedWithdraw.user_id);
-    await sendNotification(selectedWithdraw.user_id, "wallet", "✅ Withdrawal Sent!", `$${Math.abs(selectedWithdraw.amount)} USDT sent to your wallet address.`, "/wallet");
+    await sendNotification(selectedWithdraw.user_id, "wallet", "✅ Withdrawal Sent!", `$${Math.abs(selectedWithdraw.amount)} USDT sent.`, "/wallet");
     setWithdrawals((prev) => prev.map((w) => (w.id === selectedWithdraw.id ? { ...w, status: "completed" } : w)));
     setWithdrawDialogOpen(false); setSelectedWithdraw(null); setProcessingId(null);
     toast.success("Withdrawal confirmed");
@@ -216,7 +182,7 @@ export function AdminDashboard() {
     setProcessingId(id);
     const wd = withdrawals.find((w) => w.id === id);
     await supabase.from("wallet_transactions").update({ status: "rejected" }).eq("id", id);
-    if (wd) await sendNotification(wd.user_id, "dispute", "❌ Withdrawal Rejected", "Your withdrawal was rejected. Funds remain in wallet.", "/wallet");
+    if (wd) await sendNotification(wd.user_id, "dispute", "❌ Withdrawal Rejected", "Funds remain in wallet.", "/wallet");
     setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, status: "rejected" } : w)));
     setProcessingId(null); toast.success("Withdrawal rejected");
   }
@@ -227,7 +193,7 @@ export function AdminDashboard() {
     const { data: allServices } = await supabase.from("provider_services").select("max_price, capacity, status").eq("provider_id", providerId);
     const totalDeposit = (allServices ?? []).filter((s: any) => s.status === "approved").reduce((sum: number, s: any) => sum + s.max_price * 2 * s.capacity, 0);
     await supabase.from("profiles").update({ security_deposit: totalDeposit }).eq("id", providerId);
-    await sendNotification(providerId, "success", "✅ Service Approved!", "Your visa service is live. Post your first ad to start receiving orders.", "/post-ad");
+    await sendNotification(providerId, "success", "✅ Service Approved!", "Your visa service is live.", "/post-ad");
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "approved" } : s)));
     setProcessingId(null); toast.success("Service approved");
   }
@@ -236,37 +202,37 @@ export function AdminDashboard() {
     setProcessingId(id);
     const svc = providerServices.find((s) => s.id === id);
     await supabase.from("provider_services").update({ status: "rejected" }).eq("id", id);
-    if (svc) await sendNotification(svc.provider_id, "dispute", "❌ Service Rejected", "Your service was rejected. Please review and resubmit.", "/setup-services");
+    if (svc) await sendNotification(svc.provider_id, "dispute", "❌ Service Rejected", "Please review and resubmit.", "/setup-services");
     setProviderServices((prev) => prev.map((s) => (s.id === id ? { ...s, status: "rejected" } : s)));
     setProcessingId(null); toast.success("Service rejected");
   }
 
   const handleSuspendUser = async (userId: string) => {
     await supabase.from("profiles").update({ is_suspended: true }).eq("id", userId);
-    await sendNotification(userId, "dispute", "🚫 Account Suspended", "Your account has been suspended. Contact support for more information.", "/help");
+    await sendNotification(userId, "dispute", "🚫 Account Suspended", "Contact support for more information.", "/help");
     setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: true } : u)));
     toast.success("User suspended");
   };
 
   const handleUnsuspendUser = async (userId: string) => {
     await supabase.from("profiles").update({ is_suspended: false }).eq("id", userId);
-    await sendNotification(userId, "success", "✅ Account Restored", "Your account has been restored. You can now use Crossingate normally.", "/");
+    await sendNotification(userId, "success", "✅ Account Restored", "You can now use Crossingate normally.", "/");
     setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_suspended: false } : u)));
-    toast.success("User unsuspended ✅");
+    toast.success("User restored ✅");
   };
 
   const handleApproveAd = async (id: string) => {
     await supabase.from("ads").update({ status: "active" }).eq("id", id);
     const ad = adminAds.find((a) => a.id === id);
-    if (ad) await sendNotification(ad.provider_id, "success", "✅ Ad Approved & Live!", `Your ad "${ad.title}" is now live.`, "/my-ads");
+    if (ad) await sendNotification(ad.provider_id, "success", "✅ Ad Approved!", `"${ad.title}" is now live.`, "/my-ads");
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "active" } : a)));
-    toast.success("Ad approved and live");
+    toast.success("Ad approved");
   };
 
   const handleSuspendAd = async (id: string) => {
     await supabase.from("ads").update({ status: "suspended" }).eq("id", id);
     const ad = adminAds.find((a) => a.id === id);
-    if (ad) await sendNotification(ad.provider_id, "dispute", "⚠️ Ad Suspended", `Your ad "${ad.title}" has been suspended.`, "/help");
+    if (ad) await sendNotification(ad.provider_id, "dispute", "⚠️ Ad Suspended", `"${ad.title}" suspended.`, "/help");
     setAdminAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: "suspended" } : a)));
     toast.success("Ad suspended");
   };
@@ -277,7 +243,7 @@ export function AdminDashboard() {
     const dispute = disputes.find((d) => d.id === selectedDispute);
     if (dispute) {
       const statusLabel = disputeStatus === "resolved_buyer" ? "Resolved in your favor ✅" : disputeStatus === "resolved_seller" ? "Resolved in favor of provider" : disputeStatus;
-      await sendNotification(dispute.filed_by, "dispute", "⚖️ Dispute Update", `Status: ${statusLabel}. ${disputeNotes ? `Note: ${disputeNotes.slice(0, 80)}` : ""}`, "/disputes");
+      await sendNotification(dispute.filed_by, "dispute", "⚖️ Dispute Update", `Status: ${statusLabel}.`, "/disputes");
     }
     setDisputes((prev) => prev.map((d) => (d.id === selectedDispute ? { ...d, status: disputeStatus } : d)));
     setDisputeDialogOpen(false); toast.success("Dispute updated");
@@ -313,6 +279,7 @@ export function AdminDashboard() {
   ];
 
   if (!accessChecked) return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
+
   if (!isAdmin) return (
     <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
       <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><Lock size={28} className="text-red-400" /></div>
@@ -487,7 +454,6 @@ export function AdminDashboard() {
                   )}
                 </CardContent>
               </Card>
-
               <Card className="border-border/60 md:col-span-2">
                 <CardContent className="p-0 flex flex-col" style={{ height: "500px" }}>
                   {!selectedConv ? (
@@ -576,14 +542,16 @@ export function AdminDashboard() {
                           {user.role !== "admin" && (
                             <div className="flex items-center justify-end gap-2">
                               {!user.is_suspended ? (
-                                <Button size="sm" variant="outline" onClick={() => void handleSuspendUser(user.id)}
+                                <Button size="sm" variant="outline"
+                                  onClick={() => void handleSuspendUser(user.id)}
                                   className="gap-1 text-xs text-orange-600 border-orange-200 h-7">
                                   <Ban size={11} /> Suspend
                                 </Button>
                               ) : (
                                 <>
                                   <span className="text-xs text-red-500 font-bold">Suspended</span>
-                                  <Button size="sm" variant="outline" onClick={() => void handleUnsuspendUser(user.id)}
+                                  <Button size="sm" variant="outline"
+                                    onClick={() => void handleUnsuspendUser(user.id)}
                                     className="gap-1 text-xs text-green-600 border-green-200 h-7">
                                     <CheckCircle size={11} /> Restore
                                   </Button>
