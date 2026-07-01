@@ -1,7 +1,7 @@
 import {
-  AlertTriangle, Ban, CheckCircle, Loader2, Lock, Shield, Users, XCircle,
+  Ban, CheckCircle, Loader2, Lock, Shield, Users, XCircle,
   ArrowDownLeft, ArrowUpRight, HeadphonesIcon, Send, FileText, Megaphone,
-  Scale, ChevronDown, ChevronUp, RefreshCw, X,
+  Scale, RefreshCw, X,
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -19,15 +19,6 @@ interface SupportReply {
 async function sendNotification(userId: string, type: string, title: string, body: string, link?: string) {
   await supabase.from("notifications").insert({ user_id: userId, type, title, body, link: link ?? null, is_read: false });
 }
-
-const REJECT_REASONS = [
-  "Document not clearly visible",
-  "Selfie does not match document",
-  "Document expired",
-  "Wrong document type",
-  "Poor lighting — retake photos",
-  "Face video too short or unclear",
-];
 
 type TabKey = "kyc" | "deposits" | "withdrawals" | "services" | "support" | "ads" | "users" | "disputes";
 
@@ -52,8 +43,8 @@ export function AdminDashboard() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
-  // KYC reject
-  const [rejectingKyc, setRejectingKyc] = useState<any | null>(null);
+  // KYC inline reject
+  const [rejectKycId, setRejectKycId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   // Deposit confirm
@@ -127,14 +118,14 @@ export function AdminDashboard() {
     showToast("✅ KYC Approved");
   }
 
-  async function rejectKYC() {
-    if (!rejectingKyc || !rejectReason.trim()) { showToast("⚠️ Reason likhen"); return; }
-    setProcessingId(rejectingKyc.id);
-    await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: rejectReason.trim() }).eq("id", rejectingKyc.id);
-    await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", rejectingKyc.user_id);
-    await sendNotification(rejectingKyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${rejectReason.trim()}. Please fix and resubmit.`, "/kyc");
-    setKycUsers((p) => p.map((u) => u.id === rejectingKyc.id ? { ...u, status: "rejected", rejection_reason: rejectReason.trim() } : u));
-    setRejectingKyc(null);
+  async function rejectKYC(kyc: any) {
+    if (!rejectReason.trim()) { showToast("⚠️ Pehle reason likhen"); return; }
+    setProcessingId(kyc.id);
+    await supabase.from("kyc_submissions").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: rejectReason.trim() }).eq("id", kyc.id);
+    await supabase.from("profiles").update({ kyc_status: "rejected", kyc_level: 0 }).eq("id", kyc.user_id);
+    await sendNotification(kyc.user_id, "dispute", "❌ KYC Rejected", `Reason: ${rejectReason.trim()}. Please fix and resubmit.`, "/kyc");
+    setKycUsers((p) => p.map((u) => u.id === kyc.id ? { ...u, status: "rejected", rejection_reason: rejectReason.trim() } : u));
+    setRejectKycId(null);
     setRejectReason("");
     setProcessingId(null);
     showToast("❌ KYC Rejected");
@@ -277,7 +268,6 @@ export function AdminDashboard() {
     setSendingReply(false);
   }
 
-  // ── Counters ──
   const cnt = {
     kyc: kycUsers.filter((u) => u.status === "pending").length,
     deposits: deposits.filter((d) => d.status === "pending").length,
@@ -331,14 +321,12 @@ export function AdminDashboard() {
   return (
     <div className="flex flex-col pb-8">
 
-      {/* Toast */}
       {toast && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl">
           {toast}
         </div>
       )}
 
-      {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-[#004B49] flex items-center justify-center">
@@ -352,7 +340,6 @@ export function AdminDashboard() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-4 gap-2 px-4 mt-4">
         {[
           { label: "Users", value: adminUsers.length, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
@@ -367,7 +354,6 @@ export function AdminDashboard() {
         ))}
       </div>
 
-      {/* Tabs — scrollable */}
       <div className="flex gap-2 overflow-x-auto px-4 mt-4 pb-1 scrollbar-none">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -403,7 +389,6 @@ export function AdminDashboard() {
                   {statusPill(k.status)}
                 </div>
 
-                {/* Photos row */}
                 <div className="flex gap-2 mb-3">
                   {k.document_front_url && (
                     <a href={k.document_front_url} target="_blank" rel="noopener noreferrer" className="flex-1">
@@ -431,29 +416,63 @@ export function AdminDashboard() {
                   )}
                 </div>
 
-                {k.rejection_reason && (
+                {k.rejection_reason && k.status === "rejected" && (
                   <div className="bg-red-50 rounded-xl px-3 py-2 text-[11px] text-red-500 mb-3">
                     <b>Rejected:</b> {k.rejection_reason}
                   </div>
                 )}
 
                 {k.status === "pending" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => void approveKYC(k)} disabled={processingId === k.id}
-                      className="flex-1 bg-[#004B49] text-white text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60">
-                      {processingId === k.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Approve
-                    </button>
-                    <button onClick={() => { setRejectingKyc(k); setRejectReason(""); }}
-                      className="flex-1 bg-red-50 text-red-500 border border-red-100 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5">
-                      <XCircle size={13} /> Reject
-                    </button>
-                  </div>
+                  <>
+                    {rejectKycId === k.id ? (
+                      /* ── Inline Reject Bar ── */
+                      <div className="flex flex-col gap-2">
+                        <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Rejection Reason likhen:</div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="e.g. Document not clear..."
+                            autoFocus
+                            className="flex-1 bg-red-50 border border-red-200 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-red-400" />
+                          <button onClick={() => void rejectKYC(k)}
+                            disabled={!rejectReason.trim() || processingId === k.id}
+                            className="bg-red-500 text-white text-xs font-bold px-4 py-3 rounded-xl disabled:opacity-50 flex-shrink-0">
+                            {processingId === k.id ? <Loader2 size={13} className="animate-spin" /> : "Reject"}
+                          </button>
+                          <button onClick={() => { setRejectKycId(null); setRejectReason(""); }}
+                            className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <X size={15} className="text-gray-400" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {["Document not clear", "Selfie doesn't match", "Document expired", "Poor lighting"].map((r) => (
+                            <button key={r} onClick={() => setRejectReason(r)}
+                              className="text-[10px] bg-gray-50 text-gray-500 px-2.5 py-1 rounded-full border border-gray-100">
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={() => void approveKYC(k)} disabled={processingId === k.id}
+                          className="flex-1 bg-[#004B49] text-white text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60">
+                          {processingId === k.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Approve
+                        </button>
+                        <button onClick={() => { setRejectKycId(k.id); setRejectReason(""); }}
+                          className="flex-1 bg-red-50 text-red-500 border border-red-100 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5">
+                          <XCircle size={13} /> Reject
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))
           )}
 
-          {/* ══ DEPOSITS TAB ══ */}
+          {/* ══ DEPOSITS ══ */}
           {activeTab === "deposits" && (
             deposits.length === 0 ? <EmptyState text="No deposit requests yet" /> :
             deposits.map((d) => (
@@ -490,7 +509,7 @@ export function AdminDashboard() {
             ))
           )}
 
-          {/* ══ WITHDRAWALS TAB ══ */}
+          {/* ══ WITHDRAWALS ══ */}
           {activeTab === "withdrawals" && (
             withdrawals.length === 0 ? <EmptyState text="No withdrawal requests yet" /> :
             withdrawals.map((w) => (
@@ -524,7 +543,7 @@ export function AdminDashboard() {
             ))
           )}
 
-          {/* ══ SERVICES TAB ══ */}
+          {/* ══ SERVICES ══ */}
           {activeTab === "services" && (
             providerServices.length === 0 ? <EmptyState text="No service requests yet" /> :
             providerServices.map((s) => (
@@ -566,7 +585,7 @@ export function AdminDashboard() {
             ))
           )}
 
-          {/* ══ SUPPORT TAB ══ */}
+          {/* ══ SUPPORT ══ */}
           {activeTab === "support" && (
             selectedConv ? (
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: "60vh" }}>
@@ -630,7 +649,7 @@ export function AdminDashboard() {
             )
           )}
 
-          {/* ══ ADS TAB ══ */}
+          {/* ══ ADS ══ */}
           {activeTab === "ads" && (
             adminAds.length === 0 ? <EmptyState text="No listings yet" /> :
             adminAds.map((ad) => (
@@ -666,7 +685,7 @@ export function AdminDashboard() {
             ))
           )}
 
-          {/* ══ USERS TAB ══ */}
+          {/* ══ USERS ══ */}
           {activeTab === "users" && (
             adminUsers.length === 0 ? <EmptyState text="No users yet" /> :
             adminUsers.map((u) => (
@@ -679,7 +698,7 @@ export function AdminDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 text-sm truncate">{u.full_name || "—"}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full uppercase">{u.role}</span>
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full capitalize ${
                         u.kyc_status === "approved" ? "bg-green-50 text-green-600" : u.kyc_status === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]" : "bg-gray-100 text-gray-400"
@@ -707,7 +726,7 @@ export function AdminDashboard() {
             ))
           )}
 
-          {/* ══ DISPUTES TAB ══ */}
+          {/* ══ DISPUTES ══ */}
           {activeTab === "disputes" && (
             disputes.length === 0 ? <EmptyState text="No disputes filed yet" /> :
             disputes.map((d) => (
@@ -725,35 +744,6 @@ export function AdminDashboard() {
             ))
           )}
         </div>
-      )}
-
-      {/* ═══ KYC REJECT MODAL ═══ */}
-      {rejectingKyc && (
-        <Modal onClose={() => setRejectingKyc(null)} title="Reject KYC">
-          <div className="bg-gray-50 rounded-xl p-3 mb-3">
-            <div className="text-xs font-bold text-gray-700">{rejectingKyc.full_name}</div>
-            <div className="text-[10px] text-gray-400 capitalize">{rejectingKyc.document_type}</div>
-          </div>
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Quick Reasons — tap to select</div>
-          <div className="flex flex-col gap-1.5 mb-3">
-            {REJECT_REASONS.map((r) => (
-              <button key={r} onClick={() => setRejectReason(r)}
-                className={`text-left text-xs px-3 py-2.5 rounded-xl border transition-all ${
-                  rejectReason === r ? "bg-red-50 border-red-300 text-red-600 font-bold" : "bg-gray-50 border-gray-100 text-gray-600"
-                }`}>
-                {rejectReason === r ? "✓ " : ""}{r}
-              </button>
-            ))}
-          </div>
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Or write custom reason</div>
-          <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
-            rows={3} placeholder="Rejection reason likhen..."
-            className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-red-300 mb-3" />
-          <button onClick={() => void rejectKYC()} disabled={!rejectReason.trim() || processingId !== null}
-            className="w-full bg-red-500 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-50">
-            {processingId ? "Rejecting..." : "Reject & Notify User"}
-          </button>
-        </Modal>
       )}
 
       {/* ═══ DEPOSIT CONFIRM MODAL ═══ */}
@@ -826,7 +816,6 @@ export function AdminDashboard() {
   );
 }
 
-// ── Empty State ──
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm py-12 text-center">
@@ -836,7 +825,6 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-// ── Bottom Sheet Modal — mobile friendly ──
 function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
     <div className="fixed inset-0 z-[90] flex flex-col justify-end">
