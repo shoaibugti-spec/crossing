@@ -43,23 +43,18 @@ export function AdminDashboard() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
-  // KYC inline reject
   const [rejectKycId, setRejectKycId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // Deposit confirm
   const [confirmingDeposit, setConfirmingDeposit] = useState<any | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
 
-  // Withdrawal confirm
   const [confirmingWithdraw, setConfirmingWithdraw] = useState<any | null>(null);
 
-  // Dispute update
   const [updatingDispute, setUpdatingDispute] = useState<any | null>(null);
   const [disputeStatus, setDisputeStatus] = useState("under_review");
   const [disputeNotes, setDisputeNotes] = useState("");
 
-  // Support chat
   const [selectedConv, setSelectedConv] = useState<SupportConv | null>(null);
   const [convReplies, setConvReplies] = useState<SupportReply[]>([]);
   const [replyText, setReplyText] = useState("");
@@ -87,7 +82,7 @@ export function AdminDashboard() {
     setLoadingData(true);
     const [kyc, users, ads, disputesData, depositsData, withdrawalsData, servicesData, supportData] = await Promise.all([
       supabase.from("kyc_submissions").select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason").order("submitted_at", { ascending: false }),
-      supabase.from("profiles").select("id, full_name, email, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),,
+      supabase.from("profiles").select("id, full_name, email, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),
       supabase.from("ads").select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)").order("created_at", { ascending: false }),
       supabase.from("disputes").select("id, transaction_id, reason, status, created_at, filed_by").order("created_at", { ascending: false }),
       supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, created_at, profiles:user_id(full_name)").eq("type", "deposit").order("created_at", { ascending: false }),
@@ -281,7 +276,7 @@ export function AdminDashboard() {
   const TABS: { key: TabKey; label: string; icon: any; badge: number }[] = [
     { key: "kyc", label: "KYC", icon: Shield, badge: cnt.kyc },
     { key: "deposits", label: "Deposits", icon: ArrowDownLeft, badge: cnt.deposits },
-    { key: "withdrawals", label: "Withdrawals", icon: ArrowUpRight, badge: cnt.withdrawals },
+    { key: "withdrawals", label: "Withdraw", icon: ArrowUpRight, badge: cnt.withdrawals },
     { key: "services", label: "Services", icon: FileText, badge: cnt.services },
     { key: "support", label: "Support", icon: HeadphonesIcon, badge: cnt.support },
     { key: "ads", label: "Ads", icon: Megaphone, badge: 0 },
@@ -340,6 +335,7 @@ export function AdminDashboard() {
         </button>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-4 gap-2 px-4 mt-4">
         {[
           { label: "Users", value: adminUsers.length, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
@@ -354,6 +350,7 @@ export function AdminDashboard() {
         ))}
       </div>
 
+      {/* Tabs — grid, no scroll */}
       <div className="grid grid-cols-4 gap-2 px-4 mt-4">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -376,7 +373,7 @@ export function AdminDashboard() {
       ) : (
         <div className="px-4 mt-4 flex flex-col gap-3">
 
-          {/* ══ KYC TAB ══ */}
+          {/* ══ KYC ══ */}
           {activeTab === "kyc" && (
             kycUsers.length === 0 ? <EmptyState text="No KYC submissions yet" /> :
             kycUsers.map((k) => (
@@ -425,7 +422,6 @@ export function AdminDashboard() {
                 {k.status === "pending" && (
                   <>
                     {rejectKycId === k.id ? (
-                      /* ── Inline Reject Bar ── */
                       <div className="flex flex-col gap-2">
                         <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Rejection Reason likhen:</div>
                         <div className="flex items-center gap-2">
@@ -698,6 +694,7 @@ export function AdminDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 text-sm truncate">{u.full_name || "—"}</div>
+                    <div className="text-[10px] text-gray-400 truncate">{u.email || "no email"}</div>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full uppercase">{u.role}</span>
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full capitalize ${
