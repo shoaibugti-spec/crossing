@@ -87,7 +87,7 @@ export function AdminDashboard() {
     setLoadingData(true);
     const [kyc, users, ads, disputesData, depositsData, withdrawalsData, servicesData, supportData] = await Promise.all([
       supabase.from("kyc_submissions").select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason").order("submitted_at", { ascending: false }),
-      supabase.from("profiles").select("id, full_name, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id, full_name, email, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),,
       supabase.from("ads").select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)").order("created_at", { ascending: false }),
       supabase.from("disputes").select("id, transaction_id, reason, status, created_at, filed_by").order("created_at", { ascending: false }),
       supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, created_at, profiles:user_id(full_name)").eq("type", "deposit").order("created_at", { ascending: false }),
@@ -354,18 +354,18 @@ export function AdminDashboard() {
         ))}
       </div>
 
-      <div className="flex gap-2 overflow-x-auto px-4 mt-4 pb-1 scrollbar-none">
+      <div className="grid grid-cols-4 gap-2 px-4 mt-4">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-1.5 flex-shrink-0 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all ${
+            className={`relative flex flex-col items-center gap-1 py-2.5 rounded-2xl text-[10px] font-bold transition-all ${
               activeTab === t.key ? "bg-[#004B49] text-white shadow-md" : "bg-white text-gray-500 border border-gray-100"
             }`}>
-            <t.icon size={13} />
+            <t.icon size={15} />
             {t.label}
             {t.badge > 0 && (
-              <span className={`min-w-[16px] h-4 rounded-full text-[9px] font-black flex items-center justify-center px-1 ${
-                activeTab === t.key ? "bg-[#D4AF37] text-white" : "bg-red-500 text-white"
-              }`}>{t.badge}</span>
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full text-[9px] font-black flex items-center justify-center px-1 bg-red-500 text-white border-2 border-white">
+                {t.badge}
+              </span>
             )}
           </button>
         ))}
