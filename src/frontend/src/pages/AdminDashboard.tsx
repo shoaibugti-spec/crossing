@@ -335,12 +335,16 @@ export function AdminDashboard() {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — 8 boxes */}
       <div className="grid grid-cols-4 gap-2 px-4 mt-4">
         {[
           { label: "Users", value: adminUsers.length, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
           { label: "KYC", value: cnt.kyc, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
           { label: "Deposits", value: cnt.deposits, color: "text-green-600", bg: "bg-green-50" },
+          { label: "Withdraw", value: cnt.withdrawals, color: "text-orange-500", bg: "bg-orange-50" },
+          { label: "Services", value: cnt.services, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Support", value: cnt.support, color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Ads", value: adminAds.length, color: "text-teal-600", bg: "bg-teal-50" },
           { label: "Disputes", value: cnt.disputes, color: "text-red-500", bg: "bg-red-50" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-2xl py-3 text-center`}>
