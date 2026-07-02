@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Camera } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Camera } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -13,10 +13,6 @@ interface WalletTx {
   notes: string | null;
   receipt_url: string | null;
   created_at: string;
-}
-
-function fileToBlob(file: File): Promise<Blob> {
-  return Promise.resolve(file);
 }
 
 export function Wallet() {
@@ -125,10 +121,9 @@ export function Wallet() {
 
     let receiptUrl: string | null = null;
     try {
-      const blob = await fileToBlob(receiptFile);
       const ext = receiptFile.name.split(".").pop() || "jpg";
       const path = `${userId}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("deposit-receipts").upload(path, blob, {
+      const { error: uploadErr } = await supabase.storage.from("deposit-receipts").upload(path, receiptFile, {
         contentType: receiptFile.type || "image/jpeg",
       });
       if (uploadErr) throw uploadErr;
@@ -255,7 +250,7 @@ export function Wallet() {
               <div className="flex-1">
                 <div className="font-bold text-gray-800 text-sm">Security Deposit</div>
                 <div className="text-xs text-[#9c7a1f] font-semibold mt-0.5">
-                  {securityDeposit >= 2000 ? `🔒 Locked — $${securityDeposit.toFixed(2)} USDT` : `⚠ $${securityDeposit.toFixed(2)} / $2,000 USDT`}
+                  {securityDeposit > 0 ? `🔒 Locked — $${securityDeposit.toFixed(2)} USDT` : `⚠ No deposit yet`}
                 </div>
               </div>
             </div>
@@ -404,13 +399,20 @@ export function Wallet() {
                       </button>
                     </div>
                   ) : (
-                    <label className="w-full border-2 border-dashed border-gray-200 rounded-xl py-6 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#004B49]/40 transition-all">
-                      <Camera size={22} className="text-gray-300" />
-                      <span className="text-xs font-semibold text-gray-400">Tap to upload your payment screenshot</span>
-                      <input type="file" accept="image/*" capture="environment" onChange={handleReceiptSelect} className="hidden" />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="border-2 border-dashed border-gray-200 rounded-xl py-5 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#004B49]/40 transition-all">
+                        <Camera size={22} className="text-gray-300" />
+                        <span className="text-[11px] font-semibold text-gray-400">📷 Camera</span>
+                        <input type="file" accept="image/*" capture="environment" onChange={handleReceiptSelect} className="hidden" />
+                      </label>
+                      <label className="border-2 border-dashed border-gray-200 rounded-xl py-5 flex flex-col items-center gap-1.5 cursor-pointer hover:border-[#004B49]/40 transition-all">
+                        <span className="text-xl">🖼️</span>
+                        <span className="text-[11px] font-semibold text-gray-400">Gallery / File</span>
+                        <input type="file" accept="image/*" onChange={handleReceiptSelect} className="hidden" />
+                      </label>
+                    </div>
                   )}
-                  <div className="text-[10px] text-gray-400 mt-1">Required — this is how we verify your deposit.</div>
+                  <div className="text-[10px] text-gray-400 mt-1">Required — camera se photo lein ya gallery se screenshot chunein.</div>
                 </div>
 
                 <div className="mb-4">
