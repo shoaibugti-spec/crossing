@@ -1,14 +1,7 @@
-import { ArrowLeft, Shield, Camera, CheckCircle, Clock, Video, Loader2, XCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Shield, Camera, CheckCircle, Clock, Video, Loader2, XCircle, RefreshCw, Building2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
-
-const LEVELS = [
-  { level: 1, title: "Email Verification", desc: "Verify your email address", status: "completed" },
-  { level: 2, title: "Phone Verification", desc: "Verify your mobile number", status: "completed" },
-  { level: 3, title: "Identity Verification", desc: "ID/Passport + Selfie + Face Video", status: "pending" },
-  { level: 4, title: "Business Verification", desc: "Company Registration + Trade License", status: "locked" },
-];
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, base64] = dataUrl.split(",");
@@ -26,6 +19,16 @@ export function KYCFlow() {
   const [userId, setUserId] = useState<string | null>(null);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+
+  // Level 4 — Business
+  const [businessStatus, setBusinessStatus] = useState<string>("none");
+  const [businessRejection, setBusinessRejection] = useState<string | null>(null);
+  const [bizForm, setBizForm] = useState({ companyName: "", regNumber: "" });
+  const [licenseDoc, setLicenseDoc] = useState<File | null>(null);
+  const [licensePreview, setLicensePreview] = useState<string | null>(null);
+  const [regDoc, setRegDoc] = useState<File | null>(null);
+  const [regPreview, setRegPreview] = useState<string | null>(null);
+  const [bizSubmitting, setBizSubmitting] = useState(false);
 
   const [activeLevel, setActiveLevel] = useState(3);
   const [docType, setDocType] = useState<"passport" | "nid" | "license">("passport");
@@ -67,14 +70,14 @@ export function KYCFlow() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("kyc_status, full_name")
+      .select("kyc_status, full_name, business_status")
       .eq("id", userData.user.id)
       .single();
 
     setExistingStatus(profile?.kyc_status ?? "none");
+    setBusinessStatus(profile?.business_status ?? "none");
     if (profile?.full_name) setForm((p) => ({ ...p, fullName: profile.full_name }));
 
-    // Get rejection reason if rejected
     if (profile?.kyc_status === "rejected") {
       const { data: submission } = await supabase
         .from("kyc_submissions")
@@ -84,6 +87,17 @@ export function KYCFlow() {
         .limit(1)
         .maybeSingle();
       setRejectionReason(submission?.rejection_reason ?? null);
+    }
+
+    if (profile?.business_status === "rejected") {
+      const { data: bv } = await supabase
+        .from("business_verifications")
+        .select("rejection_reason")
+        .eq("user_id", userData.user.id)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setBusinessRejection(bv?.rejection_reason ?? null);
     }
 
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
@@ -196,7 +210,6 @@ export function KYCFlow() {
     }
   }, []);
 
-  // Reset form for resubmission
   function resetForResubmit() {
     setSubmitted(false);
     setDocFront(null);
@@ -247,7 +260,6 @@ export function KYCFlow() {
 
       setUploadProgress("Saving submission...");
 
-      // Insert new submission
       const { error: insertErr } = await supabase.from("kyc_submissions").insert({
         user_id: userId,
         full_name: form.fullName,
@@ -263,7 +275,6 @@ export function KYCFlow() {
       });
       if (insertErr) throw insertErr;
 
-      // Update profile status back to pending
       await supabase.from("profiles").update({
         kyc_status: "pending",
         kyc_level: 0,
@@ -276,6 +287,48 @@ export function KYCFlow() {
     } finally {
       setSubmitting(false);
       setUploadProgress("");
+    }
+  }
+
+  // ── Level 4 Business Submit ──
+  async function handleBusinessSubmit() {
+    if (!userId) return;
+    if (!bizForm.companyName.trim()) { alert("Company name is required"); return; }
+    if (!licenseDoc) { alert("Please upload your trade license photo"); return; }
+
+    setBizSubmitting(true);
+    try {
+      const folder = `${userId}/${Date.now()}`;
+
+      const licExt = licenseDoc.name.split(".").pop() || "jpg";
+      const { error: licErr } = await supabase.storage.from("business-docs").upload(`${folder}/license.${licExt}`, licenseDoc, { contentType: licenseDoc.type || "image/jpeg" });
+      if (licErr) throw licErr;
+      const licUrl = supabase.storage.from("business-docs").getPublicUrl(`${folder}/license.${licExt}`).data.publicUrl;
+
+      let regUrl: string | null = null;
+      if (regDoc) {
+        const regExt = regDoc.name.split(".").pop() || "jpg";
+        const { error: regErr } = await supabase.storage.from("business-docs").upload(`${folder}/registration.${regExt}`, regDoc, { contentType: regDoc.type || "image/jpeg" });
+        if (regErr) throw regErr;
+        regUrl = supabase.storage.from("business-docs").getPublicUrl(`${folder}/registration.${regExt}`).data.publicUrl;
+      }
+
+      const { error: insertErr } = await supabase.from("business_verifications").insert({
+        user_id: userId,
+        company_name: bizForm.companyName.trim(),
+        registration_number: bizForm.regNumber.trim() || null,
+        license_doc_url: licUrl,
+        registration_doc_url: regUrl,
+        status: "pending",
+      });
+      if (insertErr) throw insertErr;
+
+      await supabase.from("profiles").update({ business_status: "pending" }).eq("id", userId);
+      setBusinessStatus("pending");
+    } catch (err: any) {
+      alert("Submission failed: " + (err.message ?? "unknown error"));
+    } finally {
+      setBizSubmitting(false);
     }
   }
 
@@ -316,6 +369,15 @@ export function KYCFlow() {
     );
   }
 
+  const level3Done = existingStatus === "approved";
+
+  const LEVELS = [
+    { level: 1, title: "Email Verification", desc: "Verify your email address" },
+    { level: 2, title: "Phone Verification", desc: "Verify your mobile number" },
+    { level: 3, title: "Identity Verification", desc: "ID/Passport + Selfie + Face Video" },
+    { level: 4, title: "Business Verification", desc: "Company Registration + Trade License" },
+  ];
+
   return (
     <div className="flex flex-col pb-8">
 
@@ -345,20 +407,29 @@ export function KYCFlow() {
 
       <div className="mx-4 mt-4 flex flex-col gap-3">
         {LEVELS.map((l) => {
-          const displayStatus = l.level === 3
-            ? existingStatus === "approved" ? "completed"
-            : existingStatus === "pending" ? "pending"
-            : existingStatus === "rejected" ? "rejected"
-            : "pending"
-            : l.status;
+          // status calculation
+          let displayStatus = "completed";
+          let pillText = "✓ Done";
+          if (l.level === 3) {
+            displayStatus = existingStatus === "approved" ? "completed" : existingStatus === "pending" ? "pending" : existingStatus === "rejected" ? "rejected" : "required";
+            pillText = existingStatus === "approved" ? "✓ Verified" : existingStatus === "pending" ? "⏳ Under Review" : existingStatus === "rejected" ? "❌ Rejected" : "Required";
+          }
+          if (l.level === 4) {
+            if (!level3Done) { displayStatus = "locked"; pillText = "Locked"; }
+            else {
+              displayStatus = businessStatus === "approved" ? "completed" : businessStatus === "pending" ? "pending" : businessStatus === "rejected" ? "rejected" : "required";
+              pillText = businessStatus === "approved" ? "✓ Verified" : businessStatus === "pending" ? "⏳ Under Review" : businessStatus === "rejected" ? "❌ Rejected" : "Required";
+            }
+          }
+          const isLocked = displayStatus === "locked";
 
           return (
-            <div key={l.level} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${l.status === "locked" ? "opacity-50" : ""}`}>
+            <div key={l.level} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${isLocked ? "opacity-50" : ""}`}>
 
               <button type="button"
-                onClick={() => l.status !== "locked" && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
+                onClick={() => !isLocked && setActiveLevel(activeLevel === l.level ? 0 : l.level)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
-                disabled={l.status === "locked"}>
+                disabled={isLocked}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   displayStatus === "completed" ? "bg-green-50"
                   : displayStatus === "rejected" ? "bg-red-50"
@@ -368,6 +439,7 @@ export function KYCFlow() {
                   {displayStatus === "completed" ? <CheckCircle size={20} className="text-green-500" />
                     : displayStatus === "rejected" ? <XCircle size={20} className="text-red-500" />
                     : displayStatus === "pending" ? <Clock size={20} className="text-[#9c7a1f]" />
+                    : l.level === 4 ? <Building2 size={20} className="text-gray-300" />
                     : <Shield size={20} className="text-gray-300" />}
                 </div>
                 <div className="flex-1">
@@ -376,25 +448,20 @@ export function KYCFlow() {
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       displayStatus === "completed" ? "bg-green-50 text-green-500"
                       : displayStatus === "rejected" ? "bg-red-50 text-red-500"
-                      : displayStatus === "pending" && existingStatus === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]"
+                      : displayStatus === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]"
                       : "bg-gray-50 text-gray-400"
                     }`}>
-                      {l.level === 3 && existingStatus === "approved" ? "✓ Verified"
-                        : l.level === 3 && existingStatus === "pending" ? "⏳ Under Review"
-                        : l.level === 3 && existingStatus === "rejected" ? "❌ Rejected"
-                        : displayStatus === "completed" ? "✓ Done"
-                        : displayStatus === "pending" ? "Required"
-                        : "Locked"}
+                      {pillText}
                     </span>
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">{l.desc}</div>
                 </div>
               </button>
 
+              {/* ── LEVEL 3 CONTENT ── */}
               {activeLevel === 3 && l.level === 3 && (
                 <div className="px-4 pb-4 border-t border-gray-50">
 
-                  {/* REJECTED STATE */}
                   {existingStatus === "rejected" && submitted && (
                     <div className="mt-3">
                       <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-4">
@@ -411,7 +478,6 @@ export function KYCFlow() {
                           <div>• Make sure documents are clear and readable</div>
                           <div>• Use good lighting for photos</div>
                           <div>• Selfie must show your face and document clearly</div>
-                          <div>• Video must show your face from multiple angles</div>
                         </div>
                       </div>
                       <button onClick={resetForResubmit}
@@ -421,7 +487,6 @@ export function KYCFlow() {
                     </div>
                   )}
 
-                  {/* PENDING STATE */}
                   {existingStatus === "pending" && submitted && (
                     <div className="text-center py-6">
                       <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-3">
@@ -429,33 +494,22 @@ export function KYCFlow() {
                       </div>
                       <div className="font-black text-gray-800 text-lg mb-1">Under Review</div>
                       <div className="text-sm text-gray-500 mb-3">Admin will review within 24-48 hours.</div>
-                      <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 text-left">
-                        <div className="text-xs text-[#004B49] flex flex-col gap-1">
-                          <div>✓ Documents received</div>
-                          <div>✓ Selfie received</div>
-                          <div>✓ Face video received</div>
-                          <div>⏳ Admin review in progress...</div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
-                  {/* APPROVED STATE */}
                   {existingStatus === "approved" && (
                     <div className="text-center py-6">
                       <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                         <CheckCircle size={26} className="text-green-500" />
                       </div>
                       <div className="font-black text-gray-800 text-lg mb-1">KYC Verified ✅</div>
-                      <div className="text-sm text-gray-500">Your identity has been verified. You can now use all features.</div>
+                      <div className="text-sm text-gray-500">Your identity has been verified.</div>
                     </div>
                   )}
 
-                  {/* FORM — shown when not submitted or resubmitting */}
                   {!submitted && (
                     <div className="mt-3 flex flex-col gap-4">
 
-                      {/* Rejection reminder if resubmitting */}
                       {existingStatus === "rejected" && (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2">
                           <span className="text-amber-600 flex-shrink-0">⚠️</span>
@@ -583,7 +637,7 @@ export function KYCFlow() {
                               className="w-full mt-2 border border-gray-200 bg-gray-50 text-gray-500 text-xs font-semibold py-2 rounded-xl">
                               Re-record Video
                             </button>
-                            <div className="text-center text-[10px] text-green-500 font-bold mt-1">✓ Video recorded (15 seconds)</div>
+                            <div className="text-center text-[10px] text-green-500 font-bold mt-1">✓ Video recorded</div>
                           </div>
                         ) : videoRecording ? (
                           <div>
@@ -622,7 +676,123 @@ export function KYCFlow() {
                 </div>
               )}
 
-              {activeLevel === 4 && l.level === 4 && (
+              {/* ── LEVEL 4 CONTENT — Business Verification ── */}
+              {activeLevel === 4 && l.level === 4 && level3Done && (
+                <div className="px-4 pb-4 border-t border-gray-50">
+
+                  {businessStatus === "approved" && (
+                    <div className="text-center py-6">
+                      <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <CheckCircle size={26} className="text-green-500" />
+                      </div>
+                      <div className="font-black text-gray-800 text-lg mb-1">Business Verified ✅</div>
+                      <div className="text-sm text-gray-500">Your business has been verified. All levels complete!</div>
+                    </div>
+                  )}
+
+                  {businessStatus === "pending" && (
+                    <div className="text-center py-6">
+                      <div className="w-14 h-14 bg-[#FBF3E1] rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Clock size={26} className="text-[#9c7a1f]" />
+                      </div>
+                      <div className="font-black text-gray-800 text-lg mb-1">Under Review</div>
+                      <div className="text-sm text-gray-500">Admin will review your business documents within 24-48 hours.</div>
+                    </div>
+                  )}
+
+                  {(businessStatus === "none" || businessStatus === "rejected") && (
+                    <div className="mt-3 flex flex-col gap-4">
+
+                      {businessStatus === "rejected" && (
+                        <div className="bg-red-50 border border-red-100 rounded-2xl p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <XCircle size={15} className="text-red-500 flex-shrink-0" />
+                            <span className="font-black text-red-700 text-xs">Business Verification Rejected</span>
+                          </div>
+                          {businessRejection && (
+                            <div className="text-xs text-red-600">
+                              <span className="font-bold">Reason: </span>{businessRejection}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Company / Business Name *</label>
+                        <input value={bizForm.companyName} onChange={(e) => setBizForm((p) => ({ ...p, companyName: e.target.value }))}
+                          placeholder="e.g. Al-Karam Visa Services"
+                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Registration Number (optional)</label>
+                        <input value={bizForm.regNumber} onChange={(e) => setBizForm((p) => ({ ...p, regNumber: e.target.value }))}
+                          placeholder="Company registration number"
+                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004B49]" />
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Trade License Photo *</div>
+                        {licensePreview ? (
+                          <div className="relative">
+                            <img src={licensePreview} alt="License" className="w-full rounded-xl border border-gray-100 max-h-40 object-contain bg-gray-50" />
+                            <button type="button" onClick={() => { setLicenseDoc(null); setLicensePreview(null); }}
+                              className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">Remove</button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1 cursor-pointer hover:border-[#004B49]/40">
+                              <Camera size={20} className="text-gray-300" />
+                              <span className="text-[10px] font-semibold text-gray-400">📷 Camera</span>
+                              <input type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setLicenseDoc(f); setLicensePreview(URL.createObjectURL(f)); } }} />
+                            </label>
+                            <label className="border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1 cursor-pointer hover:border-[#004B49]/40">
+                              <span className="text-lg">🖼️</span>
+                              <span className="text-[10px] font-semibold text-gray-400">Gallery / File</span>
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setLicenseDoc(f); setLicensePreview(URL.createObjectURL(f)); } }} />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Company Registration Document (optional)</div>
+                        {regPreview ? (
+                          <div className="relative">
+                            <img src={regPreview} alt="Registration" className="w-full rounded-xl border border-gray-100 max-h-40 object-contain bg-gray-50" />
+                            <button type="button" onClick={() => { setRegDoc(null); setRegPreview(null); }}
+                              className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg">Remove</button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1 cursor-pointer hover:border-[#004B49]/40">
+                              <Camera size={20} className="text-gray-300" />
+                              <span className="text-[10px] font-semibold text-gray-400">📷 Camera</span>
+                              <input type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRegDoc(f); setRegPreview(URL.createObjectURL(f)); } }} />
+                            </label>
+                            <label className="border-2 border-dashed border-gray-200 rounded-xl py-4 flex flex-col items-center gap-1 cursor-pointer hover:border-[#004B49]/40">
+                              <span className="text-lg">🖼️</span>
+                              <span className="text-[10px] font-semibold text-gray-400">Gallery / File</span>
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRegDoc(f); setRegPreview(URL.createObjectURL(f)); } }} />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      <button type="button" onClick={() => void handleBusinessSubmit()} disabled={bizSubmitting}
+                        className="w-full bg-[#004B49] text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60">
+                        {bizSubmitting ? "Submitting..." : businessStatus === "rejected" ? "Resubmit Business Verification 🔄" : "Submit Business Verification"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeLevel === 4 && l.level === 4 && !level3Done && (
                 <div className="px-4 pb-4 border-t border-gray-50">
                   <div className="mt-3 text-xs text-gray-500">Complete Level 3 first to unlock Business Verification.</div>
                 </div>
