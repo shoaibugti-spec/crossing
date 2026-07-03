@@ -1,7 +1,7 @@
 import {
   Ban, CheckCircle, Loader2, Lock, Shield, Users, XCircle,
   ArrowDownLeft, ArrowUpRight, HeadphonesIcon, Send, FileText, Megaphone,
-  Scale, RefreshCw, X,
+  Scale, RefreshCw, X, Building2,
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -20,7 +20,7 @@ async function sendNotification(userId: string, type: string, title: string, bod
   await supabase.from("notifications").insert({ user_id: userId, type, title, body, link: link ?? null, is_read: false });
 }
 
-type TabKey = "kyc" | "deposits" | "withdrawals" | "services" | "support" | "ads" | "users" | "disputes";
+type TabKey = "kyc" | "business" | "deposits" | "withdrawals" | "services" | "support" | "ads" | "users" | "disputes";
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ export function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [kycUsers, setKycUsers] = useState<any[]>([]);
+  const [bizVerifications, setBizVerifications] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminAds, setAdminAds] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
@@ -45,6 +46,9 @@ export function AdminDashboard() {
 
   const [rejectKycId, setRejectKycId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  const [rejectBizId, setRejectBizId] = useState<string | null>(null);
+  const [bizRejectReason, setBizRejectReason] = useState("");
 
   const [confirmingDeposit, setConfirmingDeposit] = useState<any | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
@@ -80,9 +84,10 @@ export function AdminDashboard() {
 
   async function loadAllData() {
     setLoadingData(true);
-    const [kyc, users, ads, disputesData, depositsData, withdrawalsData, servicesData, supportData] = await Promise.all([
+    const [kyc, biz, users, ads, disputesData, depositsData, withdrawalsData, servicesData, supportData] = await Promise.all([
       supabase.from("kyc_submissions").select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason").order("submitted_at", { ascending: false }),
-      supabase.from("profiles").select("id, full_name, email, role, kyc_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),
+      supabase.from("business_verifications").select("id, user_id, company_name, registration_number, license_doc_url, registration_doc_url, status, rejection_reason, submitted_at").order("submitted_at", { ascending: false }),
+      supabase.from("profiles").select("id, full_name, email, role, kyc_status, business_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),
       supabase.from("ads").select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)").order("created_at", { ascending: false }),
       supabase.from("disputes").select("id, transaction_id, reason, status, created_at, filed_by").order("created_at", { ascending: false }),
       supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, created_at, profiles:user_id(full_name)").eq("type", "deposit").order("created_at", { ascending: false }),
@@ -91,6 +96,7 @@ export function AdminDashboard() {
       supabase.from("support_messages").select("id, conversation_id, user_id, user_name, user_email, message, status, created_at").order("created_at", { ascending: false }),
     ]);
     setKycUsers(kyc.data ?? []);
+    setBizVerifications(biz.data ?? []);
     setAdminUsers(users.data ?? []);
     setAdminAds(ads.data ?? []);
     setDisputes(disputesData.data ?? []);
@@ -124,6 +130,30 @@ export function AdminDashboard() {
     setRejectReason("");
     setProcessingId(null);
     showToast("❌ KYC Rejected");
+  }
+
+  // ── Business Verification ──
+  async function approveBusiness(bv: any) {
+    setProcessingId(bv.id);
+    await supabase.from("business_verifications").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", bv.id);
+    await supabase.from("profiles").update({ business_status: "approved" }).eq("id", bv.user_id);
+    await sendNotification(bv.user_id, "kyc", "✅ Business Verified!", `"${bv.company_name}" has been verified. All 4 levels complete — you can now post ads!`, "/kyc");
+    setBizVerifications((p) => p.map((b) => b.id === bv.id ? { ...b, status: "approved" } : b));
+    setProcessingId(null);
+    showToast("✅ Business Approved");
+  }
+
+  async function rejectBusiness(bv: any) {
+    if (!bizRejectReason.trim()) { showToast("⚠️ Pehle reason likhen"); return; }
+    setProcessingId(bv.id);
+    await supabase.from("business_verifications").update({ status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: bizRejectReason.trim() }).eq("id", bv.id);
+    await supabase.from("profiles").update({ business_status: "rejected" }).eq("id", bv.user_id);
+    await sendNotification(bv.user_id, "dispute", "❌ Business Verification Rejected", `Reason: ${bizRejectReason.trim()}. Please fix and resubmit.`, "/kyc");
+    setBizVerifications((p) => p.map((b) => b.id === bv.id ? { ...b, status: "rejected", rejection_reason: bizRejectReason.trim() } : b));
+    setRejectBizId(null);
+    setBizRejectReason("");
+    setProcessingId(null);
+    showToast("❌ Business Rejected");
   }
 
   // ── Deposits ──
@@ -265,6 +295,7 @@ export function AdminDashboard() {
 
   const cnt = {
     kyc: kycUsers.filter((u) => u.status === "pending").length,
+    business: bizVerifications.filter((b) => b.status === "pending").length,
     deposits: deposits.filter((d) => d.status === "pending").length,
     withdrawals: withdrawals.filter((w) => w.status === "pending").length,
     services: providerServices.filter((s) => s.status === "pending").length,
@@ -275,6 +306,7 @@ export function AdminDashboard() {
 
   const TABS: { key: TabKey; label: string; icon: any; badge: number }[] = [
     { key: "kyc", label: "KYC", icon: Shield, badge: cnt.kyc },
+    { key: "business", label: "Business", icon: Building2, badge: cnt.business },
     { key: "deposits", label: "Deposits", icon: ArrowDownLeft, badge: cnt.deposits },
     { key: "withdrawals", label: "Withdraw", icon: ArrowUpRight, badge: cnt.withdrawals },
     { key: "services", label: "Services", icon: FileText, badge: cnt.services },
@@ -340,11 +372,11 @@ export function AdminDashboard() {
         {[
           { label: "Users", value: adminUsers.length, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
           { label: "KYC", value: cnt.kyc, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
+          { label: "Business", value: cnt.business, color: "text-indigo-600", bg: "bg-indigo-50" },
           { label: "Deposits", value: cnt.deposits, color: "text-green-600", bg: "bg-green-50" },
           { label: "Withdraw", value: cnt.withdrawals, color: "text-orange-500", bg: "bg-orange-50" },
           { label: "Services", value: cnt.services, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Support", value: cnt.support, color: "text-purple-600", bg: "bg-purple-50" },
-          { label: "Ads", value: adminAds.length, color: "text-teal-600", bg: "bg-teal-50" },
           { label: "Disputes", value: cnt.disputes, color: "text-red-500", bg: "bg-red-50" },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-2xl py-3 text-center`}>
@@ -355,7 +387,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Tabs — grid, no scroll */}
-      <div className="grid grid-cols-4 gap-2 px-4 mt-4">
+      <div className="grid grid-cols-3 gap-2 px-4 mt-4">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`relative flex flex-col items-center gap-1 py-2.5 rounded-2xl text-[10px] font-bold transition-all ${
@@ -461,6 +493,95 @@ export function AdminDashboard() {
                           {processingId === k.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Approve
                         </button>
                         <button onClick={() => { setRejectKycId(k.id); setRejectReason(""); }}
+                          className="flex-1 bg-red-50 text-red-500 border border-red-100 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5">
+                          <XCircle size={13} /> Reject
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))
+          )}
+
+          {/* ══ BUSINESS ══ */}
+          {activeTab === "business" && (
+            bizVerifications.length === 0 ? <EmptyState text="No business verifications yet" /> :
+            bizVerifications.map((b) => (
+              <div key={b.id} className="bg-white rounded-2xl shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="font-bold text-gray-800 text-sm">{b.company_name}</div>
+                    <div className="text-[11px] text-gray-400">
+                      {b.registration_number ? `Reg#: ${b.registration_number} · ` : ""}{new Date(b.submitted_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  {statusPill(b.status)}
+                </div>
+
+                <div className="flex gap-2 mb-3">
+                  {b.license_doc_url && (
+                    <a href={b.license_doc_url} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <div className="relative">
+                        <img src={b.license_doc_url} alt="license" className="w-full h-24 rounded-xl object-cover border border-gray-100" />
+                        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">LICENSE</span>
+                      </div>
+                    </a>
+                  )}
+                  {b.registration_doc_url && (
+                    <a href={b.registration_doc_url} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <div className="relative">
+                        <img src={b.registration_doc_url} alt="registration" className="w-full h-24 rounded-xl object-cover border border-gray-100" />
+                        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">REG DOC</span>
+                      </div>
+                    </a>
+                  )}
+                </div>
+
+                {b.rejection_reason && b.status === "rejected" && (
+                  <div className="bg-red-50 rounded-xl px-3 py-2 text-[11px] text-red-500 mb-3">
+                    <b>Rejected:</b> {b.rejection_reason}
+                  </div>
+                )}
+
+                {b.status === "pending" && (
+                  <>
+                    {rejectBizId === b.id ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Rejection Reason likhen:</div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={bizRejectReason}
+                            onChange={(e) => setBizRejectReason(e.target.value)}
+                            placeholder="e.g. License not readable..."
+                            autoFocus
+                            className="flex-1 bg-red-50 border border-red-200 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-red-400" />
+                          <button onClick={() => void rejectBusiness(b)}
+                            disabled={!bizRejectReason.trim() || processingId === b.id}
+                            className="bg-red-500 text-white text-xs font-bold px-4 py-3 rounded-xl disabled:opacity-50 flex-shrink-0">
+                            {processingId === b.id ? <Loader2 size={13} className="animate-spin" /> : "Reject"}
+                          </button>
+                          <button onClick={() => { setRejectBizId(null); setBizRejectReason(""); }}
+                            className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <X size={15} className="text-gray-400" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {["License not readable", "Registration doc missing", "Company name mismatch", "Document expired"].map((r) => (
+                            <button key={r} onClick={() => setBizRejectReason(r)}
+                              className="text-[10px] bg-gray-50 text-gray-500 px-2.5 py-1 rounded-full border border-gray-100">
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={() => void approveBusiness(b)} disabled={processingId === b.id}
+                          className="flex-1 bg-[#004B49] text-white text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60">
+                          {processingId === b.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Approve
+                        </button>
+                        <button onClick={() => { setRejectBizId(b.id); setBizRejectReason(""); }}
                           className="flex-1 bg-red-50 text-red-500 border border-red-100 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5">
                           <XCircle size={13} /> Reject
                         </button>
@@ -704,6 +825,11 @@ export function AdminDashboard() {
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full capitalize ${
                         u.kyc_status === "approved" ? "bg-green-50 text-green-600" : u.kyc_status === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]" : "bg-gray-100 text-gray-400"
                       }`}>KYC: {u.kyc_status}</span>
+                      {u.business_status && u.business_status !== "none" && (
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full capitalize ${
+                          u.business_status === "approved" ? "bg-green-50 text-green-600" : u.business_status === "pending" ? "bg-[#FBF3E1] text-[#9c7a1f]" : "bg-red-50 text-red-500"
+                        }`}>Biz: {u.business_status}</span>
+                      )}
                       {u.is_suspended && <span className="text-[9px] font-black bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full">SUSPENDED</span>}
                     </div>
                   </div>
