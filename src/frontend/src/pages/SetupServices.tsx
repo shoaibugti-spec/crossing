@@ -1,7 +1,10 @@
-import { ArrowLeft, Plus, Trash2, Shield, CheckCircle, Loader2, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Shield, Loader2, Globe, Info } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
+
+const SUBMISSION_FEE = 36;
+const MAX_FREE_SERVICES = 3;
 
 const COUNTRY_LIST = ["Saudi Arabia","UAE","United Kingdom","Germany","Canada","Australia","USA","Turkey","Malaysia","Pakistan","Romania","Poland","Portugal","Spain","France","Italy","Netherlands","Sweden","Norway","Denmark","Finland","Ireland","Switzerland","Austria","Belgium","Czech Republic","Hungary","Bulgaria","Croatia","Greece","Cyprus","Malta","Slovakia","Slovenia","Estonia","Latvia","Lithuania","Iceland","Luxembourg","Serbia","Albania","Bosnia","Kosovo","Montenegro","North Macedonia","Moldova","Ukraine","Russia","Georgia","Armenia","Azerbaijan","Kazakhstan","Uzbekistan","China","Japan","South Korea","Vietnam","Thailand","Indonesia","Philippines","Bangladesh","Nepal","Sri Lanka","Singapore","Taiwan","Mongolia","India","Egypt","Morocco","Tunisia","Algeria","Libya","Sudan","Ethiopia","Kenya","Nigeria","Ghana","South Africa","Tanzania","Uganda","Rwanda","Senegal","Cameroon","Mozambique","Zambia","Zimbabwe","Angola","Somalia","Mauritius","Seychelles","Brazil","Argentina","Colombia","Chile","Peru","Venezuela","Ecuador","Bolivia","Mexico","Panama","Costa Rica","Guatemala","Honduras","El Salvador","Nicaragua","Cuba","Dominican Republic","Jamaica","Trinidad and Tobago","Bahamas","Barbados","New Zealand","Fiji","Papua New Guinea"];
 
@@ -21,6 +24,7 @@ interface ServiceRow {
   capacity: number;
   active_count: number;
   status: string;
+  fee_paid: boolean;
 }
 
 interface DraftService {
@@ -29,7 +33,6 @@ interface DraftService {
   visa_category: string;
   min_price: string;
   max_price: string;
-  capacity: string;
 }
 
 const emptyDraft: DraftService = {
@@ -38,27 +41,16 @@ const emptyDraft: DraftService = {
   visa_category: "",
   min_price: "",
   max_price: "",
-  capacity: "1",
 };
-
-function tierFor(totalDeposit: number): { name: string; color: string } {
-  if (totalDeposit >= 20000) return { name: "Diamond", color: "text-cyan-600 bg-cyan-50 border-cyan-200" };
-  if (totalDeposit >= 10000) return { name: "Platinum", color: "text-slate-600 bg-slate-50 border-slate-200" };
-  if (totalDeposit >= 5000) return { name: "Gold", color: "text-[#9c7a1f] bg-[#FBF3E1] border-[#D4AF37]/40" };
-  if (totalDeposit >= 2000) return { name: "Silver", color: "text-gray-600 bg-gray-100 border-gray-300" };
-  return { name: "Bronze", color: "text-orange-700 bg-orange-50 border-orange-200" };
-}
 
 export function SetupServices() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
-  const [existingDeposit, setExistingDeposit] = useState(0);
   const [draft, setDraft] = useState<DraftService>(emptyDraft);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void loadServices();
@@ -74,16 +66,9 @@ export function SetupServices() {
     }
     setUserId(userData.user.id);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("security_deposit")
-      .eq("id", userData.user.id)
-      .single();
-    setExistingDeposit(Number(profile?.security_deposit ?? 0));
-
     const { data: rows } = await supabase
       .from("provider_services")
-      .select("id, origin_country, destination_country, visa_category, min_price, max_price, capacity, active_count, status")
+      .select("id, origin_country, destination_country, visa_category, min_price, max_price, capacity, active_count, status, fee_paid")
       .eq("provider_id", userData.user.id)
       .order("created_at", { ascending: true });
     setServices(rows ?? []);
@@ -91,24 +76,16 @@ export function SetupServices() {
     setLoading(false);
   }
 
-  function serviceDeposit(s: { max_price: number; capacity: number }) {
-    return s.max_price * 2 * s.capacity;
-  }
-
-  const draftServicesTotal = services.reduce((sum, s) => sum + serviceDeposit(s), 0);
-  const draftMaxPrice = Number(draft.max_price) || 0;
-  const draftCapacity = Number(draft.capacity) || 0;
-  const draftPreviewDeposit = draftMaxPrice * 2 * draftCapacity;
-  const grandTotal = draftServicesTotal;
-  const tier = tierFor(grandTotal);
+  const servicesLeft = MAX_FREE_SERVICES - services.length;
+  const canAddMore = servicesLeft > 0;
 
   function validateDraft(): boolean {
+    if (!canAddMore) { setError(`Free plan allows max ${MAX_FREE_SERVICES} services. Upgrade to Premium for more.`); return false; }
     if (!draft.destination_country) { setError("Select a destination country"); return false; }
     if (!draft.visa_category) { setError("Select a visa category"); return false; }
     if (!draft.min_price || !draft.max_price) { setError("Enter both minimum and maximum price"); return false; }
     if (Number(draft.min_price) <= 0 || Number(draft.max_price) <= 0) { setError("Prices must be greater than zero"); return false; }
     if (Number(draft.min_price) > Number(draft.max_price)) { setError("Minimum price cannot be greater than maximum price"); return false; }
-    if (!draft.capacity || Number(draft.capacity) < 1) { setError("Capacity must be at least 1"); return false; }
     setError("");
     return true;
   }
@@ -126,10 +103,11 @@ export function SetupServices() {
         visa_category: draft.visa_category,
         min_price: Number(draft.min_price),
         max_price: Number(draft.max_price),
-        capacity: Number(draft.capacity),
+        capacity: 1,
         status: "pending",
+        fee_paid: false,
       })
-      .select("id, origin_country, destination_country, visa_category, min_price, max_price, capacity, active_count, status")
+      .select("id, origin_country, destination_country, visa_category, min_price, max_price, capacity, active_count, status, fee_paid")
       .single();
 
     setAdding(false);
@@ -144,27 +122,30 @@ export function SetupServices() {
   }
 
   async function removeService(id: string) {
-    if (!confirm("Remove this service? You'll lose this slot and its deposit contribution.")) return;
+    if (!confirm("Remove this service? If you already paid the $36 submission fee, it will be refunded to your wallet.")) return;
+
+    const svc = services.find((s) => s.id === id);
     const { error: delErr } = await supabase.from("provider_services").delete().eq("id", id);
     if (delErr) {
       alert("Failed to remove: " + delErr.message);
       return;
     }
-    setServices((prev) => prev.filter((s) => s.id !== id));
-  }
 
-  async function confirmAndProceed() {
-    if (!userId) return;
-    if (services.length === 0) {
-      setError("Add at least one service before continuing");
-      return;
+    // Refund submission fee if it was paid
+    if (svc?.fee_paid && userId) {
+      const { data: prof } = await supabase.from("profiles").select("wallet_balance").eq("id", userId).single();
+      const newBal = Number(prof?.wallet_balance ?? 0) + SUBMISSION_FEE;
+      await supabase.from("profiles").update({ wallet_balance: newBal }).eq("id", userId);
+      await supabase.from("wallet_transactions").insert({
+        user_id: userId,
+        type: "refund",
+        amount: SUBMISSION_FEE,
+        status: "completed",
+        notes: `Service submission fee refunded — ${svc.destination_country} (${svc.visa_category})`,
+      });
     }
-    setSubmitting(true);
 
-    await supabase.from("profiles").update({ security_deposit: existingDeposit }).eq("id", userId);
-
-    setSubmitting(false);
-    void navigate({ to: "/wallet" });
+    setServices((prev) => prev.filter((s) => s.id !== id));
   }
 
   if (loading) {
@@ -176,7 +157,7 @@ export function SetupServices() {
   }
 
   return (
-    <div className="flex flex-col pb-32">
+    <div className="flex flex-col pb-8">
 
       {/* HEADER */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
@@ -194,8 +175,22 @@ export function SetupServices() {
             <span className="text-white font-bold text-sm">Define What You Offer</span>
           </div>
           <div className="text-white/80 text-xs leading-relaxed">
-            Add each visa service you provide — destination, category, your price range, and how many clients you can handle at once. Your security deposit is calculated automatically from what you select. No fixed amount — it's entirely based on your own business.
+            Add up to <span className="font-bold text-[#D4AF37]">{MAX_FREE_SERVICES} visa services</span> on the free plan. Each service handles 1 client at a time. When you post an ad under a service, a one-time <span className="font-bold text-[#D4AF37]">${SUBMISSION_FEE}</span> submission fee applies (refunded if you delete it).
           </div>
+        </div>
+      </div>
+
+      {/* FREE PLAN STATUS */}
+      <div className="mx-4 mt-3">
+        <div className="bg-white rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
+            <Shield size={18} className="text-[#004B49]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-bold text-gray-800">Free Plan</div>
+            <div className="text-[11px] text-gray-400">{services.length} of {MAX_FREE_SERVICES} services used · 1 client each</div>
+          </div>
+          <span className="text-[10px] font-black bg-[#FBF3E1] text-[#9c7a1f] px-2.5 py-1 rounded-full border border-[#D4AF37]/30">FREE</span>
         </div>
       </div>
 
@@ -214,138 +209,127 @@ export function SetupServices() {
                   <Trash2 size={14} className="text-red-400" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 mb-2">
+              <div className="flex flex-wrap gap-2">
                 <span className="bg-[#E8F0EF] text-[#004B49] text-[11px] font-semibold px-2.5 py-1 rounded-full">
                   ${s.min_price}–${s.max_price} per client
                 </span>
                 <span className="bg-[#FBF3E1] text-[#9c7a1f] text-[11px] font-semibold px-2.5 py-1 rounded-full">
-                  {s.capacity} simultaneous client{s.capacity > 1 ? "s" : ""}
+                  1 client at a time
+                </span>
+                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                  s.status === "approved" ? "bg-green-50 text-green-600"
+                  : s.status === "rejected" ? "bg-red-50 text-red-500"
+                  : "bg-gray-100 text-gray-500"
+                }`}>
+                  {s.status === "approved" ? "✓ Approved" : s.status === "rejected" ? "Rejected" : "⏳ Pending review"}
                 </span>
               </div>
-              <div className="bg-gray-50 rounded-xl p-2.5 flex justify-between text-xs">
-                <span className="text-gray-500">Deposit for this service</span>
-                <span className="font-bold text-gray-800">${serviceDeposit(s).toFixed(2)}</span>
-              </div>
-              {s.status === "pending" && (
-                <div className="text-[10px] text-[#9c7a1f] font-semibold mt-2">⏳ Pending admin review</div>
-              )}
             </div>
           ))}
         </div>
       )}
 
       {/* ADD SERVICE FORM */}
-      <div className="mx-4 mt-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-4">Add a Service</div>
+      {canAddMore ? (
+        <div className="mx-4 mt-4">
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-1">Add a Service</div>
+            <div className="text-[11px] text-gray-400 mb-4">{servicesLeft} service{servicesLeft !== 1 ? "s" : ""} remaining on free plan</div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
-              ⚠️ {error}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">From (Origin)</label>
-                <select value={draft.origin_country} onChange={(e) => setDraft((d) => ({ ...d, origin_country: e.target.value }))}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
-                  {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">To (Destination) *</label>
-                <select value={draft.destination_country} onChange={(e) => setDraft((d) => ({ ...d, destination_country: e.target.value }))}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
-                  <option value="">Select...</option>
-                  {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Visa Category *</label>
-              <div className="flex flex-wrap gap-2">
-                {VISA_CATEGORIES.map((c) => (
-                  <button key={c} type="button" onClick={() => setDraft((d) => ({ ...d, visa_category: c }))}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${draft.visa_category === c ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Min Price per Client *</label>
-                <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                  <span className="text-gray-400 font-bold text-sm">$</span>
-                  <input type="number" value={draft.min_price} onChange={(e) => setDraft((d) => ({ ...d, min_price: e.target.value }))} placeholder="300"
-                    className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Max Price per Client *</label>
-                <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
-                  <span className="text-gray-400 font-bold text-sm">$</span>
-                  <input type="number" value={draft.max_price} onChange={(e) => setDraft((d) => ({ ...d, max_price: e.target.value }))} placeholder="500"
-                    className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">
-                Simultaneous Clients (how many at once for this service) *
-              </label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" onClick={() => setDraft((d) => ({ ...d, capacity: String(n) }))}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all ${draft.capacity === String(n) ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {draftMaxPrice > 0 && draftCapacity > 0 && (
-              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3">
-                <div className="text-xs font-black text-[#004B49] mb-1.5">Deposit for this service</div>
-                <div className="text-[11px] text-[#004B49] flex flex-col gap-0.5">
-                  <div>Max price (${draftMaxPrice}) × 2 clients-worth × {draftCapacity} capacity</div>
-                  <div className="font-black text-sm mt-1">= ${draftPreviewDeposit.toFixed(2)}</div>
-                </div>
+            {error && (
+              <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs font-semibold text-red-500 mb-4">
+                ⚠️ {error}
               </div>
             )}
 
-            <button onClick={() => void addService()} disabled={adding}
-              className="w-full bg-[#004B49]/10 text-[#004B49] font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-              {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              Add This Service
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">From (Origin)</label>
+                  <select value={draft.origin_country} onChange={(e) => setDraft((d) => ({ ...d, origin_country: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
+                    {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">To (Destination) *</label>
+                  <select value={draft.destination_country} onChange={(e) => setDraft((d) => ({ ...d, destination_country: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm text-gray-800 outline-none focus:border-[#004B49]">
+                    <option value="">Select...</option>
+                    {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Visa Category *</label>
+                <div className="flex flex-wrap gap-2">
+                  {VISA_CATEGORIES.map((c) => (
+                    <button key={c} type="button" onClick={() => setDraft((d) => ({ ...d, visa_category: c }))}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${draft.visa_category === c ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Min Price per Client *</label>
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
+                    <span className="text-gray-400 font-bold text-sm">$</span>
+                    <input type="number" value={draft.min_price} onChange={(e) => setDraft((d) => ({ ...d, min_price: e.target.value }))} placeholder="300"
+                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Max Price per Client *</label>
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-3">
+                    <span className="text-gray-400 font-bold text-sm">$</span>
+                    <input type="number" value={draft.max_price} onChange={(e) => setDraft((d) => ({ ...d, max_price: e.target.value }))} placeholder="500"
+                      className="flex-1 bg-transparent text-sm text-gray-800 outline-none font-bold" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 flex gap-2">
+                <Info size={14} className="text-[#004B49] flex-shrink-0 mt-0.5" />
+                <div className="text-[11px] text-[#004B49]">
+                  No charge to add a service. The <span className="font-bold">${SUBMISSION_FEE}</span> submission fee is only charged when you publish an ad under this service — and refunded if you delete the ad.
+                </div>
+              </div>
+
+              <button onClick={() => void addService()} disabled={adding}
+                className="w-full bg-[#004B49]/10 text-[#004B49] font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                Add This Service
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-4 mt-4">
+          <div className="bg-gradient-to-br from-[#FBF3E1] to-white rounded-2xl p-4 border border-[#D4AF37]/30 text-center">
+            <div className="text-2xl mb-2">⭐</div>
+            <div className="font-black text-gray-800 text-sm mb-1">Free Plan Limit Reached</div>
+            <div className="text-xs text-gray-500 mb-3">You've used all {MAX_FREE_SERVICES} free services. Upgrade to Premium for more services and multiple clients per service.</div>
+            <button onClick={() => alert("Premium plans coming soon!")}
+              className="bg-[#D4AF37] text-white font-bold px-5 py-2.5 rounded-xl text-sm">
+              Upgrade to Premium
             </button>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* TOTAL SUMMARY — fixed bottom */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30">
-        <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Total Security Deposit Required</div>
-              <div className="text-xl font-black text-[#004B49]">${grandTotal.toFixed(2)} USDT</div>
-            </div>
-            <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${tier.color}`}>
-              {tier.name} Tier
-            </span>
-          </div>
-          <button onClick={() => void confirmAndProceed()} disabled={submitting || services.length === 0}
-            className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm disabled:opacity-40 flex items-center justify-center gap-2">
-            {submitting ? "Saving..." : <><Shield size={16} /> Continue to Deposit ${grandTotal.toFixed(2)}</>}
+      {/* CONTINUE */}
+      {services.length > 0 && (
+        <div className="mx-4 mt-4">
+          <button onClick={() => void navigate({ to: "/my-ads" })}
+            className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
+            <Shield size={16} /> Done — Go to My Ads
           </button>
         </div>
-      </div>
+      )}
 
     </div>
   );
