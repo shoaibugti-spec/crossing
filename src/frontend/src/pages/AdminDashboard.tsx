@@ -88,21 +88,26 @@ export function AdminDashboard() {
       supabase.from("kyc_submissions").select("id, user_id, full_name, document_type, submitted_at, status, document_front_url, document_back_url, selfie_url, face_video_url, rejection_reason").order("submitted_at", { ascending: false }),
       supabase.from("business_verifications").select("id, user_id, company_name, registration_number, license_doc_url, registration_doc_url, status, rejection_reason, submitted_at").order("submitted_at", { ascending: false }),
       supabase.from("profiles").select("id, full_name, email, role, kyc_status, business_status, trust_score, is_suspended, created_at, country").order("created_at", { ascending: false }),
-      supabase.from("ads").select("id, title, country, status, created_at, provider_id, profiles:provider_id(full_name)").order("created_at", { ascending: false }),
+      supabase.from("ads").select("id, title, country, status, created_at, provider_id").order("created_at", { ascending: false }),
       supabase.from("disputes").select("id, transaction_id, reason, status, created_at, filed_by").order("created_at", { ascending: false }),
-      supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, created_at, profiles:user_id(full_name)").eq("type", "deposit").order("created_at", { ascending: false }),
-      supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, created_at, profiles:user_id(full_name)").eq("type", "withdrawal").order("created_at", { ascending: false }),
-      supabase.from("provider_services").select("id, provider_id, origin_country, destination_country, visa_category, min_price, max_price, capacity, status, created_at, profiles:provider_id(full_name)").order("created_at", { ascending: false }),
+      supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, receipt_url, created_at").eq("type", "deposit").order("created_at", { ascending: false }),
+      supabase.from("wallet_transactions").select("id, user_id, amount, status, notes, created_at").eq("type", "withdrawal").order("created_at", { ascending: false }),
+      supabase.from("provider_services").select("id, provider_id, origin_country, destination_country, visa_category, min_price, max_price, capacity, status, created_at").order("created_at", { ascending: false }),
       supabase.from("support_messages").select("id, conversation_id, user_id, user_name, user_email, message, status, created_at").order("created_at", { ascending: false }),
     ]);
+
+    const usersList = users.data ?? [];
+    const nameById: Record<string, string> = {};
+    usersList.forEach((u: any) => { nameById[u.id] = u.full_name ?? "User"; });
+
     setKycUsers(kyc.data ?? []);
     setBizVerifications(biz.data ?? []);
-    setAdminUsers(users.data ?? []);
-    setAdminAds(ads.data ?? []);
+    setAdminUsers(usersList);
+    setAdminAds((ads.data ?? []).map((a: any) => ({ ...a, profiles: { full_name: nameById[a.provider_id] ?? "—" } })));
     setDisputes(disputesData.data ?? []);
-    setDeposits(depositsData.data ?? []);
-    setWithdrawals(withdrawalsData.data ?? []);
-    setProviderServices(servicesData.data ?? []);
+    setDeposits((depositsData.data ?? []).map((d: any) => ({ ...d, profiles: { full_name: nameById[d.user_id] ?? "User" } })));
+    setWithdrawals((withdrawalsData.data ?? []).map((w: any) => ({ ...w, profiles: { full_name: nameById[w.user_id] ?? "User" } })));
+    setProviderServices((servicesData.data ?? []).map((s: any) => ({ ...s, profiles: { full_name: nameById[s.provider_id] ?? "—" } })));
     setSupportConvs((supportData.data ?? []) as SupportConv[]);
     setLoadingData(false);
     setRefreshing(false);
