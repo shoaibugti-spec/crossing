@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
 
-const CROSSING_FEE = 72;
+const PROVIDER_FEE = 6;
+const BUYER_FEE = 3;
 
 const VISA_TYPES = ["Work Visa", "Study Visa", "Tourist Visa", "Business Visa", "Sponsorship", "PR / Immigration"];
 const SORT_OPTIONS = ["Newest", "Price: Low to High", "Price: High to Low"];
@@ -43,40 +44,52 @@ export function BrowseAds() {
 
   async function loadAds() {
     setLoading(true);
-    const { data, error } = await supabase
+
+    const { data: adData } = await supabase
       .from("ads")
-      .select("id, title, description, country, visa_type, price, currency, processing_time, created_at, provider_id, profiles:provider_id(full_name, kyc_status)")
+      .select("id, title, description, country, visa_type, price, currency, processing_time, created_at, provider_id, provider_fee, buyer_fee")
       .eq("status", "active")
+      .eq("is_public", true)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const mapped: AdRow[] = data.map((row: any) => ({
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        country: row.country,
-        visa_type: row.visa_type,
-        price: Number(row.price),
-        currency: row.currency,
-        processing_time: row.processing_time,
-        created_at: row.created_at,
-        provider_id: row.provider_id,
-        provider_name: row.profiles?.full_name ?? null,
-        provider_kyc_status: row.profiles?.kyc_status ?? null,
-      }));
-      setAds(mapped);
+    const providerIds = [...new Set((adData ?? []).map((a: any) => a.provider_id))];
+    const nameById: Record<string, string> = {};
+    const kycById: Record<string, string> = {};
+    if (providerIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name, full_name, kyc_status")
+        .in("id", providerIds);
+      (profs ?? []).forEach((p: any) => {
+        nameById[p.id] = p.display_name ?? p.full_name ?? "Provider";
+        kycById[p.id] = p.kyc_status ?? "none";
+      });
     }
+
+    const mapped: AdRow[] = (adData ?? []).map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      country: row.country,
+      visa_type: row.visa_type,
+      price: Number(row.price) + Number(row.provider_fee ?? PROVIDER_FEE) + Number(row.buyer_fee ?? BUYER_FEE),
+      currency: row.currency,
+      processing_time: row.processing_time,
+      created_at: row.created_at,
+      provider_id: row.provider_id,
+      provider_name: nameById[row.provider_id] ?? "Provider",
+      provider_kyc_status: kycById[row.provider_id] ?? "none",
+    }));
+    setAds(mapped);
     setLoading(false);
   }
 
-  // buyer-facing price = provider price + CROSSING_FEE
   let filtered = ads.filter((ad) => {
-    const buyerPrice = ad.price + CROSSING_FEE;
     const matchQ = !q || ad.title.toLowerCase().includes(q.toLowerCase()) || ad.country.toLowerCase().includes(q.toLowerCase());
     const matchCountry = !country || ad.country.toLowerCase().includes(country.toLowerCase());
     const matchType = !visaType || ad.visa_type === visaType;
     const matchVerified = !verifiedOnly || ad.provider_kyc_status === "approved";
-    const matchPrice = buyerPrice <= maxPrice;
+    const matchPrice = ad.price <= maxPrice;
     return matchQ && matchCountry && matchType && matchVerified && matchPrice;
   });
 
@@ -92,7 +105,6 @@ export function BrowseAds() {
   return (
     <div className="flex flex-col pb-8">
 
-      {/* SEARCH */}
       <div className="bg-white px-4 pt-4 pb-3 border-b border-gray-100">
         <div className="flex gap-2">
           <div className="flex-1 flex items-center gap-2 bg-[#F4F6F6] rounded-2xl px-4 py-3">
@@ -137,7 +149,6 @@ export function BrowseAds() {
         </div>
       </div>
 
-      {/* FILTER PANEL */}
       {showFilters && (
         <div className="bg-white border-b border-gray-100 px-4 py-4">
           <div className="flex items-center justify-between mb-3">
@@ -173,7 +184,6 @@ export function BrowseAds() {
         </div>
       )}
 
-      {/* RESULTS HEADER */}
       <div className="px-4 py-3 flex items-center justify-between">
         <span className="text-sm text-gray-500">
           <span className="font-bold text-gray-800">{filtered.length}</span> listings found
@@ -184,7 +194,6 @@ export function BrowseAds() {
         </select>
       </div>
 
-      {/* ADS LIST */}
       <div className="px-4 flex flex-col gap-3">
         {loading ? (
           <div className="flex justify-center py-12">
@@ -194,7 +203,7 @@ export function BrowseAds() {
           <div className="text-center py-12">
             <Search size={36} className="text-gray-200 mx-auto mb-3" />
             <div className="text-sm font-bold text-gray-400">
-              {ads.length === 0 ? "No listings on Crossing yet" : "No listings found"}
+              {ads.length === 0 ? "No listings on Crossingate yet" : "No listings found"}
             </div>
             <div className="text-xs text-gray-300 mt-1">
               {ads.length === 0 ? "Be the first verified provider to post a listing" : "Try different filters"}
@@ -206,7 +215,6 @@ export function BrowseAds() {
         ) : (
           filtered.map((ad) => {
             const verified = ad.provider_kyc_status === "approved";
-            const buyerPrice = ad.price + CROSSING_FEE;
             return (
               <Link key={ad.id} to="/ads/$id" params={{ id: ad.id }}>
                 <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-50 hover:border-[#004B49]/20 transition-all">
@@ -216,7 +224,7 @@ export function BrowseAds() {
                       <div className="text-xs text-gray-400 mt-0.5">{ad.country}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-black text-[#004B49] text-lg">${buyerPrice}</div>
+                      <div className="font-black text-[#004B49] text-lg">${ad.price}</div>
                       <div className="text-[10px] text-gray-400">{ad.currency}</div>
                     </div>
                   </div>
