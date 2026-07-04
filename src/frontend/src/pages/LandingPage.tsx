@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download, Mail, Users, CreditCard, MessageCircle } from "lucide-react";
+import { Search, Shield, Lock, ArrowRight, CheckCircle, Loader2, Plane, Briefcase, Globe2, FileText, ShieldCheck, Download, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { COUNTRIES } from "../lib/mockData";
 
-const CROSSING_FEE = 72;
+const PROVIDER_FEE = 6;
+const BUYER_FEE = 3;
 const LOGO_URL = "https://kdbnmoqzcncvkwcbzhxc.supabase.co/storage/v1/object/public/brand-assets/logo.png";
 
 interface AdRow {
@@ -58,55 +59,19 @@ const BrandLight = (
   </span>
 );
 
-// ── HOW IT WORKS ──
 function HowItWorks({ role }: { role: "buyer" | "provider" }) {
   const buyerSteps = [
-    {
-      icon: "🔍",
-      title: "Find a Provider",
-      desc: "Browse KYC-verified visa agents by country and visa type.",
-    },
-    {
-      icon: "💰",
-      title: "Deposit to Escrow",
-      desc: "Fund your wallet with USDT. Money is locked safely — not sent to provider yet.",
-    },
-    {
-      icon: "📋",
-      title: "Submit Documents",
-      desc: "Upload required documents. Provider starts your visa process immediately.",
-    },
-    {
-      icon: "✅",
-      title: "Confirm & Release",
-      desc: "Once visa is approved, confirm receipt. Funds are released to the provider.",
-    },
+    { icon: "🔍", title: "Find a Provider", desc: "Browse KYC-verified visa agents by country and visa type." },
+    { icon: "💰", title: "Deposit to Escrow", desc: "Fund your wallet with USDT. Money is locked safely — not sent to provider yet." },
+    { icon: "📋", title: "Submit Documents", desc: "Upload required documents. Provider starts your visa process immediately." },
+    { icon: "✅", title: "Confirm & Release", desc: "Once visa is approved, confirm receipt. Funds are released to the provider." },
   ];
-
   const providerSteps = [
-    {
-      icon: "📝",
-      title: "Create Account",
-      desc: "Sign up as a Visa Provider and submit your business details.",
-    },
-    {
-      icon: "✅",
-      title: "Get KYC Verified",
-      desc: "Complete identity and license verification. Build trust with clients worldwide.",
-    },
-    {
-      icon: "📢",
-      title: "Post Your Services",
-      desc: "List your visa services with pricing, processing time, and details.",
-    },
-    {
-      icon: "💸",
-      title: "Receive Payments",
-      desc: "Get paid securely via Escrow. Funds released after client confirmation.",
-    },
+    { icon: "📝", title: "Create Account", desc: "Sign up as a Visa Provider and submit your business details." },
+    { icon: "✅", title: "Get KYC Verified", desc: "Complete identity and license verification. Build trust with clients worldwide." },
+    { icon: "📢", title: "Post Your Services", desc: "List your visa services with pricing, processing time, and details." },
+    { icon: "💸", title: "Receive Payments", desc: "Get paid securely via Escrow. Funds released after client confirmation." },
   ];
-
-  const steps = role === "buyer" ? buyerSteps : providerSteps;
   const [activeRole, setActiveRole] = useState<"buyer" | "provider">(role);
   const activeSteps = activeRole === "buyer" ? buyerSteps : providerSteps;
 
@@ -114,22 +79,16 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
     <div className="mx-4 mt-7">
       <span className="text-[10px] font-bold text-[#004B49] uppercase tracking-wider block mb-0.5">Simple & Safe</span>
       <h2 className="font-black text-gray-800 text-base mb-3">How Crossingate Works</h2>
-
-      {/* Toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
-        <button
-          onClick={() => setActiveRole("buyer")}
+        <button onClick={() => setActiveRole("buyer")}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeRole === "buyer" ? "bg-white text-[#004B49] shadow-sm" : "text-gray-400"}`}>
           🔎 I'm a Visa Buyer
         </button>
-        <button
-          onClick={() => setActiveRole("provider")}
+        <button onClick={() => setActiveRole("provider")}
           className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeRole === "provider" ? "bg-white text-[#004B49] shadow-sm" : "text-gray-400"}`}>
           🏢 I'm a Provider
         </button>
       </div>
-
-      {/* Steps */}
       <div className="flex flex-col gap-3">
         {activeSteps.map((step, i) => (
           <div key={i} className="flex gap-3 items-start">
@@ -137,9 +96,7 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
               <div className="w-10 h-10 rounded-2xl bg-white border-2 border-[#004B49]/10 flex items-center justify-center text-xl shadow-sm">
                 {step.icon}
               </div>
-              {i < activeSteps.length - 1 && (
-                <div className="w-0.5 h-5 bg-[#004B49]/10 mt-1" />
-              )}
+              {i < activeSteps.length - 1 && <div className="w-0.5 h-5 bg-[#004B49]/10 mt-1" />}
             </div>
             <div className="flex-1 pb-1">
               <div className="flex items-center gap-2 mb-0.5">
@@ -151,8 +108,6 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
           </div>
         ))}
       </div>
-
-      {/* CTA */}
       <div className="mt-4 bg-gradient-to-r from-[#004B49] to-[#00615e] rounded-2xl p-4 flex items-center gap-3">
         <div className="flex-1">
           <div className="text-white font-black text-sm">
@@ -163,9 +118,7 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
           </div>
         </div>
         <Link to="/signup">
-          <div className="bg-[#D4AF37] text-white text-xs font-black px-3 py-2 rounded-xl flex-shrink-0">
-            Get Started
-          </div>
+          <div className="bg-[#D4AF37] text-white text-xs font-black px-3 py-2 rounded-xl flex-shrink-0">Get Started</div>
         </Link>
       </div>
     </div>
@@ -178,8 +131,7 @@ function SocialFooter() {
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-3">Contact & Follow Us</div>
         <div className="flex flex-col gap-1">
-          <a href="mailto:info@crossingate.com"
-            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
+          <a href="mailto:info@crossingate.com" className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
             <div className="w-9 h-9 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
               <Mail size={16} className="text-[#004B49]" />
             </div>
@@ -188,11 +140,9 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">info@crossingate.com</div>
             </div>
           </a>
-          <a href="https://www.instagram.com/crossingate.insta?igsh=amU0ZmxyaTE3bnB3"
-            target="_blank" rel="noopener noreferrer"
+          <a href="https://www.instagram.com/crossingate.insta?igsh=amU0ZmxyaTE3bnB3" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)" }}>
               <span className="text-white text-base">📸</span>
             </div>
             <div>
@@ -200,11 +150,10 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">@crossingate.insta</div>
             </div>
           </a>
-          <a href="https://facebook.com/crossingate"
-            target="_blank" rel="noopener noreferrer"
+          <a href="https://facebook.com/crossingate" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
             <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-base font-black text-sm">f</span>
+              <span className="text-white text-base font-black">f</span>
             </div>
             <div>
               <div className="text-xs font-bold text-gray-700">Facebook</div>
@@ -231,11 +180,7 @@ export function LandingPage() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-      setShowInstallBanner(true);
-    };
+    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
@@ -258,21 +203,37 @@ export function LandingPage() {
     }
     setChecked(true);
     setLoading(true);
-    const { data } = await supabase
+
+    const { data: adData } = await supabase
       .from("ads")
-      .select("id, title, description, country, visa_type, price, currency, processing_time, provider_id, profiles:provider_id(full_name, kyc_status)")
+      .select("id, title, description, country, visa_type, price, currency, processing_time, provider_id, provider_fee, buyer_fee")
       .eq("status", "active")
+      .eq("is_public", true)
       .order("created_at", { ascending: false })
       .limit(8);
 
-    if (data) {
-      const mapped: AdRow[] = data.map((row: any) => ({
+    if (adData) {
+      const providerIds = [...new Set(adData.map((a: any) => a.provider_id))];
+      const nameById: Record<string, string> = {};
+      const kycById: Record<string, string> = {};
+      if (providerIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles").select("id, display_name, full_name, kyc_status").in("id", providerIds);
+        (profs ?? []).forEach((p: any) => {
+          nameById[p.id] = p.display_name ?? p.full_name ?? "Provider";
+          kycById[p.id] = p.kyc_status ?? "none";
+        });
+      }
+      const mapped: AdRow[] = adData.map((row: any) => ({
         id: row.id, title: row.title, description: row.description, country: row.country,
-        visa_type: row.visa_type, price: Number(row.price), currency: row.currency,
+        visa_type: row.visa_type,
+        price: Number(row.price) + Number(row.provider_fee ?? PROVIDER_FEE) + Number(row.buyer_fee ?? BUYER_FEE),
+        currency: row.currency,
         processing_time: row.processing_time, provider_id: row.provider_id,
-        provider_name: row.profiles?.full_name ?? null, provider_kyc_status: row.profiles?.kyc_status ?? null,
+        provider_name: nameById[row.provider_id] ?? "Provider", provider_kyc_status: kycById[row.provider_id] ?? "none",
       }));
       setAds(mapped);
+
       const seen = new Set<string>();
       const providers: ProviderSummary[] = [];
       for (const ad of mapped) {
@@ -343,12 +304,10 @@ export function LandingPage() {
     </div>
   );
 
-  // ── NOT LOGGED IN ──
   if (!loggedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-[#F4F6F6]">
         {InstallBanner}
-
         <div className={`bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-6 pt-10 pb-16 relative overflow-hidden ${showInstallBanner ? "mt-16" : ""}`}>
           <div className="absolute -top-14 -right-14 w-52 h-52 rounded-full bg-[#D4AF37]/15 blur-2xl" />
           <div className="absolute -bottom-20 -left-16 w-60 h-60 rounded-full bg-white/5 blur-2xl" />
@@ -375,7 +334,7 @@ export function LandingPage() {
         </div>
 
         <div className="px-5 mt-5 flex gap-3">
-          <Link to="/signup" search={{ role: "seeker" }} className="flex-1">
+          <Link to="/signup" className="flex-1">
             <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 h-full">
               <div className="w-9 h-9 rounded-xl bg-[#E8F0EF] flex items-center justify-center mb-2">
                 <Plane size={17} className="text-[#004B49]" />
@@ -384,7 +343,7 @@ export function LandingPage() {
               <div className="text-[10px] text-gray-400 mt-0.5 leading-snug">Browse providers with Escrow protection</div>
             </div>
           </Link>
-          <Link to="/signup" search={{ role: "provider" }} className="flex-1">
+          <Link to="/signup" className="flex-1">
             <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-gray-100 h-full">
               <div className="w-9 h-9 rounded-xl bg-[#FBF3E1] flex items-center justify-center mb-2">
                 <Briefcase size={17} className="text-[#9c7a1f]" />
@@ -395,7 +354,6 @@ export function LandingPage() {
           </Link>
         </div>
 
-        {/* HOW IT WORKS */}
         <HowItWorks role="buyer" />
 
         {verifiedProviders.length > 0 && (
@@ -482,11 +440,9 @@ export function LandingPage() {
     );
   }
 
-  // ── LOGGED IN ──
   return (
     <div className="flex flex-col bg-[#F4F6F6]">
       {InstallBanner}
-
       <div className={`bg-gradient-to-br from-[#00302e] via-[#004B49] to-[#00615e] px-4 pt-5 pb-14 relative overflow-hidden ${showInstallBanner ? "mt-16" : ""}`}>
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#D4AF37]/15 blur-2xl" />
         <div className="text-white/70 text-xs">Wallet Balance</div>
@@ -583,7 +539,6 @@ export function LandingPage() {
         </>
       )}
 
-      {/* HOW IT WORKS — logged in users بھی دیکھ سکتے ہیں */}
       <HowItWorks role="buyer" />
 
       <div className="mx-4 mt-6">
@@ -610,7 +565,6 @@ export function LandingPage() {
 
 function HomeAdCard({ ad }: { ad: AdRow }) {
   const verified = ad.provider_kyc_status === "approved";
-  const buyerPrice = ad.price + CROSSING_FEE;
   return (
     <Link to="/ads/$id" params={{ id: ad.id }}>
       <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
@@ -620,7 +574,7 @@ function HomeAdCard({ ad }: { ad: AdRow }) {
             <div className="text-xs text-gray-400 mt-0.5">{ad.country} · {ad.provider_name ?? "Provider"}</div>
           </div>
           <div className="text-right flex-shrink-0">
-            <div className="font-black text-[#004B49] text-lg">${buyerPrice}</div>
+            <div className="font-black text-[#004B49] text-lg">${ad.price}</div>
             <div className="text-[10px] text-gray-400">{ad.currency}</div>
           </div>
         </div>
