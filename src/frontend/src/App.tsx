@@ -114,6 +114,12 @@ const transactionsRoute = createRoute({
   component: Transactions,
 });
 
+const ordersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/orders",
+  component: Transactions,
+});
+
 const disputesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/disputes",
@@ -175,6 +181,7 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   walletRoute,
   transactionsRoute,
+  ordersRoute,
   disputesRoute,
   notificationsRoute,
   adminRoute,
