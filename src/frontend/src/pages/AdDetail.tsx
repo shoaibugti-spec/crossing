@@ -7,8 +7,8 @@ const BUYER_FEE = 3;
 
 export function AdDetail() {
   const navigate = useNavigate();
-  const params = useParams({ strict: false }) as { adId?: string };
-  const adId = params.adId;
+  const params = useParams({ strict: false }) as { id?: string };
+  const adId = params.id;
 
   const [loading, setLoading] = useState(true);
   const [ad, setAd] = useState<any | null>(null);
@@ -22,9 +22,7 @@ export function AdDetail() {
   const [orderStep, setOrderStep] = useState(0);
   const [placing, setPlacing] = useState(false);
 
-  useEffect(() => {
-    void loadAd();
-  }, [adId]);
+  useEffect(() => { void loadAd(); }, [adId]);
 
   async function loadAd() {
     setLoading(true);
@@ -78,7 +76,6 @@ export function AdDetail() {
     }
     setPlacing(true);
 
-    // Create transaction (escrow)
     const { data: tx, error: txErr } = await supabase.from("transactions").insert({
       buyer_id: userId,
       seller_id: ad.provider_id,
@@ -95,18 +92,13 @@ export function AdDetail() {
       return;
     }
 
-    // Deduct from buyer wallet
     const newBal = walletBalance - buyerPays;
     await supabase.from("profiles").update({ wallet_balance: newBal }).eq("id", userId);
     await supabase.from("wallet_transactions").insert({
-      user_id: userId,
-      type: "escrow",
-      amount: -buyerPays,
-      status: "completed",
+      user_id: userId, type: "escrow", amount: -buyerPays, status: "completed",
       notes: `Escrow payment — "${ad.title}"`,
     });
 
-    // Notify both parties
     await supabase.from("notifications").insert([
       { user_id: userId, type: "success", title: "✅ Order Placed!", body: `Your payment is held in escrow. You can now chat with the provider.`, link: "/orders", is_read: false },
       { user_id: ad.provider_id, type: "success", title: "🎉 New Order!", body: `A buyer ordered "${ad.title}". Start the conversation now.`, link: "/orders", is_read: false },
@@ -124,7 +116,7 @@ export function AdDetail() {
     return (
       <div className="flex flex-col pb-8">
         <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+          <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })} className="p-1.5 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <span className="font-bold text-gray-800 text-sm">Listing</span>
@@ -144,13 +136,12 @@ export function AdDetail() {
   return (
     <div className="flex flex-col pb-24">
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-        <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+        <button onClick={() => void navigate({ to: "/ads", search: { q: "", country: "", type: "" } })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
         <span className="font-bold text-gray-800 text-sm">Visa Listing</span>
       </div>
 
-      {/* AD HEADER */}
       <div className="mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-2">
           <span className="bg-[#E8F0EF] text-[#004B49] text-[11px] font-semibold px-2.5 py-1 rounded-full">{ad.visa_type}</span>
@@ -173,7 +164,6 @@ export function AdDetail() {
         </div>
       </div>
 
-      {/* PROVIDER PUBLIC PROFILE CARD */}
       {provider && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
@@ -242,7 +232,6 @@ export function AdDetail() {
         </div>
       )}
 
-      {/* DESCRIPTION */}
       {ad.description && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-2">About This Service</div>
@@ -250,7 +239,6 @@ export function AdDetail() {
         </div>
       )}
 
-      {/* REQUIREMENTS */}
       {ad.requirements && ad.requirements.length > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-1.5">
@@ -265,7 +253,6 @@ export function AdDetail() {
         </div>
       )}
 
-      {/* FEE BREAKDOWN */}
       <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
         <div className="text-sm font-bold text-gray-800 mb-3">Price Breakdown</div>
         <div className="flex justify-between text-xs mb-2">
@@ -286,7 +273,6 @@ export function AdDetail() {
         </div>
       </div>
 
-      {/* STICKY ORDER BUTTON */}
       <div className="fixed bottom-16 left-0 right-0 px-4 py-3 bg-white border-t border-gray-100 max-w-lg mx-auto">
         {ad.status !== "active" || !ad.is_public ? (
           <div className="text-center text-xs text-gray-400 py-2">This listing is not available for orders.</div>
@@ -300,13 +286,11 @@ export function AdDetail() {
         )}
       </div>
 
-      {/* ORDER MODAL */}
       {showOrder && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => !placing && setShowOrder(false)} />
           <div className="relative w-full max-w-lg mx-auto bg-white rounded-t-3xl p-6 pb-10">
 
-            {/* KYC required */}
             {orderStep === 0 && (
               <>
                 <div className="text-center mb-4">
@@ -323,7 +307,6 @@ export function AdDetail() {
               </>
             )}
 
-            {/* Confirm order */}
             {orderStep === 1 && (
               <>
                 <div className="text-center mb-4">
@@ -367,7 +350,6 @@ export function AdDetail() {
               </>
             )}
 
-            {/* Success */}
             {orderStep === 2 && (
               <>
                 <div className="text-center mb-4">
