@@ -1,91 +1,39 @@
-import { ArrowLeft, Lock, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, MessageCircle, FileText, Calendar, Upload, Plus, Timer, Loader2, XCircle, ShieldAlert } from "lucide-react";
-import { useNavigate, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Loader2, Send, CheckCircle, Shield, Clock, Star, X, Globe } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-interface DocRow {
-  id: string;
-  name: string;
-  is_additional: boolean;
-  status: string;
-  submitted_at: string | null;
-  review_deadline: string | null;
-}
+const FEEDBACK_TAGS = ["Fast Service", "Trusted", "Safe", "Responsive", "Professional", "Great Communication", "Affordable", "Reliable"];
 
-interface TxRow {
-  id: string;
-  amount: number;
-  status: string;
-  current_step: number;
-  is_locked: boolean;
-  cancelled_at: string | null;
-  cancel_reason: string | null;
-  appointment_date: string | null;
-  appointment_time: string | null;
-  appointment_location: string | null;
-  appointment_voucher: string | null;
-  created_at: string;
-  buyer_id: string;
-  seller_id: string;
-  ad_title: string;
-  ad_country: string;
-  counterparty_name: string;
-  docs: DocRow[];
-}
-
-const STATUS_DISPLAY: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  escrow_active: { label: "Escrow Active",  color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
-  in_progress:   { label: "In Progress",    color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]", border: "border-[#D4AF37]/30" },
-  completed:     { label: "Completed",      color: "text-green-500", bg: "bg-green-50",  border: "border-green-100" },
-  disputed:      { label: "Disputed",       color: "text-red-500",   bg: "bg-red-50",    border: "border-red-100" },
-  cancelled:     { label: "Cancelled",      color: "text-gray-400",  bg: "bg-gray-50",   border: "border-gray-200" },
-};
-
-const PROGRESS_STEPS = [
-  "Payment locked in Escrow",
-  "Documents submitted",
-  "Embassy appointment scheduled",
-  "Visa decision received",
-  "Visa confirmed — payment released",
-];
-
-function formatCountdown(ms: number) {
-  if (ms <= 0) return "Overdue";
-  const h = Math.floor(ms / (1000 * 60 * 60));
-  const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  return `${h}h ${m}m left`;
+interface OrderMsg {
+  id: string; text: string; sender_id: string; created_at: string;
 }
 
 export function Transactions() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<TxRow[]>([]);
-  const [open, setOpen] = useState<string | null>(null);
-  const [tab, setTab] = useState<"all" | "active" | "completed">("all");
-  const [activeTab, setActiveTab] = useState<Record<string, string>>({});
-  const [voucherInput, setVoucherInput] = useState("");
-  const [showVoucherInput, setShowVoucherInput] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
-  const [showOverdueDispute, setShowOverdueDispute] = useState<{ tx: string; doc: string } | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState<TxRow | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [selected, setSelected] = useState<any | null>(null);
+  const [messages, setMessages] = useState<OrderMsg[]>([]);
+  const [msgText, setMsgText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [toast, setToast] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Cancel workflow
-  const [showCancelModal, setShowCancelModal] = useState<TxRow | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [fbRating, setFbRating] = useState<"positive" | "negative">("positive");
+  const [fbTags, setFbTags] = useState<string[]>([]);
+  const [fbComment, setFbComment] = useState("");
 
-  // Issue raise workflow
-  const [showIssueModal, setShowIssueModal] = useState<TxRow | null>(null);
-  const [issueText, setIssueText] = useState("");
+  useEffect(() => { void loadOrders(); }, []);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  useEffect(() => {
-    void loadData();
-    const interval = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(interval);
-  }, []);
+  function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 2500); }
 
-  async function loadData() {
+  async function loadOrders() {
     setLoading(true);
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) { setLoading(false); void navigate({ to: "/login" }); return; }
@@ -94,639 +42,372 @@ export function Transactions() {
 
     const { data: txs } = await supabase
       .from("transactions")
-      .select(`
-        id, amount, status, current_step, is_locked, cancelled_at, cancel_reason,
-        appointment_date, appointment_time, appointment_location, appointment_voucher,
-        created_at, buyer_id, seller_id,
-        ads:ad_id(title, country),
-        buyer:buyer_id(full_name),
-        seller:seller_id(full_name)
-      `)
+      .select("id, buyer_id, seller_id, ad_id, amount, buyer_fee, total_paid, status, created_at, ads:ad_id(title, country, visa_type), buyer:buyer_id(display_name, full_name), seller:seller_id(display_name, full_name)")
       .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
       .order("created_at", { ascending: false });
 
-    if (!txs) { setLoading(false); return; }
-
-    const mapped: TxRow[] = [];
-    for (const row of txs as any[]) {
-      const { data: docs } = await supabase
-        .from("transaction_documents")
-        .select("id, name, is_additional, status, submitted_at, review_deadline")
-        .eq("transaction_id", row.id);
-
-      mapped.push({
-        id: row.id,
-        amount: Number(row.amount),
-        status: row.status,
-        current_step: row.current_step,
-        is_locked: row.is_locked ?? false,
-        cancelled_at: row.cancelled_at,
-        cancel_reason: row.cancel_reason,
-        appointment_date: row.appointment_date,
-        appointment_time: row.appointment_time,
-        appointment_location: row.appointment_location,
-        appointment_voucher: row.appointment_voucher,
-        created_at: row.created_at,
-        buyer_id: row.buyer_id,
-        seller_id: row.seller_id,
-        ad_title: row.ads?.title ?? "Visa Listing",
-        ad_country: row.ads?.country ?? "",
-        counterparty_name: uid === row.buyer_id
-          ? (row.seller?.full_name ?? "Provider")
-          : (row.buyer?.full_name ?? "Buyer"),
-        docs: docs ?? [],
-      });
-    }
-
-    setTransactions(mapped);
+    setOrders(txs ?? []);
     setLoading(false);
   }
 
-  async function submitDoc(txId: string, docId: string) {
-    const deadline = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
-    await supabase.from("transaction_documents").update({
-      status: "submitted",
-      submitted_at: new Date().toISOString(),
-      review_deadline: deadline,
-    }).eq("id", docId);
+  async function openOrder(order: any) {
+    if (order.status === "completed") {
+      const { data: existing } = await supabase.from("reviews").select("id").eq("transaction_id", order.id).eq("buyer_id", userId).maybeSingle();
+      order._reviewed = !!existing;
+    }
+    setSelected(order);
+    const { data } = await supabase
+      .from("order_messages")
+      .select("id, text, sender_id, created_at")
+      .eq("transaction_id", order.id)
+      .order("created_at", { ascending: true });
+    setMessages((data ?? []) as OrderMsg[]);
 
-    // Lock the transaction after first doc submission
-    const tx = transactions.find((t) => t.id === txId);
-    if (tx && !tx.is_locked) {
-      await supabase.from("transactions").update({ is_locked: true }).eq("id", txId);
+    supabase.channel(`order_${order.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_messages", filter: `transaction_id=eq.${order.id}` }, (payload) => {
+        const m = payload.new as OrderMsg;
+        setMessages((prev) => prev.find((x) => x.id === m.id) ? prev : [...prev, m]);
+      }).subscribe();
+  }
+
+  async function sendMsg() {
+    if (!msgText.trim() || !selected || !userId || sending) return;
+    setSending(true);
+    const text = msgText.trim();
+    setMsgText("");
+    await supabase.from("order_messages").insert({ transaction_id: selected.id, sender_id: userId, text });
+    const otherId = userId === selected.buyer_id ? selected.seller_id : selected.buyer_id;
+    await supabase.from("notifications").insert({
+      user_id: otherId, type: "message", title: "💬 New Message",
+      body: `About "${(selected.ads as any)?.title ?? "your order"}"`, link: "/orders", is_read: false,
+    });
+    setSending(false);
+  }
+
+  async function markDelivered() {
+    if (!selected) return;
+    setProcessing(true);
+    await supabase.from("transactions").update({ status: "delivered" }).eq("id", selected.id);
+    await supabase.from("notifications").insert({
+      user_id: selected.buyer_id, type: "success", title: "📬 Visa Delivered!",
+      body: `The provider marked your visa as delivered. Please confirm to release payment.`, link: "/orders", is_read: false,
+    });
+    setSelected({ ...selected, status: "delivered" });
+    setOrders((p) => p.map((o) => o.id === selected.id ? { ...o, status: "delivered" } : o));
+    setProcessing(false);
+    showToast("✅ Marked as delivered");
+  }
+
+  async function confirmDelivery() {
+    if (!selected) return;
+    setProcessing(true);
+    const providerAmount = Number(selected.amount);
+
+    await supabase.from("transactions").update({ status: "completed" }).eq("id", selected.id);
+
+    const { data: prof } = await supabase.from("profiles")
+      .select("wallet_balance, total_visas_delivered, total_valuation")
+      .eq("id", selected.seller_id).single();
+    const newBal = Number(prof?.wallet_balance ?? 0) + providerAmount;
+    const newVisas = Number(prof?.total_visas_delivered ?? 0) + 1;
+    const newVal = Number(prof?.total_valuation ?? 0) + providerAmount;
+    await supabase.from("profiles").update({
+      wallet_balance: newBal, total_visas_delivered: newVisas, total_valuation: newVal,
+    }).eq("id", selected.seller_id);
+
+    await supabase.from("wallet_transactions").insert({
+      user_id: selected.seller_id, type: "earning", amount: providerAmount, status: "completed",
+      notes: `Visa payment released — "${(selected.ads as any)?.title ?? "order"}"`,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: selected.seller_id, type: "wallet", title: "💰 Payment Released!",
+      body: `$${providerAmount.toFixed(2)} released to your wallet. Congratulations on another delivery!`, link: "/wallet", is_read: false,
+    });
+
+    setSelected({ ...selected, status: "completed" });
+    setOrders((p) => p.map((o) => o.id === selected.id ? { ...o, status: "completed" } : o));
+    setProcessing(false);
+    setShowFeedback(true);
+  }
+
+  async function submitFeedback() {
+    if (!selected || !userId) return;
+    setProcessing(true);
+
+    await supabase.from("reviews").insert({
+      transaction_id: selected.id, provider_id: selected.seller_id, buyer_id: userId,
+      rating: fbRating, tags: fbTags, comment: fbComment.trim() || null, visa_amount: Number(selected.amount),
+    });
+
+    const { data: prof } = await supabase.from("profiles")
+      .select("positive_feedback_count, negative_feedback_count").eq("id", selected.seller_id).single();
+    if (fbRating === "positive") {
+      await supabase.from("profiles").update({ positive_feedback_count: Number(prof?.positive_feedback_count ?? 0) + 1 }).eq("id", selected.seller_id);
+    } else {
+      await supabase.from("profiles").update({ negative_feedback_count: Number(prof?.negative_feedback_count ?? 0) + 1 }).eq("id", selected.seller_id);
     }
 
-    setTransactions((prev) => prev.map((t) =>
-      t.id === txId ? {
-        ...t,
-        is_locked: true,
-        docs: t.docs.map((d) => d.id === docId
-          ? { ...d, status: "submitted", submitted_at: new Date().toISOString(), review_deadline: deadline }
-          : d
-        ),
-      } : t
-    ));
-  }
-
-  async function submitVoucher(txId: string) {
-    if (!voucherInput.trim()) return;
-    await supabase.from("transactions").update({ appointment_voucher: voucherInput.trim() }).eq("id", txId);
-    setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, appointment_voucher: voucherInput.trim() } : t));
-    setVoucherInput("");
-    setShowVoucherInput(null);
-  }
-
-  async function cancelTransaction(tx: TxRow) {
-    if (!cancelReason.trim()) { alert("Please provide a reason"); return; }
-    setBusy(true);
-
-    await supabase.from("transactions").update({
-      status: "cancelled",
-      cancelled_at: new Date().toISOString(),
-      cancel_reason: cancelReason.trim(),
-    }).eq("id", tx.id);
-
-    // Refund buyer
-    const { data: buyerProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", tx.buyer_id).single();
-    const newBalance = Number(buyerProfile?.wallet_balance ?? 0) + tx.amount;
-    await supabase.from("profiles").update({ wallet_balance: newBalance }).eq("id", tx.buyer_id);
-    await supabase.from("wallet_transactions").insert({
-      user_id: tx.buyer_id,
-      type: "refund",
-      amount: tx.amount,
-      status: "completed",
-      notes: `Cancelled — ${tx.ad_title}: ${cancelReason.trim()}`,
+    await supabase.from("notifications").insert({
+      user_id: selected.seller_id, type: "success", title: "⭐ New Review!",
+      body: `A buyer left you a ${fbRating} review.`, link: "/my-ads", is_read: false,
     });
 
-    setTransactions((prev) => prev.map((t) => t.id === tx.id
-      ? { ...t, status: "cancelled", cancel_reason: cancelReason.trim() }
-      : t
-    ));
-    setShowCancelModal(null);
-    setCancelReason("");
-    setBusy(false);
+    setProcessing(false);
+    setShowFeedback(false);
+    selected._reviewed = true;
+    showToast("⭐ Thank you for your feedback!");
   }
 
-  async function raiseIssue(tx: TxRow) {
-    if (!issueText.trim()) { alert("Please describe the issue"); return; }
-    setBusy(true);
+  const statusInfo = (s: string) => {
+    const map: Record<string, { label: string; cls: string }> = {
+      escrow_active: { label: "In Escrow", cls: "bg-[#FBF3E1] text-[#9c7a1f]" },
+      in_progress: { label: "In Progress", cls: "bg-blue-50 text-blue-600" },
+      delivered: { label: "Delivered", cls: "bg-purple-50 text-purple-600" },
+      completed: { label: "Completed", cls: "bg-green-50 text-green-600" },
+      disputed: { label: "Disputed", cls: "bg-red-50 text-red-500" },
+    };
+    return map[s] ?? { label: s, cls: "bg-gray-100 text-gray-500" };
+  };
 
-    await supabase.from("disputes").insert({
-      transaction_id: tx.id,
-      filed_by: userId,
-      reason: issueText.trim(),
-      status: "open",
-    });
+  const totalSpent = orders.filter((o) => o.buyer_id === userId).reduce((sum, o) => sum + Number(o.total_paid ?? o.amount ?? 0), 0);
+  const inEscrow = orders.filter((o) => (o.status === "escrow_active" || o.status === "in_progress" || o.status === "delivered")).reduce((sum, o) => sum + Number(o.amount ?? 0), 0);
+  const completedTotal = orders.filter((o) => o.status === "completed").reduce((sum, o) => sum + Number(o.amount ?? 0), 0);
 
-    setShowIssueModal(null);
-    setIssueText("");
-    setBusy(false);
-    alert("Issue raised successfully. Admin will review within 24 hours.");
-  }
-
-  async function confirmVisaReceived(tx: TxRow) {
-    setBusy(true);
-    await supabase.from("transactions").update({
-      status: "completed",
-      current_step: 5,
-      completed_at: new Date().toISOString(),
-    }).eq("id", tx.id);
-
-    const { data: sellerProfile } = await supabase.from("profiles").select("wallet_balance").eq("id", tx.seller_id).single();
-    const sellerNewBalance = Number(sellerProfile?.wallet_balance ?? 0) + (tx.amount - 36);
-    await supabase.from("profiles").update({ wallet_balance: sellerNewBalance }).eq("id", tx.seller_id);
-    await supabase.from("wallet_transactions").insert({
-      user_id: tx.seller_id,
-      type: "earning",
-      amount: tx.amount - 36,
-      status: "completed",
-      notes: `Payment released — ${tx.ad_title}`,
-    });
-
-    setTransactions((prev) => prev.map((t) => t.id === tx.id ? { ...t, status: "completed", current_step: 5 } : t));
-    setShowConfirmModal(null);
-    setBusy(false);
-  }
-
-  const filtered = transactions.filter((t) => {
-    if (tab === "active") return t.status === "escrow_active" || t.status === "in_progress";
-    if (tab === "completed") return t.status === "completed";
+  const filtered = orders.filter((o) => {
+    if (filter === "active") return ["escrow_active", "in_progress", "delivered"].includes(o.status);
+    if (filter === "completed") return o.status === "completed";
     return true;
   });
 
-  const totalSpent = transactions.filter((t) => t.buyer_id === userId).reduce((s, t) => s + t.amount + 36, 0);
-  const inEscrow = transactions.filter((t) => t.buyer_id === userId && (t.status === "escrow_active" || t.status === "in_progress")).reduce((s, t) => s + t.amount + 36, 0);
-  const completedTotal = transactions.filter((t) => t.buyer_id === userId && t.status === "completed").reduce((s, t) => s + t.amount + 36, 0);
-
-  const getTabForTx = (txId: string) => activeTab[txId] || "docs";
-  const setTabForTx = (txId: string, t: string) => setActiveTab((prev) => ({ ...prev, [txId]: t }));
-
   if (loading) {
+    return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
+  }
+
+  // ── CHAT VIEW ──
+  if (selected) {
+    const isBuyer = userId === selected.buyer_id;
+    const other = isBuyer ? (selected.seller as any) : (selected.buyer as any);
+    const otherName = other?.display_name ?? other?.full_name ?? (isBuyer ? "Provider" : "Buyer");
+    const adInfo = selected.ads as any;
+
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="animate-spin text-gray-300" size={28} />
+      <div className="flex flex-col h-screen">
+        {toast && (
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl">{toast}</div>
+        )}
+
+        <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100 flex-shrink-0">
+          <button onClick={() => setSelected(null)} className="text-gray-400 text-xl">‹</button>
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">
+            {otherName[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm text-gray-800 truncate">{otherName}</div>
+            <div className="text-[10px] text-gray-400 truncate">{adInfo?.title}</div>
+          </div>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusInfo(selected.status).cls}`}>
+            {statusInfo(selected.status).label}
+          </span>
+        </div>
+
+        <div className="bg-[#E8F0EF] px-4 py-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-[11px] text-[#004B49]">
+            <Globe size={11} /> {adInfo?.country} · {adInfo?.visa_type}
+          </div>
+          <div className="text-[11px] font-bold text-[#004B49]">${Number(selected.amount).toFixed(2)}</div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2 bg-gray-50/60">
+          <div className="bg-white border border-gray-100 rounded-xl p-3 text-center mb-1">
+            <Shield size={16} className="text-[#004B49] mx-auto mb-1" />
+            <div className="text-[11px] text-gray-500">Payment is held safely in escrow. Share documents and coordinate here. {isBuyer ? "Confirm delivery only when you receive your visa." : "Deliver the visa, then ask the buyer to confirm."}</div>
+          </div>
+          {messages.map((m) => (
+            <div key={m.id} className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm ${m.sender_id === userId ? "bg-[#004B49] text-white rounded-br-sm" : "bg-white text-gray-800 border border-gray-100 rounded-bl-sm"}`}>
+                {m.text}
+                <div className={`text-[8px] mt-1 ${m.sender_id === userId ? "text-white/50" : "text-gray-400"}`}>
+                  {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+
+        {selected.status !== "completed" && selected.status !== "disputed" && (
+          <div className="px-4 py-2 bg-white border-t border-gray-100 flex-shrink-0">
+            {!isBuyer && (selected.status === "escrow_active" || selected.status === "in_progress") && (
+              <button onClick={() => void markDelivered()} disabled={processing}
+                className="w-full bg-[#9c7a1f] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                {processing ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />} Mark Visa as Delivered
+              </button>
+            )}
+            {isBuyer && selected.status === "delivered" && (
+              <button onClick={() => void confirmDelivery()} disabled={processing}
+                className="w-full bg-[#004B49] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                {processing ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />} Confirm & Release Payment
+              </button>
+            )}
+            {isBuyer && (selected.status === "escrow_active" || selected.status === "in_progress") && (
+              <div className="text-center text-[11px] text-gray-400 py-1">Waiting for provider to deliver your visa...</div>
+            )}
+            {!isBuyer && selected.status === "delivered" && (
+              <div className="text-center text-[11px] text-gray-400 py-1">Waiting for buyer to confirm delivery...</div>
+            )}
+          </div>
+        )}
+
+        {selected.status === "completed" && isBuyer && !selected._reviewed && (
+          <div className="px-4 py-2 bg-white border-t border-gray-100 flex-shrink-0">
+            <button onClick={() => setShowFeedback(true)}
+              className="w-full bg-[#D4AF37] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+              <Star size={15} /> Leave Feedback
+            </button>
+          </div>
+        )}
+
+        {selected.status !== "completed" && (
+          <div className="px-3 py-2.5 bg-white border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
+            <input value={msgText} onChange={(e) => setMsgText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void sendMsg()}
+              placeholder="Type a message..."
+              className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#004B49]" />
+            <button onClick={() => void sendMsg()} disabled={!msgText.trim() || sending}
+              className="w-10 h-10 bg-[#004B49] rounded-xl flex items-center justify-center disabled:opacity-50">
+              {sending ? <Loader2 size={15} className="animate-spin text-white" /> : <Send size={15} className="text-white" />}
+            </button>
+          </div>
+        )}
+
+        {showFeedback && (
+          <div className="fixed inset-0 z-[90] flex flex-col justify-end">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowFeedback(false)} />
+            <div className="relative bg-white rounded-t-3xl px-5 pt-4 pb-8 max-h-[85vh] overflow-y-auto">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-black text-gray-800">Rate Your Experience</span>
+                <button onClick={() => setShowFeedback(false)} className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
+                  <X size={16} className="text-gray-500" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button onClick={() => setFbRating("positive")}
+                  className={`py-4 rounded-2xl border-2 transition-all ${fbRating === "positive" ? "border-green-400 bg-green-50" : "border-gray-100 bg-gray-50"}`}>
+                  <div className="text-2xl mb-1">👍</div>
+                  <div className={`text-sm font-bold ${fbRating === "positive" ? "text-green-600" : "text-gray-500"}`}>Positive</div>
+                </button>
+                <button onClick={() => setFbRating("negative")}
+                  className={`py-4 rounded-2xl border-2 transition-all ${fbRating === "negative" ? "border-red-400 bg-red-50" : "border-gray-100 bg-gray-50"}`}>
+                  <div className="text-2xl mb-1">👎</div>
+                  <div className={`text-sm font-bold ${fbRating === "negative" ? "text-red-500" : "text-gray-500"}`}>Negative</div>
+                </button>
+              </div>
+
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">What stood out? (tap all that apply)</div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {FEEDBACK_TAGS.map((t) => (
+                  <button key={t} onClick={() => setFbTags((p) => p.includes(t) ? p.filter((x) => x !== t) : [...p, t])}
+                    className={`text-xs font-semibold px-3 py-2 rounded-full border transition-all ${fbTags.includes(t) ? "bg-[#004B49] text-white border-[#004B49]" : "bg-gray-50 text-gray-600 border-gray-100"}`}>
+                    {fbTags.includes(t) ? "✓ " : ""}{t}
+                  </button>
+                ))}
+              </div>
+
+              <textarea value={fbComment} onChange={(e) => setFbComment(e.target.value)}
+                placeholder="Write a short review (optional)..." rows={3}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#004B49] mb-4" />
+
+              <button onClick={() => void submitFeedback()} disabled={processing}
+                className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm disabled:opacity-60">
+                {processing ? "Submitting..." : "Submit Feedback"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── ORDERS LIST ──
   return (
     <div className="flex flex-col pb-8">
+      {toast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl">{toast}</div>
+      )}
 
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
         <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
-        <span className="font-bold text-gray-800 text-sm">My Transactions</span>
+        <span className="font-bold text-gray-800 text-sm">My Orders</span>
       </div>
 
-      <div className="bg-white px-4 pb-3 border-b border-gray-100">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mt-3">
-          {(["all", "active", "completed"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}>
-              {t === "all" ? "All" : t === "active" ? "Active" : "Completed"}
-            </button>
-          ))}
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 px-4 mt-4">
+        <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
+          <div className="font-black text-gray-800 text-lg">${totalSpent.toFixed(0)}</div>
+          <div className="text-[10px] text-gray-400">Total Spent</div>
+        </div>
+        <div className="bg-[#FBF3E1] rounded-2xl p-3 text-center">
+          <div className="font-black text-[#9c7a1f] text-lg">${inEscrow.toFixed(0)}</div>
+          <div className="text-[10px] text-gray-500">In Escrow</div>
+        </div>
+        <div className="bg-green-50 rounded-2xl p-3 text-center">
+          <div className="font-black text-green-600 text-lg">${completedTotal.toFixed(0)}</div>
+          <div className="text-[10px] text-gray-500">Completed</div>
         </div>
       </div>
 
-      <div className="mx-4 mt-4">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Total Spent", value: `$${totalSpent.toFixed(0)}`, icon: Lock, color: "text-[#004B49]", bg: "bg-[#E8F0EF]" },
-            { label: "In Escrow", value: `$${inEscrow.toFixed(0)}`, icon: Clock, color: "text-[#9c7a1f]", bg: "bg-[#FBF3E1]" },
-            { label: "Completed", value: `$${completedTotal.toFixed(0)}`, icon: CheckCircle, color: "text-green-500", bg: "bg-green-50" },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className={`${bg} rounded-2xl p-3 flex flex-col gap-1`}>
-              <Icon size={16} className={color} />
-              <div className={`font-black text-sm ${color}`}>{value}</div>
-              <div className="text-[10px] text-gray-500">{label}</div>
-            </div>
-          ))}
-        </div>
+      {/* Filter */}
+      <div className="flex gap-2 px-4 mt-4">
+        {(["all", "active", "completed"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold capitalize transition-all ${filter === f ? "bg-[#004B49] text-white" : "bg-white text-gray-500 border border-gray-100"}`}>
+            {f}
+          </button>
+        ))}
       </div>
 
-      <div className="mx-4 mt-4 flex flex-col gap-3">
+      <div className="px-4 mt-4 flex flex-col gap-3">
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-10 text-center">
-            <div className="text-2xl mb-2">🔄</div>
-            <div className="text-sm font-bold text-gray-400">No transactions yet</div>
-            <div className="text-xs text-gray-300 mt-1">Place an order on a listing to see it here</div>
+          <div className="bg-white rounded-2xl shadow-sm py-12 text-center">
+            <div className="text-3xl mb-2">📦</div>
+            <div className="text-sm font-bold text-gray-400 mb-1">No orders yet</div>
+            <div className="text-xs text-gray-400">Place an order on a listing to see it here.</div>
           </div>
         ) : (
-          filtered.map((tx) => {
-            const s = STATUS_DISPLAY[tx.status] ?? STATUS_DISPLAY.escrow_active;
-            const isOpen = open === tx.id;
-            const currentTab = getTabForTx(tx.id);
-            const isBuyer = tx.buyer_id === userId;
-            const pendingDocs = tx.docs.filter((d) => d.status === "not_submitted").length;
-            const overdueReviews = tx.docs.filter((d) => d.status === "submitted" && d.review_deadline && now > new Date(d.review_deadline).getTime()).length;
-            const isActive = tx.status === "escrow_active" || tx.status === "in_progress";
-
+          filtered.map((o) => {
+            const isBuyer = userId === o.buyer_id;
+            const other = isBuyer ? (o.seller as any) : (o.buyer as any);
+            const otherName = other?.display_name ?? other?.full_name ?? (isBuyer ? "Provider" : "Buyer");
+            const adInfo = o.ads as any;
+            const si = statusInfo(o.status);
             return (
-              <div key={tx.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-
-                <button onClick={() => setOpen(isOpen ? null : tx.id)} className="w-full px-4 py-4 flex items-start gap-3 text-left">
-                  <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                    {tx.status === "completed" ? <CheckCircle size={18} className={s.color} />
-                      : tx.status === "disputed" ? <AlertTriangle size={18} className={s.color} />
-                      : tx.status === "cancelled" ? <XCircle size={18} className={s.color} />
-                      : <Clock size={18} className={s.color} />}
+              <button key={o.id} onClick={() => void openOrder(o)} className="bg-white rounded-2xl p-4 shadow-sm text-left">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {otherName[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 text-sm truncate">{tx.ad_title}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{tx.ad_country} · {tx.counterparty_name}</div>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.bg} ${s.color} ${s.border}`}>{s.label}</span>
-                      {tx.is_locked && isActive && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#004B49]/10 text-[#004B49] border border-[#004B49]/20">
-                          🔒 Locked
-                        </span>
-                      )}
-                      {pendingDocs > 0 && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100">{pendingDocs} docs pending</span>
-                      )}
-                      {overdueReviews > 0 && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 animate-pulse">⚠ {overdueReviews} overdue</span>
-                      )}
-                    </div>
+                    <div className="font-bold text-gray-800 text-sm truncate">{adInfo?.title ?? "Order"}</div>
+                    <div className="text-[11px] text-gray-400">{isBuyer ? "Provider" : "Buyer"}: {otherName}</div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-black text-gray-800">${tx.amount}</div>
-                    <div className="text-[10px] text-gray-400">USDT</div>
-                    {isOpen ? <ChevronUp size={14} className="text-gray-400 ml-auto mt-1" /> : <ChevronDown size={14} className="text-gray-400 ml-auto mt-1" />}
-                  </div>
-                </button>
-
-                {isOpen && (
-                  <div className="border-t border-gray-50">
-
-                    {/* LOCK STATUS BANNER */}
-                    {isActive && (
-                      <div className={`px-4 py-2.5 flex items-center gap-2 ${tx.is_locked ? "bg-[#004B49]/8 border-b border-[#004B49]/10" : "bg-amber-50 border-b border-amber-100"}`}>
-                        {tx.is_locked ? (
-                          <>
-                            <Lock size={13} className="text-[#004B49] flex-shrink-0" />
-                            <span className="text-[11px] text-[#004B49] font-semibold">Transaction locked — document submitted. Only issue raise allowed.</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
-                            <span className="text-[11px] text-amber-700 font-semibold">
-                              {isBuyer ? "You can cancel before submitting first document." : "Buyer can cancel until first document is submitted."}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* CANCELLED INFO */}
-                    {tx.status === "cancelled" && tx.cancel_reason && (
-                      <div className="mx-4 mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-                        <div className="text-xs font-bold text-gray-500 mb-1">Cancellation Reason</div>
-                        <div className="text-xs text-gray-600">{tx.cancel_reason}</div>
-                        <div className="text-[10px] text-green-500 font-semibold mt-1.5">✓ Full refund sent to buyer wallet</div>
-                      </div>
-                    )}
-
-                    <div className="flex border-b border-gray-100">
-                      {[
-                        { key: "docs", label: "📄 Documents" },
-                        { key: "appointment", label: "📅 Appointment" },
-                        { key: "progress", label: "📊 Progress" },
-                      ].map((t) => (
-                        <button key={t.key} onClick={() => setTabForTx(tx.id, t.key)}
-                          className={`flex-1 py-2.5 text-xs font-bold transition-all ${currentTab === t.key ? "text-[#004B49] border-b-2 border-[#004B49]" : "text-gray-400"}`}>
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="px-4 py-3">
-
-                      {currentTab === "docs" && (
-                        <div>
-                          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 mb-3 flex gap-2">
-                            <Timer size={13} className="text-[#004B49] flex-shrink-0 mt-0.5" />
-                            <span className="text-[11px] text-[#004B49]">Provider must review each document within <span className="font-bold">24 hours</span> of submission.</span>
-                          </div>
-
-                          {tx.docs.length === 0 ? (
-                            <div className="text-xs text-gray-400 text-center py-4">No documents required for this listing.</div>
-                          ) : (
-                            <div className="flex flex-col gap-2">
-                              {tx.docs.filter((d) => !d.is_additional).map((doc) => {
-                                const isOverdue = doc.status === "submitted" && doc.review_deadline && now > new Date(doc.review_deadline).getTime();
-                                const timeLeft = doc.review_deadline ? new Date(doc.review_deadline).getTime() - now : 0;
-                                return (
-                                  <div key={doc.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${isOverdue ? "bg-red-50 border border-red-200" : "bg-gray-50"}`}>
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isOverdue ? "bg-red-100" : "bg-[#E8F0EF]"}`}>
-                                      <FileText size={13} className={isOverdue ? "text-red-500" : "text-[#004B49]"} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
-                                      <div className={`text-[10px] font-semibold mt-0.5 ${
-                                        doc.status === "verified" ? "text-green-500"
-                                          : isOverdue ? "text-red-500"
-                                          : doc.status === "submitted" ? "text-[#9c7a1f]"
-                                          : "text-red-400"
-                                      }`}>
-                                        {doc.status === "verified" ? "✓ Verified"
-                                          : isOverdue ? "⚠ Review overdue — file dispute"
-                                          : doc.status === "submitted" ? `⏳ Under review · ${formatCountdown(timeLeft)}`
-                                          : "⚠ Not submitted"}
-                                      </div>
-                                    </div>
-                                    {doc.status === "not_submitted" && isBuyer && (
-                                      <button onClick={() => void submitDoc(tx.id, doc.id)}
-                                        className="bg-[#004B49] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
-                                        <Upload size={10} /> Upload
-                                      </button>
-                                    )}
-                                    {isOverdue && isBuyer && (
-                                      <button onClick={() => setShowOverdueDispute({ tx: tx.id, doc: doc.name })}
-                                        className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0">
-                                        Dispute
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })}
-
-                              {tx.docs.filter((d) => d.is_additional).length > 0 && (
-                                <>
-                                  <div className="text-xs font-bold text-gray-600 mt-2 mb-1">Additional (Requested by Provider)</div>
-                                  {tx.docs.filter((d) => d.is_additional).map((doc) => (
-                                    <div key={doc.id} className="flex items-center gap-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-xl px-3 py-2.5">
-                                      <div className="w-7 h-7 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <Plus size={13} className="text-[#9c7a1f]" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-semibold text-gray-700 truncate">{doc.name}</div>
-                                        <div className="text-[10px] text-[#9c7a1f] font-semibold mt-0.5">{doc.status === "submitted" ? "✓ Submitted" : "⚠ Requested by provider"}</div>
-                                      </div>
-                                      {doc.status === "not_submitted" && isBuyer && (
-                                        <button onClick={() => void submitDoc(tx.id, doc.id)}
-                                          className="bg-[#D4AF37] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 flex-shrink-0">
-                                          <Upload size={10} /> Upload
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {currentTab === "appointment" && (
-                        <div>
-                          {tx.appointment_date ? (
-                            <>
-                              <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-2xl p-4 mb-3">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Calendar size={16} className="text-[#004B49]" />
-                                  <span className="text-sm font-bold text-[#004B49]">Embassy Appointment</span>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <div className="flex justify-between"><span className="text-xs text-gray-500">Date</span><span className="text-xs font-bold text-gray-800">{tx.appointment_date}</span></div>
-                                  <div className="flex justify-between"><span className="text-xs text-gray-500">Time</span><span className="text-xs font-bold text-gray-800">{tx.appointment_time}</span></div>
-                                  <div className="flex justify-between"><span className="text-xs text-gray-500">Location</span><span className="text-xs font-bold text-gray-800 text-right max-w-[60%]">{tx.appointment_location}</span></div>
-                                </div>
-                              </div>
-                              <div className="text-xs font-bold text-gray-600 mb-2">Appointment Voucher</div>
-                              {tx.appointment_voucher ? (
-                                <div className="bg-green-50 border border-green-100 rounded-xl p-3 flex items-center gap-2">
-                                  <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                                  <div>
-                                    <div className="text-xs font-bold text-green-700">Voucher Confirmed</div>
-                                    <div className="text-[11px] text-green-600 font-mono mt-0.5">{tx.appointment_voucher}</div>
-                                  </div>
-                                </div>
-                              ) : isBuyer ? (
-                                showVoucherInput === tx.id ? (
-                                  <div className="flex gap-2">
-                                    <input value={voucherInput} onChange={(e) => setVoucherInput(e.target.value)} placeholder="Enter voucher/reference number"
-                                      className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#004B49]" />
-                                    <button onClick={() => void submitVoucher(tx.id)} className="bg-[#004B49] text-white text-xs font-bold px-3 py-2.5 rounded-xl">Submit</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => setShowVoucherInput(tx.id)}
-                                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 font-semibold hover:border-[#004B49]/40 transition-all">
-                                    + Add Appointment Voucher
-                                  </button>
-                                )
-                              ) : (
-                                <div className="text-xs text-gray-400 text-center py-2">Waiting for buyer to confirm voucher</div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="text-center py-6">
-                              <Calendar size={28} className="text-gray-200 mx-auto mb-2" />
-                              <div className="text-sm font-bold text-gray-400">No Appointment Yet</div>
-                              <div className="text-xs text-gray-300 mt-1">Provider will schedule the embassy appointment</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {currentTab === "progress" && (
-                        <div>
-                          <div className="flex gap-1 mb-4">
-                            {PROGRESS_STEPS.map((_, i) => (
-                              <div key={i} className={`flex-1 h-1.5 rounded-full ${i < tx.current_step ? "bg-[#004B49]" : "bg-gray-100"}`} />
-                            ))}
-                          </div>
-                          <div className="flex flex-col gap-3">
-                            {PROGRESS_STEPS.map((title, i) => (
-                              <div key={i} className="flex items-start gap-3">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${i < tx.current_step ? "bg-[#004B49]" : "bg-gray-100"}`}>
-                                  {i < tx.current_step ? <CheckCircle size={13} className="text-white" /> : <span className="text-[9px] text-gray-400 font-bold">{i + 1}</span>}
-                                </div>
-                                <div className={`text-xs font-semibold ${i < tx.current_step ? "text-gray-800" : "text-gray-400"}`}>{title}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ACTION BUTTONS */}
-                      <div className="flex gap-2 mt-4 flex-wrap">
-                        <Link to="/messages" className="flex-1">
-                          <button className="w-full border border-[#004B49] text-[#004B49] text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                            <MessageCircle size={14} /> Chat
-                          </button>
-                        </Link>
-
-                        {/* Buyer: Cancel (only before lock) */}
-                        {isActive && isBuyer && !tx.is_locked && (
-                          <button onClick={() => setShowCancelModal(tx)}
-                            className="flex-1 border border-red-200 text-red-500 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                            <XCircle size={14} /> Cancel
-                          </button>
-                        )}
-
-                        {/* Both: Raise Issue (after lock) */}
-                        {isActive && tx.is_locked && (
-                          <button onClick={() => setShowIssueModal(tx)}
-                            className="flex-1 border border-amber-300 text-amber-600 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                            <ShieldAlert size={14} /> Raise Issue
-                          </button>
-                        )}
-
-                        {/* Buyer: Confirm visa */}
-                        {isActive && isBuyer && (
-                          <button onClick={() => setShowConfirmModal(tx)}
-                            className="flex-1 bg-green-500 text-white text-xs font-bold py-2.5 rounded-xl">
-                            ✓ Visa Received
-                          </button>
-                        )}
-
-                        {tx.status === "disputed" && (
-                          <Link to="/disputes" className="flex-1">
-                            <button className="w-full bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl">View Dispute</button>
-                          </Link>
-                        )}
-
-                        {tx.status === "completed" && isBuyer && (
-                          <button onClick={() => alert("Review system coming soon")}
-                            className="flex-1 bg-[#D4AF37] text-white text-xs font-bold py-2.5 rounded-xl">⭐ Leave Review</button>
-                        )}
-                      </div>
-
-                      <div className="mt-2 text-center">
-                        <span className="text-[10px] text-gray-400 font-mono">ID: {tx.id.slice(0, 8)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${si.cls}`}>{si.label}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                    <Clock size={10} /> {new Date(o.created_at).toLocaleDateString()}
+                  </span>
+                  <span className="text-sm font-black text-[#004B49]">${Number(o.amount).toFixed(2)}</span>
+                </div>
+              </button>
             );
           })
         )}
       </div>
-
-      {/* ── CANCEL MODAL ── */}
-      {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/50" onClick={() => !busy && setShowCancelModal(null)} />
-          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <XCircle size={26} className="text-red-500" />
-              </div>
-              <div className="font-black text-gray-800 text-lg mb-1">Cancel Order?</div>
-              <div className="text-sm text-gray-500 leading-relaxed">
-                Your full payment of <span className="font-bold text-gray-800">${showCancelModal.amount} USDT</span> will be refunded to your wallet.
-              </div>
-            </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
-              <div className="text-xs text-amber-700 font-semibold">⚠️ You can only cancel before submitting any documents. After that, you must raise an issue.</div>
-            </div>
-            <div className="mb-4">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Reason for Cancellation *</label>
-              <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Please explain why you're cancelling..."
-                rows={3}
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-red-300 resize-none" />
-            </div>
-            <button onClick={() => void cancelTransaction(showCancelModal)} disabled={busy || !cancelReason.trim()}
-              className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-50">
-              {busy ? "Processing..." : "Yes, Cancel Order"}
-            </button>
-            <button onClick={() => { setShowCancelModal(null); setCancelReason(""); }} disabled={busy}
-              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
-              Keep Order
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── RAISE ISSUE MODAL ── */}
-      {showIssueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/50" onClick={() => !busy && setShowIssueModal(null)} />
-          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <ShieldAlert size={26} className="text-amber-500" />
-              </div>
-              <div className="font-black text-gray-800 text-lg mb-1">Raise an Issue</div>
-              <div className="text-sm text-gray-500 leading-relaxed">
-                Describe your issue. Admin will review within 24 hours and mediate.
-              </div>
-            </div>
-            <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-3 mb-4">
-              <div className="text-xs text-[#004B49]">🔒 Transaction is locked. Direct cancellation is not available — admin mediation required.</div>
-            </div>
-            <div className="mb-4">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Describe the Issue *</label>
-              <textarea value={issueText} onChange={(e) => setIssueText(e.target.value)}
-                placeholder="What went wrong? Be specific..."
-                rows={4}
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-amber-300 resize-none" />
-            </div>
-            <button onClick={() => void raiseIssue(showIssueModal)} disabled={busy || !issueText.trim()}
-              className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-50">
-              {busy ? "Submitting..." : "Submit Issue to Admin"}
-            </button>
-            <button onClick={() => { setShowIssueModal(null); setIssueText(""); }} disabled={busy}
-              className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── OVERDUE DISPUTE MODAL ── */}
-      {showOverdueDispute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowOverdueDispute(null)} />
-          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <AlertTriangle size={26} className="text-red-500" />
-              </div>
-              <div className="font-black text-gray-800 text-lg mb-1">Review Overdue</div>
-              <div className="text-sm text-gray-500 leading-relaxed">
-                Provider failed to review <span className="font-bold text-gray-800">{showOverdueDispute.doc}</span> within the 24-hour SLA.
-              </div>
-            </div>
-            <Link to="/disputes">
-              <button className="w-full bg-red-500 text-white font-bold py-4 rounded-2xl text-sm mb-2">File Dispute Now</button>
-            </Link>
-            <button onClick={() => setShowOverdueDispute(null)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Give More Time</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── CONFIRM VISA MODAL ── */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle size={28} className="text-green-500" />
-              </div>
-              <div className="font-black text-gray-800 text-lg mb-1">Confirm Visa Received?</div>
-              <div className="text-sm text-gray-500 leading-relaxed">
-                Confirming will release <span className="font-bold text-gray-800">${(showConfirmModal.amount - 36).toFixed(2)} USDT</span> from Escrow to {showConfirmModal.counterparty_name} immediately.
-              </div>
-            </div>
-            <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
-              <div className="text-xs text-red-600 font-semibold">⚠️ Only confirm after you physically receive your visa documents. This cannot be undone.</div>
-            </div>
-            <button onClick={() => void confirmVisaReceived(showConfirmModal)} disabled={busy}
-              className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl text-sm mb-2 disabled:opacity-60">
-              {busy ? "Processing..." : "✓ Yes, I Received My Visa"}
-            </button>
-            <button onClick={() => setShowConfirmModal(null)} className="w-full bg-gray-50 text-gray-500 font-semibold py-3 rounded-2xl text-sm">Cancel</button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
