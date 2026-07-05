@@ -42,11 +42,36 @@ export function Transactions() {
 
     const { data: txs } = await supabase
       .from("transactions")
-      .select("id, buyer_id, seller_id, ad_id, amount, buyer_fee, total_paid, status, created_at, ads:ad_id(title, country, visa_type), buyer:buyer_id(display_name, full_name), seller:seller_id(display_name, full_name)")
+      .select("id, buyer_id, seller_id, ad_id, amount, buyer_fee, total_paid, status, created_at")
       .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
       .order("created_at", { ascending: false });
 
-    setOrders(txs ?? []);
+    const txList = txs ?? [];
+
+    // Gather related ids
+    const adIds = [...new Set(txList.map((t: any) => t.ad_id).filter(Boolean))];
+    const personIds = [...new Set(txList.flatMap((t: any) => [t.buyer_id, t.seller_id]))];
+
+    const adById: Record<string, any> = {};
+    if (adIds.length > 0) {
+      const { data: adData } = await supabase.from("ads").select("id, title, country, visa_type").in("id", adIds);
+      (adData ?? []).forEach((a: any) => { adById[a.id] = a; });
+    }
+
+    const personById: Record<string, any> = {};
+    if (personIds.length > 0) {
+      const { data: pData } = await supabase.from("profiles").select("id, display_name, full_name").in("id", personIds);
+      (pData ?? []).forEach((p: any) => { personById[p.id] = p; });
+    }
+
+    const enriched = txList.map((t: any) => ({
+      ...t,
+      ads: adById[t.ad_id] ?? null,
+      buyer: personById[t.buyer_id] ?? null,
+      seller: personById[t.seller_id] ?? null,
+    }));
+
+    setOrders(enriched);
     setLoading(false);
   }
 
@@ -184,7 +209,6 @@ export function Transactions() {
     return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
   }
 
-  // ── CHAT VIEW ──
   if (selected) {
     const isBuyer = userId === selected.buyer_id;
     const other = isBuyer ? (selected.seller as any) : (selected.buyer as any);
@@ -331,7 +355,6 @@ export function Transactions() {
     );
   }
 
-  // ── ORDERS LIST ──
   return (
     <div className="flex flex-col pb-8">
       {toast && (
@@ -345,7 +368,6 @@ export function Transactions() {
         <span className="font-bold text-gray-800 text-sm">My Orders</span>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-2 px-4 mt-4">
         <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
           <div className="font-black text-gray-800 text-lg">${totalSpent.toFixed(0)}</div>
@@ -361,7 +383,6 @@ export function Transactions() {
         </div>
       </div>
 
-      {/* Filter */}
       <div className="flex gap-2 px-4 mt-4">
         {(["all", "active", "completed"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
