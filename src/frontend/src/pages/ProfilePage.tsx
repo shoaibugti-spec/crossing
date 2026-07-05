@@ -1,329 +1,277 @@
-import { ArrowLeft, Star, Shield, CheckCircle, MessageCircle, Flag, Edit3, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, CheckCircle, Loader2, Star, TrendingUp, Award, Calendar, Globe, MessageCircle, Lock } from "lucide-react";
 import { useNavigate, useParams, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-interface ProfileData {
-  id: string;
-  full_name: string | null;
-  role: string;
-  country: string | null;
-  kyc_level: number;
-  kyc_status: string;
-  trust_score: number;
-  created_at: string;
-}
-
-interface BusinessInfo {
-  company_name: string | null;
-  business_type: string | null;
-  office_city: string | null;
-  office_country: string | null;
-}
-
-interface AdRow {
-  id: string;
-  title: string;
-  price: number;
-  currency: string;
-  country: string;
-  processing_time: string | null;
-  status: string;
-}
+const PROVIDER_FEE = 6;
+const BUYER_FEE = 3;
 
 export function ProfilePage() {
-  const { id } = useParams({ from: "/profile/$id" });
   const navigate = useNavigate();
+  const params = useParams({ strict: false }) as { id?: string };
+  const providerId = params.id;
 
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [business, setBusiness] = useState<BusinessInfo | null>(null);
-  const [listings, setListings] = useState<AdRow[]>([]);
-  const [activeTab, setActiveTab] = useState<"reviews" | "listings">("reviews");
-  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [provider, setProvider] = useState<any | null>(null);
+  const [ads, setAds] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [tab, setTab] = useState<"listings" | "reviews">("listings");
 
-  useEffect(() => {
-    void loadProfile();
-  }, [id]);
+  useEffect(() => { void loadProfile(); }, [providerId]);
 
   async function loadProfile() {
     setLoading(true);
+    if (!providerId) { setLoading(false); return; }
 
-    const { data: userData } = await supabase.auth.getUser();
-    const currentUserId = userData.user?.id ?? null;
-
-    const targetId = id === "me" ? currentUserId : id;
-    setIsOwnProfile(id === "me" || targetId === currentUserId);
-
-    if (!targetId) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: profileData } = await supabase
+    const { data: prof } = await supabase
       .from("profiles")
-      .select("id, full_name, role, country, kyc_level, kyc_status, trust_score, created_at")
-      .eq("id", targetId)
+      .select("id, display_name, full_name, profile_bio, country, kyc_status, business_status, total_visas_delivered, total_valuation, positive_feedback_count, negative_feedback_count, created_at")
+      .eq("id", providerId)
       .single();
-    setProfile(profileData ?? null);
+    setProvider(prof);
 
-    if (profileData?.role === "provider") {
-      const { data: biz } = await supabase
-        .from("provider_business_info")
-        .select("company_name, business_type, office_city, office_country")
-        .eq("user_id", targetId)
-        .single();
-      setBusiness(biz ?? null);
+    const { data: adData } = await supabase
+      .from("ads")
+      .select("id, title, country, visa_type, price, currency, processing_time, status, is_public, provider_fee, buyer_fee")
+      .eq("provider_id", providerId)
+      .eq("status", "active")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false });
+    setAds(adData ?? []);
 
-      const { data: ads } = await supabase
-        .from("ads")
-        .select("id, title, price, currency, country, processing_time, status")
-        .eq("provider_id", targetId)
-        .order("created_at", { ascending: false });
-      setListings(ads ?? []);
-    }
+    const { data: revs } = await supabase
+      .from("reviews")
+      .select("id, rating, tags, comment, created_at")
+      .eq("provider_id", providerId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setReviews(revs ?? []);
 
     setLoading(false);
   }
 
   if (loading) {
+    return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
+  }
+
+  if (!provider) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="animate-spin text-gray-300" size={28} />
+      <div className="flex flex-col pb-8">
+        <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
+          <span className="font-bold text-gray-800 text-sm">Provider Profile</span>
+        </div>
+        <div className="text-center py-16 text-gray-400 text-sm">Provider not found.</div>
       </div>
     );
   }
 
-  if (!profile) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-        <div className="text-2xl mb-2">👤</div>
-        <div className="font-bold text-gray-700">Profile not found</div>
-        <div className="text-xs text-gray-400 mt-1">This user may not exist or hasn't completed signup.</div>
-      </div>
-    );
-  }
+  const displayName = provider.display_name ?? "Verified Provider";
+  const totalFeedback = (provider.positive_feedback_count ?? 0) + (provider.negative_feedback_count ?? 0);
+  const positiveRate = totalFeedback > 0 ? Math.round(((provider.positive_feedback_count ?? 0) / totalFeedback) * 100) : 0;
+  const joinDate = provider.created_at ? new Date(provider.created_at) : null;
+  const daysSinceJoin = joinDate ? Math.floor((Date.now() - joinDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const verified = provider.kyc_status === "approved";
 
-  const isProvider = profile.role === "provider";
-  const displayName = isProvider && business?.company_name ? business.company_name : (profile.full_name || "Unnamed User");
-  const initial = displayName[0]?.toUpperCase() ?? "?";
-  const roleLabel = isProvider
-    ? `Visa Provider${business?.business_type ? ` · ${business.business_type}` : ""}`
-    : profile.role === "admin" ? "Crossing Administrator" : "Visa Seeker";
-  const locationLabel = isProvider && business
-    ? `${business.office_city ?? ""}${business.office_city && business.office_country ? ", " : ""}${business.office_country ?? ""}`
-    : profile.country ?? "Location not set";
-  const verified = profile.kyc_status === "approved";
-  const memberSince = new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const memberYear = new Date(profile.created_at).getFullYear();
+  const tagCounts: Record<string, number> = {};
+  reviews.forEach((r) => (r.tags ?? []).forEach((t: string) => { tagCounts[t] = (tagCounts[t] ?? 0) + 1; }));
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   return (
     <div className="flex flex-col pb-8">
-
-      {/* BACK */}
       <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
         <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
-        <span className="font-bold text-gray-800 text-sm">{isOwnProfile ? "My Profile" : "Profile"}</span>
-        {isOwnProfile && (
-          <Link to="/settings" className="ml-auto">
-            <button className="flex items-center gap-1.5 text-xs font-semibold text-[#004B49]">
-              <Edit3 size={14} /> Edit
-            </button>
-          </Link>
+        <span className="font-bold text-gray-800 text-sm">Provider Profile</span>
+      </div>
+
+      {/* HEADER CARD */}
+      <div className="mx-4 mt-4 bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-3xl p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center text-white font-black text-2xl border border-white/20">
+            {displayName[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1">
+            <div className="font-black text-white text-lg flex items-center gap-1.5">
+              {displayName}
+              {verified && <CheckCircle size={16} className="text-[#D4AF37]" />}
+            </div>
+            <div className="text-white/60 text-xs flex items-center gap-1 mt-0.5">
+              <Globe size={11} /> {provider.country ?? "—"}
+            </div>
+            {totalFeedback > 0 ? (
+              <div className="flex items-center gap-1 mt-1">
+                <Star size={11} className="text-[#D4AF37] fill-[#D4AF37]" />
+                <span className="text-white/80 text-xs font-bold">{positiveRate}% positive</span>
+                <span className="text-white/40 text-[10px]">· {totalFeedback} reviews</span>
+              </div>
+            ) : (
+              <div className="text-white/40 text-[10px] mt-1">No ratings yet</div>
+            )}
+          </div>
+        </div>
+        {verified && (
+          <div className="bg-white/10 border border-white/15 rounded-xl px-3 py-2 flex items-center gap-2">
+            <Shield size={14} className="text-[#D4AF37]" />
+            <span className="text-white text-xs font-bold">Crossingate Verified Provider</span>
+          </div>
         )}
       </div>
 
-      {/* PROFILE HEADER */}
-      <div className="bg-white px-4 pt-5 pb-4 border-b border-gray-100">
-        <div className="flex items-start gap-4 mb-4">
-          <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white font-black text-xl">
-              {initial}
-            </div>
-            {verified && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center border-2 border-white">
-                <CheckCircle size={12} className="text-white" />
-              </div>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-black text-gray-800 text-lg leading-tight">{displayName}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{roleLabel}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{locationLabel}</div>
-            <div className="flex items-center gap-1 mt-1.5">
-              <Star size={12} className="text-amber-400 fill-amber-400" />
-              <span className="text-xs font-bold text-gray-700">No ratings yet</span>
-            </div>
-          </div>
+      {/* BIO */}
+      {provider.profile_bio && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">About</div>
+          <div className="text-sm text-gray-600 leading-relaxed">{provider.profile_bio}</div>
         </div>
-
-        {/* BADGES */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {verified && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-[#FBF3E1] text-[#9c7a1f] border-[#D4AF37]/30">
-              KYC Verified
-            </span>
-          )}
-          {profile.role === "admin" && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-purple-50 text-purple-600 border-purple-100">
-              Crossing Admin
-            </span>
-          )}
-          {!verified && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">
-              Unverified
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* TRUST SCORE */}
-      <div className="mx-4 mt-4">
-        <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="text-white/60 text-xs mb-0.5">Trust Score</div>
-              <div className="text-3xl font-black text-white">{profile.trust_score}<span className="text-lg text-white/50">/100</span></div>
-            </div>
-            <div className="w-16 h-16 relative">
-              <svg viewBox="0 0 60 60" className="w-full h-full -rotate-90">
-                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="6" />
-                <circle cx="30" cy="30" r="24" fill="none" stroke="#D4AF37" strokeWidth="6"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(profile.trust_score / 100) * 150} 150`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Shield size={18} className="text-white" />
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "KYC Level", value: `L${profile.kyc_level}` },
-              { label: "Status", value: profile.kyc_status === "approved" ? "Verified" : profile.kyc_status === "pending" ? "Pending" : "None" },
-              { label: "Member Since", value: String(memberYear) },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-white/10 rounded-xl p-2 text-center">
-                <div className="text-white font-black text-sm">{value}</div>
-                <div className="text-white/50 text-[9px] mt-0.5">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* STATS */}
-      <div className="mx-4 mt-3">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Transactions", value: "0" },
-            { label: "Listings", value: String(listings.length) },
-            { label: "Joined", value: memberSince },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-white rounded-2xl p-3 text-center shadow-sm">
-              <div className="font-black text-gray-800 text-sm">{value}</div>
-              <div className="text-[10px] text-gray-400 mt-0.5">{label}</div>
-            </div>
-          ))}
+      <div className="mx-4 mt-3 grid grid-cols-3 gap-2">
+        <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
+          <TrendingUp size={18} className="text-[#004B49] mx-auto mb-1" />
+          <div className="font-black text-gray-800 text-lg">{provider.total_visas_delivered ?? 0}</div>
+          <div className="text-[10px] text-gray-400">Visas Delivered</div>
+        </div>
+        <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
+          <Award size={18} className="text-[#9c7a1f] mx-auto mb-1" />
+          <div className="font-black text-gray-800 text-lg">${Number(provider.total_valuation ?? 0).toLocaleString()}</div>
+          <div className="text-[10px] text-gray-400">Total Value</div>
+        </div>
+        <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
+          <Star size={18} className="text-green-500 mx-auto mb-1" />
+          <div className="font-black text-gray-800 text-lg">{positiveRate}%</div>
+          <div className="text-[10px] text-gray-400">Positive</div>
         </div>
       </div>
 
-      {/* ACTION BUTTONS */}
-      {!isOwnProfile && isProvider && (
-        <div className="mx-4 mt-3 flex gap-2">
-          <Link to="/ads" search={{ q: "", country: "", type: "" }} className="flex-1">
-            <button className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
-              <MessageCircle size={16} />
-              View Listings to Order
-            </button>
-          </Link>
-          <button onClick={() => alert("Report submitted")}
-            className="w-11 h-11 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Flag size={16} className="text-red-400" />
-          </button>
+      {/* JOIN INFO */}
+      <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
+          <Calendar size={18} className="text-[#004B49]" />
         </div>
-      )}
+        <div className="flex-1">
+          <div className="text-sm font-bold text-gray-800">Member for {daysSinceJoin} day{daysSinceJoin !== 1 ? "s" : ""}</div>
+          <div className="text-[11px] text-gray-400">{joinDate ? `Joined ${joinDate.toLocaleDateString()}` : "—"}</div>
+        </div>
+      </div>
 
-      {!isOwnProfile && isProvider && (
-        <div className="mx-4 mt-2">
-          <div className="bg-[#E8F0EF] border border-[#004B49]/15 rounded-xl p-2.5 text-[11px] text-[#004B49]">
-            Chat unlocks automatically once you place an order with this provider.
-          </div>
-        </div>
-      )}
+      {/* CHAT INFO */}
+      <div className="mx-4 mt-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-2xl p-3 flex gap-2">
+        <Lock size={14} className="text-[#9c7a1f] flex-shrink-0 mt-0.5" />
+        <div className="text-[11px] text-[#9c7a1f]">Chat unlocks automatically once you place an order with this provider.</div>
+      </div>
 
       {/* TABS */}
-      <div className="mx-4 mt-4">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {(["reviews", "listings"] as const).map((t) => (
-            <button key={t} onClick={() => setActiveTab(t)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === t ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}>
-              {t === "reviews" ? "⭐ Reviews" : "📋 Listings"}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-2 px-4 mt-4">
+        <button onClick={() => setTab("listings")}
+          className={`flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "listings" ? "bg-[#004B49] text-white shadow-md" : "bg-white text-gray-500 border border-gray-100"}`}>
+          📋 Listings ({ads.length})
+        </button>
+        <button onClick={() => setTab("reviews")}
+          className={`flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "reviews" ? "bg-[#004B49] text-white shadow-md" : "bg-white text-gray-500 border border-gray-100"}`}>
+          ⭐ Reviews ({totalFeedback})
+        </button>
       </div>
 
-      {/* REVIEWS — empty until review system is built */}
-      {activeTab === "reviews" && (
-        <div className="mx-4 mt-3">
-          <div className="text-center py-10">
-            <div className="text-2xl mb-2">⭐</div>
-            <div className="text-sm font-bold text-gray-400">No reviews yet</div>
-            <div className="text-xs text-gray-300 mt-1">Reviews appear after completed transactions</div>
-          </div>
-        </div>
-      )}
-
       {/* LISTINGS TAB */}
-      {activeTab === "listings" && (
-        <div className="mx-4 mt-3">
-          {isProvider ? (
-            listings.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {listings.map((listing) => (
-                  <Link key={listing.id} to="/ads/$id" params={{ id: listing.id }}>
-                    <div className="bg-white rounded-2xl p-4 shadow-sm">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <div className="text-sm font-bold text-gray-800">{listing.title}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{listing.country}</div>
-                        </div>
-                        <div className="font-black text-[#004B49]">${listing.price}</div>
+      {tab === "listings" && (
+        <div className="px-4 mt-3 flex flex-col gap-3">
+          {ads.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm py-10 text-center">
+              <div className="text-2xl mb-1">📋</div>
+              <div className="text-sm font-bold text-gray-400">No active listings</div>
+            </div>
+          ) : (
+            ads.map((ad) => {
+              const buyerPays = Number(ad.price) + (ad.provider_fee ?? PROVIDER_FEE) + (ad.buyer_fee ?? BUYER_FEE);
+              return (
+                <Link key={ad.id} to="/ads/$id" params={{ id: ad.id }}>
+                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-800 text-sm">{ad.title}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{ad.country}</div>
                       </div>
-                      <div className="flex gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          listing.status === "active" ? "bg-green-50 text-green-600 border-green-100" : "bg-gray-50 text-gray-500 border-gray-200"
-                        }`}>
-                          {listing.status === "active" ? "✓ Live" : listing.status.replace("_", " ")}
-                        </span>
-                        {listing.processing_time && (
-                          <span className="bg-gray-50 text-gray-500 text-[10px] font-semibold px-2 py-0.5 rounded-full">⏱ {listing.processing_time}</span>
-                        )}
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-black text-[#004B49] text-lg">${buyerPays}</div>
+                        <div className="text-[10px] text-gray-400">{ad.currency}</div>
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="text-2xl mb-2">📋</div>
-                <div className="text-sm font-bold text-gray-400">No listings yet</div>
-              </div>
-            )
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-2xl mb-2">📋</div>
-              <div className="text-sm font-bold text-gray-400">No listings</div>
-              <div className="text-xs text-gray-300 mt-1">This user is a Visa Seeker</div>
-            </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="bg-[#E8F0EF] text-[#004B49] text-[10px] font-semibold px-2 py-0.5 rounded-full">{ad.visa_type}</span>
+                      {ad.processing_time && (
+                        <span className="bg-gray-50 text-gray-500 text-[10px] font-semibold px-2 py-0.5 rounded-full">⏱ {ad.processing_time}</span>
+                      )}
+                      <span className="bg-green-50 text-green-600 text-[10px] font-semibold px-2 py-0.5 rounded-full">✓ Live</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })
           )}
         </div>
       )}
 
+      {/* REVIEWS TAB */}
+      {tab === "reviews" && (
+        <div className="px-4 mt-3 flex flex-col gap-3">
+          {totalFeedback === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm py-10 text-center">
+              <div className="text-2xl mb-1">⭐</div>
+              <div className="text-sm font-bold text-gray-400">No reviews yet</div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1 bg-green-50 rounded-xl p-3 text-center">
+                    <div className="font-black text-green-600 text-lg">👍 {provider.positive_feedback_count ?? 0}</div>
+                    <div className="text-[10px] text-gray-500">Positive</div>
+                  </div>
+                  <div className="flex-1 bg-red-50 rounded-xl p-3 text-center">
+                    <div className="font-black text-red-400 text-lg">👎 {provider.negative_feedback_count ?? 0}</div>
+                    <div className="text-[10px] text-gray-500">Negative</div>
+                  </div>
+                </div>
+                {topTags.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Clients Say</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {topTags.map(([tag, count]) => (
+                        <span key={tag} className="text-[11px] bg-[#E8F0EF] text-[#004B49] font-semibold px-2.5 py-1 rounded-full">
+                          {tag} · {count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {reviews.map((r) => (
+                <div key={r.id} className="bg-white rounded-2xl shadow-sm p-4">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`text-xs font-bold ${r.rating === "positive" ? "text-green-600" : "text-red-400"}`}>
+                      {r.rating === "positive" ? "👍 Positive" : "👎 Negative"}
+                    </span>
+                    <span className="text-[9px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {r.tags && r.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {r.tags.map((t: string) => (
+                        <span key={t} className="text-[9px] bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-full border border-gray-100">{t}</span>
+                      ))}
+                    </div>
+                  )}
+                  {r.comment && <div className="text-xs text-gray-600">{r.comment}</div>}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
