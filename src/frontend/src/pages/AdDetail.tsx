@@ -13,6 +13,7 @@ export function AdDetail() {
   const [loading, setLoading] = useState(true);
   const [ad, setAd] = useState<any | null>(null);
   const [provider, setProvider] = useState<any | null>(null);
+  const [service, setService] = useState<any | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [kycStatus, setKycStatus] = useState("none");
@@ -38,10 +39,19 @@ export function AdDetail() {
 
     const { data: adData } = await supabase
       .from("ads")
-      .select("id, provider_id, title, description, country, visa_type, price, currency, processing_time, requirements, provider_fee, buyer_fee, status, is_public, created_at")
+      .select("id, provider_id, provider_service_id, title, description, country, visa_type, price, currency, processing_time, requirements, provider_fee, buyer_fee, status, is_public, created_at")
       .eq("id", adId)
       .single();
     setAd(adData);
+
+    if (adData?.provider_service_id) {
+      const { data: svc } = await supabase
+        .from("provider_services")
+        .select("id, capacity, active_count")
+        .eq("id", adData.provider_service_id)
+        .single();
+      setService(svc);
+    }
 
     if (adData?.provider_id) {
       const { data: prov } = await supabase
@@ -67,11 +77,19 @@ export function AdDetail() {
   const providerFee = ad?.provider_fee ?? 6;
   const buyerPays = Number(ad?.price ?? 0) + providerFee + buyerFee;
 
+  const capacity = service?.capacity ?? 1;
+  const activeCount = service?.active_count ?? 0;
+  const isFull = activeCount >= capacity;
+
   async function placeOrder() {
     if (!userId || !ad) return;
     if (walletBalance < buyerPays) {
       alert(`You need $${buyerPays.toFixed(2)} USDT in your wallet. Please top up first.`);
       void navigate({ to: "/wallet" });
+      return;
+    }
+    if (isFull) {
+      alert("This provider is at full capacity right now. Please try again later.");
       return;
     }
     setPlacing(true);
@@ -98,6 +116,15 @@ export function AdDetail() {
       user_id: userId, type: "escrow", amount: -buyerPays, status: "completed",
       notes: `Escrow payment — "${ad.title}"`,
     });
+
+    // Capacity: active_count barhayen. Agar full ho jaye to ad hide karein.
+    if (ad.provider_service_id) {
+      const newCount = activeCount + 1;
+      await supabase.from("provider_services").update({ active_count: newCount }).eq("id", ad.provider_service_id);
+      if (newCount >= capacity) {
+        await supabase.from("ads").update({ is_public: false }).eq("id", ad.id);
+      }
+    }
 
     await supabase.from("notifications").insert([
       { user_id: userId, type: "success", title: "✅ Order Placed!", body: `Your payment is held in escrow. You can now chat with the provider.`, link: "/orders", is_read: false },
@@ -171,10 +198,12 @@ export function AdDetail() {
               {(provider.display_name ?? provider.full_name ?? "P")[0]?.toUpperCase()}
             </div>
             <div className="flex-1">
-              <div className="font-black text-gray-800 text-sm flex items-center gap-1.5">
-                {provider.display_name ?? "Verified Provider"}
-                <CheckCircle size={14} className="text-[#004B49]" />
-              </div>
+              <Link to="/profile/$id" params={{ id: provider.id }}>
+                <div className="font-black text-gray-800 text-sm flex items-center gap-1.5">
+                  {provider.display_name ?? "Verified Provider"}
+                  <CheckCircle size={14} className="text-[#004B49]" />
+                </div>
+              </Link>
               <div className="text-[11px] text-gray-400">
                 Member for {daysSinceJoin} day{daysSinceJoin !== 1 ? "s" : ""}
                 {joinDate && ` · Joined ${joinDate.toLocaleDateString()}`}
@@ -209,24 +238,6 @@ export function AdDetail() {
               <span className="text-green-600 font-bold">👍 {provider.positive_feedback_count ?? 0}</span>
               <span className="text-red-400 font-bold">👎 {provider.negative_feedback_count ?? 0}</span>
               <span className="text-gray-400">· {totalFeedback} review{totalFeedback !== 1 ? "s" : ""}</span>
-            </div>
-          )}
-
-          {reviews.length > 0 && (
-            <div className="mt-2 border-t border-gray-50 pt-2">
-              {reviews.slice(0, 3).map((r) => (
-                <div key={r.id} className="py-1.5">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className={`text-[10px] font-bold ${r.rating === "positive" ? "text-green-600" : "text-red-400"}`}>
-                      {r.rating === "positive" ? "👍 Positive" : "👎 Negative"}
-                    </span>
-                    {r.tags?.slice(0, 2).map((t: string) => (
-                      <span key={t} className="text-[9px] bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-full">{t}</span>
-                    ))}
-                  </div>
-                  {r.comment && <div className="text-[11px] text-gray-600">{r.comment}</div>}
-                </div>
-              ))}
             </div>
           )}
         </div>
@@ -274,8 +285,10 @@ export function AdDetail() {
       </div>
 
       <div className="fixed bottom-16 left-0 right-0 px-4 py-3 bg-white border-t border-gray-100 max-w-lg mx-auto">
-        {ad.status !== "active" || !ad.is_public ? (
+        {ad.status !== "active" ? (
           <div className="text-center text-xs text-gray-400 py-2">This listing is not available for orders.</div>
+        ) : isFull ? (
+          <div className="text-center text-xs text-[#9c7a1f] font-semibold py-2">Provider is at full capacity right now.</div>
         ) : userId === ad.provider_id ? (
           <div className="text-center text-xs text-gray-400 py-2">This is your own listing.</div>
         ) : (
