@@ -25,7 +25,7 @@ export function ProfilePage() {
 
     const { data: prof } = await supabase
       .from("profiles")
-      .select("id, display_name, full_name, profile_bio, country, kyc_status, business_status, total_visas_delivered, total_valuation, positive_feedback_count, negative_feedback_count, created_at")
+      .select("id, display_name, full_name, profile_bio, country, role, kyc_status, business_status, total_visas_delivered, total_valuation, positive_feedback_count, negative_feedback_count, created_at")
       .eq("id", providerId)
       .single();
     setProvider(prof);
@@ -54,16 +54,76 @@ export function ProfilePage() {
     return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
   }
 
-  if (!provider) {
+  // ── BUYER / SEEKER PROFILE ──
+  if (provider.role !== "provider") {
+    const joinDt = provider.created_at ? new Date(provider.created_at) : null;
     return (
       <div className="flex flex-col pb-8">
         <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
           <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
-          <span className="font-bold text-gray-800 text-sm">Provider Profile</span>
+          <span className="font-bold text-gray-800 text-sm">My Profile</span>
         </div>
-        <div className="text-center py-16 text-gray-400 text-sm">Provider not found.</div>
+
+        <div className="mx-4 mt-4 bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-3xl p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center text-white font-black text-2xl border border-white/20">
+              {(provider.full_name ?? "U")[0]?.toUpperCase()}
+            </div>
+            <div className="flex-1">
+              <div className="font-black text-white text-lg">{provider.full_name ?? "User"}</div>
+              <div className="text-white/60 text-xs flex items-center gap-1 mt-0.5">
+                <Globe size={11} /> {provider.country ?? "—"} · Visa Buyer
+              </div>
+              {provider.kyc_status === "approved" && (
+                <div className="flex items-center gap-1 mt-1">
+                  <CheckCircle size={11} className="text-[#D4AF37]" />
+                  <span className="text-white/80 text-xs font-bold">KYC Verified</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
+            <Calendar size={18} className="text-[#004B49]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-bold text-gray-800">Member since</div>
+            <div className="text-[11px] text-gray-400">{joinDt ? joinDt.toLocaleDateString() : "—"}</div>
+          </div>
+        </div>
+
+        <div className="mx-4 mt-3 flex flex-col gap-2">
+          <Link to="/orders">
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-800">📦 My Orders</span>
+              <span className="text-gray-300">›</span>
+            </div>
+          </Link>
+          <Link to="/wallet">
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-800">💳 My Wallet</span>
+              <span className="text-gray-300">›</span>
+            </div>
+          </Link>
+          <Link to="/kyc">
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-800">🛡️ KYC Verification</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${provider.kyc_status === "approved" ? "bg-green-50 text-green-600" : "bg-[#FBF3E1] text-[#9c7a1f]"}`}>
+                {provider.kyc_status === "approved" ? "✓ Verified" : "Pending"}
+              </span>
+            </div>
+          </Link>
+          <Link to="/settings">
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-800">⚙️ Settings</span>
+              <span className="text-gray-300">›</span>
+            </div>
+          </Link>
+        </div>
       </div>
     );
   }
