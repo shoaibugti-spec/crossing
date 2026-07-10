@@ -50,8 +50,19 @@ export function ProfilePage() {
     setLoading(false);
   }
 
-  if (loading) {
+if (loading) {
     return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
+  }
+
+  if (!provider) {
+    return (
+      ...Provider not found والا حصہ...
+    );
+  }
+
+  // ── BUYER / SEEKER PROFILE ──
+  if (provider.role !== "provider") {
+    ...buyer profile والا حصہ...
   }
 
   // ── BUYER / SEEKER PROFILE ──
