@@ -1,4 +1,4 @@
-import { ArrowLeft, Shield, CheckCircle, Loader2, Star, TrendingUp, Award, Calendar, Globe, MessageCircle, Lock } from "lucide-react";
+import { ArrowLeft, Shield, CheckCircle, Loader2, Star, TrendingUp, Award, Calendar, Globe, Lock } from "lucide-react";
 import { useNavigate, useParams, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -23,17 +23,24 @@ export function ProfilePage() {
     setLoading(true);
     if (!providerId) { setLoading(false); return; }
 
+    let targetId = providerId;
+    if (providerId === "me") {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) { setLoading(false); void navigate({ to: "/login" }); return; }
+      targetId = userData.user.id;
+    }
+
     const { data: prof } = await supabase
       .from("profiles")
       .select("id, display_name, full_name, profile_bio, country, role, kyc_status, business_status, total_visas_delivered, total_valuation, positive_feedback_count, negative_feedback_count, created_at")
-      .eq("id", providerId)
+      .eq("id", targetId)
       .single();
     setProvider(prof);
 
     const { data: adData } = await supabase
       .from("ads")
       .select("id, title, country, visa_type, price, currency, processing_time, status, is_public, provider_fee, buyer_fee")
-      .eq("provider_id", providerId)
+      .eq("provider_id", targetId)
       .eq("status", "active")
       .eq("is_public", true)
       .order("created_at", { ascending: false });
@@ -42,7 +49,7 @@ export function ProfilePage() {
     const { data: revs } = await supabase
       .from("reviews")
       .select("id, rating, tags, comment, created_at")
-      .eq("provider_id", providerId)
+      .eq("provider_id", targetId)
       .order("created_at", { ascending: false })
       .limit(20);
     setReviews(revs ?? []);
@@ -50,19 +57,22 @@ export function ProfilePage() {
     setLoading(false);
   }
 
-if (loading) {
+  if (loading) {
     return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
   }
 
   if (!provider) {
     return (
-      ...Provider not found والا حصہ...
+      <div className="flex flex-col pb-8">
+        <div className="bg-white px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+          <button onClick={() => void navigate({ to: "/" })} className="p-1.5 rounded-full hover:bg-gray-100">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
+          <span className="font-bold text-gray-800 text-sm">Profile</span>
+        </div>
+        <div className="text-center py-16 text-gray-400 text-sm">Profile not found.</div>
+      </div>
     );
-  }
-
-  // ── BUYER / SEEKER PROFILE ──
-  if (provider.role !== "provider") {
-    ...buyer profile والا حصہ...
   }
 
   // ── BUYER / SEEKER PROFILE ──
@@ -139,6 +149,7 @@ if (loading) {
     );
   }
 
+  // ── PROVIDER PUBLIC PROFILE ──
   const displayName = provider.display_name ?? "Verified Provider";
   const totalFeedback = (provider.positive_feedback_count ?? 0) + (provider.negative_feedback_count ?? 0);
   const positiveRate = totalFeedback > 0 ? Math.round(((provider.positive_feedback_count ?? 0) / totalFeedback) * 100) : 0;
@@ -159,7 +170,6 @@ if (loading) {
         <span className="font-bold text-gray-800 text-sm">Provider Profile</span>
       </div>
 
-      {/* HEADER CARD */}
       <div className="mx-4 mt-4 bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-3xl p-5">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center text-white font-black text-2xl border border-white/20">
@@ -192,7 +202,6 @@ if (loading) {
         )}
       </div>
 
-      {/* BIO */}
       {provider.profile_bio && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">About</div>
@@ -200,7 +209,6 @@ if (loading) {
         </div>
       )}
 
-      {/* STATS */}
       <div className="mx-4 mt-3 grid grid-cols-3 gap-2">
         <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
           <TrendingUp size={18} className="text-[#004B49] mx-auto mb-1" />
@@ -219,7 +227,6 @@ if (loading) {
         </div>
       </div>
 
-      {/* JOIN INFO */}
       <div className="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-[#E8F0EF] flex items-center justify-center flex-shrink-0">
           <Calendar size={18} className="text-[#004B49]" />
@@ -230,13 +237,11 @@ if (loading) {
         </div>
       </div>
 
-      {/* CHAT INFO */}
       <div className="mx-4 mt-3 bg-[#FBF3E1] border border-[#D4AF37]/30 rounded-2xl p-3 flex gap-2">
         <Lock size={14} className="text-[#9c7a1f] flex-shrink-0 mt-0.5" />
         <div className="text-[11px] text-[#9c7a1f]">Chat unlocks automatically once you place an order with this provider.</div>
       </div>
 
-      {/* TABS */}
       <div className="grid grid-cols-2 gap-2 px-4 mt-4">
         <button onClick={() => setTab("listings")}
           className={`flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all ${tab === "listings" ? "bg-[#004B49] text-white shadow-md" : "bg-white text-gray-500 border border-gray-100"}`}>
@@ -248,7 +253,6 @@ if (loading) {
         </button>
       </div>
 
-      {/* LISTINGS TAB */}
       {tab === "listings" && (
         <div className="px-4 mt-3 flex flex-col gap-3">
           {ads.length === 0 ? (
@@ -287,7 +291,6 @@ if (loading) {
         </div>
       )}
 
-      {/* REVIEWS TAB */}
       {tab === "reviews" && (
         <div className="px-4 mt-3 flex flex-col gap-3">
           {totalFeedback === 0 ? (
