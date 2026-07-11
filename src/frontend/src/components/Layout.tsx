@@ -110,24 +110,20 @@ const LANGUAGES = [
 
 function translatePage(langCode: string) {
   if (langCode === "en") {
-    // English پر واپس جائیں
     const el = document.querySelector(".goog-te-combo") as HTMLSelectElement;
     if (el) { el.value = "en"; el.dispatchEvent(new Event("change")); }
     else { window.location.href = window.location.href.replace("#googtrans", "") + "#googtrans(en|en)"; window.location.reload(); }
     return;
   }
-  // Google Translate cookie method
   const value = `en|${langCode}`;
   document.cookie = `googtrans=/en/${langCode}; path=/`;
   document.cookie = `googtrans=/en/${langCode}; domain=.${window.location.hostname}; path=/`;
 
-  // Select element ڈھونڈیں
   const selectEl = document.querySelector(".goog-te-combo") as HTMLSelectElement;
   if (selectEl) {
     selectEl.value = langCode;
     selectEl.dispatchEvent(new Event("change"));
   } else {
-    // Widget نہیں ملا — Google Translate URL method
     window.location.href = `https://translate.google.com/translate?sl=en&tl=${langCode}&u=${encodeURIComponent(window.location.href)}`;
   }
 }
@@ -137,6 +133,7 @@ export function Layout({ children }: LayoutProps) {
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [checked, setChecked] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnread, setChatUnread] = useState(0);
   const [showTranslate, setShowTranslate] = useState(false);
   const [activeLang, setActiveLang] = useState("en");
   const location = useLocation();
@@ -146,7 +143,6 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     void loadProfile();
 
-    // Google Translate widget silently load کریں
     if (!document.getElementById("gt-script")) {
       (window as any).googleTranslateElementInit = () => {};
       const s = document.createElement("script");
@@ -156,7 +152,6 @@ export function Layout({ children }: LayoutProps) {
       document.head.appendChild(s);
     }
 
-    // Hidden widget mount کریں
     if (!document.getElementById("gt-hidden-mount")) {
       const div = document.createElement("div");
       div.id = "gt-hidden-mount";
@@ -182,6 +177,16 @@ export function Layout({ children }: LayoutProps) {
     if (menuOpen) void loadProfile();
   }, [menuOpen]);
 
+  // Chat kholne par unread dobara load karein (messages parh liye honge)
+  useEffect(() => {
+    void refreshChatUnread();
+  }, [path]);
+
+  async function refreshChatUnread() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData.user) void loadChatUnread(userData.user.id);
+  }
+
   async function loadProfile() {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) { setProfile(null); setChecked(true); return; }
@@ -189,6 +194,7 @@ export function Layout({ children }: LayoutProps) {
     setProfile(error ? null : data);
     setChecked(true);
     void loadUnreadCount(userData.user.id);
+    void loadChatUnread(userData.user.id);
     subscribeToNotifications(userData.user.id);
   }
 
@@ -199,6 +205,24 @@ export function Layout({ children }: LayoutProps) {
       .eq("user_id", uid)
       .eq("is_read", false);
     setUnreadCount(count ?? 0);
+  }
+
+  // Chat unread: apne orders ke messages jo doosre ne bheje aur parhe nahi
+  async function loadChatUnread(uid: string) {
+    const { data: txs } = await supabase
+      .from("transactions")
+      .select("id")
+      .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`);
+    const txIds = (txs ?? []).map((t: any) => t.id);
+    if (txIds.length === 0) { setChatUnread(0); return; }
+
+    const { count } = await supabase
+      .from("order_messages")
+      .select("id", { count: "exact", head: true })
+      .in("transaction_id", txIds)
+      .neq("sender_id", uid)
+      .eq("is_read", false);
+    setChatUnread(count ?? 0);
   }
 
   function subscribeToNotifications(uid: string) {
@@ -219,6 +243,21 @@ export function Layout({ children }: LayoutProps) {
         filter: `user_id=eq.${uid}`,
       }, () => {
         void loadUnreadCount(uid);
+      })
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "order_messages",
+      }, () => {
+        // Naya order message aya — chat badge refresh karein
+        void loadChatUnread(uid);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "order_messages",
+      }, () => {
+        void loadChatUnread(uid);
       })
       .subscribe();
   }
@@ -280,7 +319,6 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#F4F6F6] flex flex-col">
 
-      {/* Google Translate CSS fix */}
       <style>{`
         .goog-te-banner-frame, #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
         .skiptranslate { display: none !important; }
@@ -297,14 +335,12 @@ export function Layout({ children }: LayoutProps) {
 
           <div className="flex items-center gap-0.5 ml-auto">
 
-            {/* 🎧 Help */}
             <Link to="/help">
               <div className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all">
                 <HeadphonesIcon size={21} className="text-[#004B49]" />
               </div>
             </Link>
 
-            {/* 文A Translate */}
             <div className="relative">
               <button
                 onClick={() => setShowTranslate(!showTranslate)}
@@ -318,7 +354,6 @@ export function Layout({ children }: LayoutProps) {
 
               {showTranslate && (
                 <>
-                  {/* backdrop */}
                   <div className="fixed inset-0 z-40" onClick={() => setShowTranslate(false)} />
                   <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
                     style={{ width: "260px", maxHeight: "70vh" }}>
@@ -357,7 +392,6 @@ export function Layout({ children }: LayoutProps) {
               )}
             </div>
 
-            {/* 🔔 Notifications */}
             <Link to="/notifications">
               <div className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50">
                 <Bell size={21} className="text-gray-600" />
@@ -371,7 +405,6 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </Link>
 
-            {/* ☰ Menu */}
             <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50">
               <Menu size={22} className="text-gray-600" />
             </button>
@@ -409,6 +442,11 @@ export function Layout({ children }: LayoutProps) {
                     {link.to === "/notifications" && unreadCount > 0 && (
                       <span className="ml-auto bg-red-500 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                         {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                    {link.to === "/messages" && chatUnread > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {chatUnread > 99 ? "99+" : chatUnread}
                       </span>
                     )}
                   </div>
@@ -463,8 +501,17 @@ export function Layout({ children }: LayoutProps) {
             </Link>
           )}
           <Link to="/messages" className="flex-1">
-            <div className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#004B49]" : "text-gray-400"}`}>
-              <MessageCircle size={22} strokeWidth={isActive("/messages") ? 2.5 : 1.8} />
+            <div className={`relative flex flex-col items-center gap-0.5 py-2.5 transition-colors ${isActive("/messages") ? "text-[#004B49]" : "text-gray-400"}`}>
+              <div className="relative">
+                <MessageCircle size={22} strokeWidth={isActive("/messages") ? 2.5 : 1.8} />
+                {chatUnread > 0 && (
+                  <div className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] bg-red-500 rounded-full flex items-center justify-center border-2 border-white">
+                    <span className="text-[8px] font-black text-white px-0.5">
+                      {chatUnread > 99 ? "99+" : chatUnread}
+                    </span>
+                  </div>
+                )}
+              </div>
               <span className="text-[10px] font-semibold">Chat</span>
             </div>
           </Link>
