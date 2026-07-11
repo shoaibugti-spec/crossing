@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Bell, Home, Menu, MessageCircle, Megaphone, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon } from "lucide-react";
+import { Bell, Home, Menu, MessageCircle, Megaphone, Plus, User, X, ShoppingBag, Wallet as WalletIcon, HeadphonesIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
