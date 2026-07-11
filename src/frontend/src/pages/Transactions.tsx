@@ -1,5 +1,5 @@
-import { ArrowLeft, Loader2, Send, CheckCircle, Shield, Clock, Star, X, Globe, FileText, Upload, Package, Camera } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Loader2, Send, CheckCircle, Shield, Clock, Star, X, Globe, FileText, Upload, Package, Plus, XCircle } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -9,7 +9,10 @@ interface OrderMsg {
   id: string; text: string; sender_id: string; created_at: string;
 }
 interface OrderDoc {
-  id: string; doc_name: string; doc_url: string; uploaded_by: string; created_at: string;
+  id: string; doc_name: string; doc_url: string; uploaded_by: string; status: string; reject_reason: string | null; created_at: string;
+}
+interface DocRequest {
+  id: string; doc_name: string; created_at: string;
 }
 
 export function Transactions() {
@@ -21,6 +24,7 @@ export function Transactions() {
   const [selected, setSelected] = useState<any | null>(null);
   const [messages, setMessages] = useState<OrderMsg[]>([]);
   const [orderDocs, setOrderDocs] = useState<OrderDoc[]>([]);
+  const [docRequests, setDocRequests] = useState<DocRequest[]>([]);
   const [msgText, setMsgText] = useState("");
   const [sending, setSending] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -29,11 +33,19 @@ export function Transactions() {
   const [showDocs, setShowDocs] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Tracking modal (provider)
+  // Reject doc modal
+  const [rejectingDoc, setRejectingDoc] = useState<OrderDoc | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  // Extra doc request modal
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [newDocName, setNewDocName] = useState("");
+
+  // Tracking modal
   const [showTracking, setShowTracking] = useState(false);
   const [trackingInput, setTrackingInput] = useState("");
 
-  // Feedback modal
+  // Feedback
   const [showFeedback, setShowFeedback] = useState(false);
   const [fbRating, setFbRating] = useState<"positive" | "negative">("positive");
   const [fbTags, setFbTags] = useState<string[]>([]);
@@ -101,21 +113,40 @@ export function Transactions() {
 
     const { data: docs } = await supabase
       .from("order_documents")
-      .select("id, doc_name, doc_url, uploaded_by, created_at")
+      .select("id, doc_name, doc_url, uploaded_by, status, reject_reason, created_at")
       .eq("transaction_id", order.id)
       .order("created_at", { ascending: true });
     setOrderDocs((docs ?? []) as OrderDoc[]);
+
+    const { data: reqs } = await supabase
+      .from("order_doc_requests")
+      .select("id, doc_name, created_at")
+      .eq("transaction_id", order.id)
+      .order("created_at", { ascending: true });
+    setDocRequests((reqs ?? []) as DocRequest[]);
 
     supabase.channel(`order_${order.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_messages", filter: `transaction_id=eq.${order.id}` }, (payload) => {
         const m = payload.new as OrderMsg;
         setMessages((prev) => prev.find((x) => x.id === m.id) ? prev : [...prev, m]);
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_documents", filter: `transaction_id=eq.${order.id}` }, (payload) => {
-        const d = payload.new as OrderDoc;
-        setOrderDocs((prev) => prev.find((x) => x.id === d.id) ? prev : [...prev, d]);
-      })
       .subscribe();
+  }
+
+  async function refreshDocs() {
+    if (!selected) return;
+    const { data: docs } = await supabase
+      .from("order_documents")
+      .select("id, doc_name, doc_url, uploaded_by, status, reject_reason, created_at")
+      .eq("transaction_id", selected.id)
+      .order("created_at", { ascending: true });
+    setOrderDocs((docs ?? []) as OrderDoc[]);
+    const { data: reqs } = await supabase
+      .from("order_doc_requests")
+      .select("id, doc_name, created_at")
+      .eq("transaction_id", selected.id)
+      .order("created_at", { ascending: true });
+    setDocRequests((reqs ?? []) as DocRequest[]);
   }
 
   async function sendMsg() {
@@ -132,7 +163,6 @@ export function Transactions() {
     setSending(false);
   }
 
-  // ── Buyer uploads a required document ──
   async function uploadDoc(docName: string, file: File) {
     if (!selected || !userId) return;
     setUploadingDoc(docName);
@@ -143,18 +173,22 @@ export function Transactions() {
       if (upErr) throw upErr;
       const url = supabase.storage.from("order-docs").getPublicUrl(path).data.publicUrl;
 
-      await supabase.from("order_documents").insert({
-        transaction_id: selected.id,
-        uploaded_by: userId,
-        doc_name: docName,
-        doc_url: url,
-      });
+      // Agar pehle rejected tha to purana record update karein warna naya
+      const existing = orderDocs.find((d) => d.doc_name === docName);
+      if (existing) {
+        await supabase.from("order_documents").update({ doc_url: url, status: "pending", reject_reason: null }).eq("id", existing.id);
+      } else {
+        await supabase.from("order_documents").insert({
+          transaction_id: selected.id, uploaded_by: userId, doc_name: docName, doc_url: url, status: "pending",
+        });
+      }
 
       const otherId = userId === selected.buyer_id ? selected.seller_id : selected.buyer_id;
       await supabase.from("notifications").insert({
         user_id: otherId, type: "message", title: "📄 Document Uploaded",
-        body: `"${docName}" uploaded for "${(selected.ads as any)?.title}".`, link: "/orders", is_read: false,
+        body: `"${docName}" uploaded — review karein.`, link: "/orders", is_read: false,
       });
+      await refreshDocs();
       showToast(`✅ ${docName} uploaded`);
     } catch (err: any) {
       alert("Upload failed: " + (err.message ?? "unknown"));
@@ -163,7 +197,47 @@ export function Transactions() {
     }
   }
 
-  // ── Provider saves tracking number + marks delivered ──
+  // Provider accepts a document
+  async function acceptDoc(doc: OrderDoc) {
+    await supabase.from("order_documents").update({ status: "accepted", reject_reason: null }).eq("id", doc.id);
+    await supabase.from("notifications").insert({
+      user_id: selected.buyer_id, type: "success", title: "✅ File Accepted",
+      body: `"${doc.doc_name}" accepted by provider.`, link: "/orders", is_read: false,
+    });
+    await refreshDocs();
+    showToast(`✅ ${doc.doc_name} accepted`);
+  }
+
+  // Provider rejects a document with reason
+  async function rejectDoc() {
+    if (!rejectingDoc || !rejectReason.trim()) return;
+    await supabase.from("order_documents").update({ status: "rejected", reject_reason: rejectReason.trim() }).eq("id", rejectingDoc.id);
+    await supabase.from("notifications").insert({
+      user_id: selected.buyer_id, type: "dispute", title: "❌ File Rejected",
+      body: `"${rejectingDoc.doc_name}" — ${rejectReason.trim()}. Dobara upload karein.`, link: "/orders", is_read: false,
+    });
+    setRejectingDoc(null);
+    setRejectReason("");
+    await refreshDocs();
+    showToast("❌ Document rejected — buyer notified");
+  }
+
+  // Provider requests an extra document
+  async function requestExtraDoc() {
+    if (!newDocName.trim() || !selected || !userId) return;
+    await supabase.from("order_doc_requests").insert({
+      transaction_id: selected.id, requested_by: userId, doc_name: newDocName.trim(),
+    });
+    await supabase.from("notifications").insert({
+      user_id: selected.buyer_id, type: "message", title: "📎 Extra Document Needed",
+      body: `Provider needs: "${newDocName.trim()}". Upload it in your order.`, link: "/orders", is_read: false,
+    });
+    setNewDocName("");
+    setShowAddDoc(false);
+    await refreshDocs();
+    showToast("📎 Extra document requested");
+  }
+
   async function saveTrackingAndDeliver() {
     if (!selected) return;
     if (!trackingInput.trim()) { showToast("⚠️ Tracking number likhen"); return; }
@@ -180,7 +254,6 @@ export function Transactions() {
     showToast("✅ Visa marked as sent");
   }
 
-  // ── Buyer confirms receipt → release payment + restore ad capacity ──
   async function confirmReceiveVisa() {
     if (!selected) return;
     if (!confirm("Kya aap ne apna visa receive kar liya hai? Confirm karne par payment provider ko release ho jayegi.")) return;
@@ -189,15 +262,14 @@ export function Transactions() {
 
     await supabase.from("transactions").update({ status: "completed" }).eq("id", selected.id);
 
-    // Release payment + update provider stats
     const { data: prof } = await supabase.from("profiles")
       .select("wallet_balance, total_visas_delivered, total_valuation")
       .eq("id", selected.seller_id).single();
     const newBal = Number(prof?.wallet_balance ?? 0) + providerAmount;
-    const newVisas = Number(prof?.total_visas_delivered ?? 0) + 1;
-    const newVal = Number(prof?.total_valuation ?? 0) + providerAmount;
     await supabase.from("profiles").update({
-      wallet_balance: newBal, total_visas_delivered: newVisas, total_valuation: newVal,
+      wallet_balance: newBal,
+      total_visas_delivered: Number(prof?.total_visas_delivered ?? 0) + 1,
+      total_valuation: Number(prof?.total_valuation ?? 0) + providerAmount,
     }).eq("id", selected.seller_id);
 
     await supabase.from("wallet_transactions").insert({
@@ -205,7 +277,6 @@ export function Transactions() {
       notes: `Visa payment released — "${(selected.ads as any)?.title ?? "order"}"`,
     });
 
-    // Restore capacity: active_count kam karein, ad wapis public karein
     const serviceId = (selected.ads as any)?.provider_service_id;
     if (serviceId) {
       const { data: svc } = await supabase.from("provider_services").select("active_count, capacity").eq("id", serviceId).single();
@@ -218,7 +289,7 @@ export function Transactions() {
 
     await supabase.from("notifications").insert({
       user_id: selected.seller_id, type: "wallet", title: "💰 Payment Released!",
-      body: `$${providerAmount.toFixed(2)} released to your wallet. Congratulations on another delivery! 🎉`, link: "/wallet", is_read: false,
+      body: `$${providerAmount.toFixed(2)} released to your wallet. Congratulations! 🎉`, link: "/wallet", is_read: false,
     });
 
     setSelected({ ...selected, status: "completed" });
@@ -280,15 +351,19 @@ export function Transactions() {
     return <div className="flex items-center justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={28} /></div>;
   }
 
-  // ═══════════ CHAT / ORDER DETAIL VIEW ═══════════
+  // ═══════════ CHAT / ORDER DETAIL ═══════════
   if (selected) {
     const isBuyer = userId === selected.buyer_id;
+    const otherId = isBuyer ? selected.seller_id : selected.buyer_id;
     const other = isBuyer ? (selected.seller as any) : (selected.buyer as any);
     const otherName = other?.display_name ?? other?.full_name ?? (isBuyer ? "Provider" : "Buyer");
     const adInfo = selected.ads as any;
-    const requirements: string[] = adInfo?.requirements ?? [];
+    const baseReqs: string[] = adInfo?.requirements ?? [];
+    const extraReqs: string[] = docRequests.map((r) => r.doc_name);
+    const allReqs = [...baseReqs, ...extraReqs.filter((e) => !baseReqs.includes(e))];
+    const acceptedCount = orderDocs.filter((d) => d.status === "accepted").length;
 
-    const uploadedByName = (docName: string) => orderDocs.find((d) => d.doc_name === docName);
+    const docByName = (name: string) => orderDocs.find((d) => d.doc_name === name);
 
     return (
       <div className="flex flex-col h-screen">
@@ -296,22 +371,25 @@ export function Transactions() {
           <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl">{toast}</div>
         )}
 
-        {/* Header */}
+        {/* Header — tap = other party profile */}
         <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100 flex-shrink-0">
           <button onClick={() => setSelected(null)} className="text-gray-400 text-xl">‹</button>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold">
-            {otherName[0]?.toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm text-gray-800 truncate">{otherName}</div>
-            <div className="text-[10px] text-gray-400 truncate">{adInfo?.title}</div>
-          </div>
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusInfo(selected.status).cls}`}>
+          <Link to="/profile/$id" params={{ id: otherId }} className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#004B49] to-[#00746f] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {otherName[0]?.toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm text-gray-800 truncate flex items-center gap-1">
+                {otherName} <span className="text-[9px] text-[#004B49] font-semibold">· View Profile ›</span>
+              </div>
+              <div className="text-[10px] text-gray-400 truncate">{adInfo?.title}</div>
+            </div>
+          </Link>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${statusInfo(selected.status).cls}`}>
             {statusInfo(selected.status).label}
           </span>
         </div>
 
-        {/* Order info bar */}
         <div className="bg-[#E8F0EF] px-4 py-2 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-1.5 text-[11px] text-[#004B49]">
             <Globe size={11} /> {adInfo?.country} · {adInfo?.visa_type}
@@ -319,7 +397,6 @@ export function Transactions() {
           <div className="text-[11px] font-bold text-[#004B49]">${Number(selected.amount).toFixed(2)}</div>
         </div>
 
-        {/* Tracking number bar (agar hai) */}
         {selected.tracking_number && (
           <div className="bg-purple-50 border-b border-purple-100 px-4 py-2 flex items-center gap-2 flex-shrink-0">
             <Package size={13} className="text-purple-500 flex-shrink-0" />
@@ -327,45 +404,80 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ DOCUMENTS SECTION ══ */}
-        {requirements.length > 0 && selected.status !== "completed" && (
-          <div className="bg-white border-b border-gray-100 flex-shrink-0">
+        {/* ══ DOCUMENTS ══ */}
+        {allReqs.length > 0 && selected.status !== "completed" && (
+          <div className="bg-white border-b border-gray-100 flex-shrink-0 max-h-[38vh] overflow-y-auto">
             <button onClick={() => setShowDocs(!showDocs)}
-              className="w-full px-4 py-2.5 flex items-center justify-between">
+              className="w-full px-4 py-2.5 flex items-center justify-between sticky top-0 bg-white">
               <div className="flex items-center gap-2">
                 <FileText size={14} className="text-[#004B49]" />
-                <span className="text-xs font-bold text-gray-800">Required Documents ({orderDocs.length}/{requirements.length})</span>
+                <span className="text-xs font-bold text-gray-800">Documents ({acceptedCount}/{allReqs.length} accepted)</span>
               </div>
               <span className="text-gray-400 text-xs">{showDocs ? "▲" : "▼"}</span>
             </button>
             {showDocs && (
               <div className="px-4 pb-3 flex flex-col gap-2">
-                {requirements.map((docName) => {
-                  const uploaded = uploadedByName(docName);
+                {allReqs.map((docName) => {
+                  const doc = docByName(docName);
+                  const isExtra = extraReqs.includes(docName) && !baseReqs.includes(docName);
                   return (
-                    <div key={docName} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${uploaded ? "bg-green-100" : "bg-gray-200"}`}>
-                        {uploaded ? <CheckCircle size={13} className="text-green-500" /> : <FileText size={11} className="text-gray-400" />}
+                    <div key={docName} className={`rounded-xl px-3 py-2.5 ${doc?.status === "accepted" ? "bg-green-50" : doc?.status === "rejected" ? "bg-red-50" : "bg-gray-50"}`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          doc?.status === "accepted" ? "bg-green-100" : doc?.status === "rejected" ? "bg-red-100" : doc ? "bg-blue-100" : "bg-gray-200"
+                        }`}>
+                          {doc?.status === "accepted" ? <CheckCircle size={13} className="text-green-500" />
+                            : doc?.status === "rejected" ? <XCircle size={13} className="text-red-400" />
+                            : <FileText size={11} className={doc ? "text-blue-500" : "text-gray-400"} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-gray-700 truncate">
+                            {docName} {isExtra && <span className="text-[8px] bg-[#FBF3E1] text-[#9c7a1f] px-1.5 py-0.5 rounded-full font-bold">EXTRA</span>}
+                          </div>
+                          <div className="text-[9px] mt-0.5">
+                            {doc?.status === "accepted" && <span className="text-green-600 font-bold">✓ File Accepted</span>}
+                            {doc?.status === "rejected" && <span className="text-red-500 font-bold">✗ Rejected: {doc.reject_reason}</span>}
+                            {doc?.status === "pending" && <span className="text-blue-500 font-bold">⏳ Under review</span>}
+                            {!doc && <span className="text-gray-400">Not uploaded yet</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {doc && (
+                            <a href={doc.doc_url} target="_blank" rel="noopener noreferrer"
+                              className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2 py-1 rounded-lg">
+                              View
+                            </a>
+                          )}
+                          {/* Buyer: upload / re-upload */}
+                          {isBuyer && (!doc || doc.status === "rejected") && (
+                            <label className="text-[10px] font-bold text-white bg-[#004B49] px-2 py-1 rounded-lg cursor-pointer flex items-center gap-1">
+                              {uploadingDoc === docName ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
+                              {doc?.status === "rejected" ? "Re-upload" : "Upload"}
+                              <input type="file" accept="image/*,application/pdf" className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadDoc(docName, f); }} />
+                            </label>
+                          )}
+                          {/* Provider: accept/reject pending docs */}
+                          {!isBuyer && doc && doc.status === "pending" && (
+                            <>
+                              <button onClick={() => void acceptDoc(doc)}
+                                className="text-[10px] font-bold text-white bg-green-500 px-2 py-1 rounded-lg">✓</button>
+                              <button onClick={() => { setRejectingDoc(doc); setRejectReason(""); }}
+                                className="text-[10px] font-bold text-white bg-red-400 px-2 py-1 rounded-lg">✗</button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{docName}</span>
-                      {uploaded ? (
-                        <a href={uploaded.doc_url} target="_blank" rel="noopener noreferrer"
-                          className="text-[10px] font-bold text-[#004B49] bg-[#E8F0EF] px-2.5 py-1 rounded-lg flex-shrink-0">
-                          View
-                        </a>
-                      ) : isBuyer ? (
-                        <label className="text-[10px] font-bold text-white bg-[#004B49] px-2.5 py-1 rounded-lg flex-shrink-0 cursor-pointer flex items-center gap-1">
-                          {uploadingDoc === docName ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
-                          Upload
-                          <input type="file" accept="image/*,application/pdf" className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadDoc(docName, f); }} />
-                        </label>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 flex-shrink-0">Waiting...</span>
-                      )}
                     </div>
                   );
                 })}
+                {/* Provider: request extra doc */}
+                {!isBuyer && (
+                  <button onClick={() => setShowAddDoc(true)}
+                    className="w-full border-2 border-dashed border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-400 flex items-center justify-center gap-1.5 hover:border-[#004B49]/40">
+                    <Plus size={12} /> Request Extra Document
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -377,7 +489,7 @@ export function Transactions() {
             <Shield size={16} className="text-[#004B49] mx-auto mb-1" />
             <div className="text-[11px] text-gray-500">
               Payment is held safely in escrow.
-              {isBuyer ? " Upload your documents above, then wait for your visa. Confirm only when you receive it." : " Review buyer documents above, process the visa, then send it with a tracking number."}
+              {isBuyer ? " Upload your documents above, then wait for your visa." : " Review documents above, process the visa, then send with tracking."}
             </div>
           </div>
           {messages.map((m) => (
@@ -432,7 +544,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* Message input */}
         {selected.status !== "completed" && (
           <div className="px-3 py-2.5 bg-white border-t border-gray-100 flex items-center gap-2 flex-shrink-0">
             <input value={msgText} onChange={(e) => setMsgText(e.target.value)}
@@ -446,7 +557,45 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ TRACKING MODAL (Provider) ══ */}
+        {/* ══ REJECT DOC MODAL ══ */}
+        {rejectingDoc && (
+          <div className="fixed inset-0 z-[90] flex flex-col justify-end">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setRejectingDoc(null)} />
+            <div className="relative bg-white rounded-t-3xl px-5 pt-4 pb-8">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+              <div className="font-black text-gray-800 mb-1">❌ Reject "{rejectingDoc.doc_name}"</div>
+              <div className="text-xs text-gray-500 mb-3">Wajah likhen — buyer ko notification jayegi aur wo dobara upload karega.</div>
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. Photo dhundli hai, saaf photo bhejein" rows={3} autoFocus
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#004B49] mb-3" />
+              <button onClick={() => void rejectDoc()} disabled={!rejectReason.trim()}
+                className="w-full bg-red-500 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                Reject & Notify Buyer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ ADD EXTRA DOC MODAL ══ */}
+        {showAddDoc && (
+          <div className="fixed inset-0 z-[90] flex flex-col justify-end">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddDoc(false)} />
+            <div className="relative bg-white rounded-t-3xl px-5 pt-4 pb-8">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
+              <div className="font-black text-gray-800 mb-1">📎 Request Extra Document</div>
+              <div className="text-xs text-gray-500 mb-3">Document ka naam likhen — buyer ki list mein add ho jayega.</div>
+              <input value={newDocName} onChange={(e) => setNewDocName(e.target.value)}
+                placeholder="e.g. Bank Statement (Last 6 Months)" autoFocus
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49] mb-3" />
+              <button onClick={() => void requestExtraDoc()} disabled={!newDocName.trim()}
+                className="w-full bg-[#004B49] text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                Request Document
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ TRACKING MODAL ══ */}
         {showTracking && (
           <div className="fixed inset-0 z-[90] flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowTracking(false)} />
@@ -458,11 +607,9 @@ export function Transactions() {
                   <X size={16} className="text-gray-500" />
                 </button>
               </div>
-              <div className="text-xs text-gray-500 mb-3">Visa mukammal ho gaya? Tracking/reference number likhen — buyer isi se apna visa verify karega.</div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tracking / Reference Number *</div>
+              <div className="text-xs text-gray-500 mb-3">Visa mukammal? Tracking/reference number likhen — buyer isi se verify karega.</div>
               <input value={trackingInput} onChange={(e) => setTrackingInput(e.target.value)}
-                placeholder="e.g. TCS-12345678 or Visa Ref#"
-                autoFocus
+                placeholder="e.g. TCS-12345678 or Visa Ref#" autoFocus
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#004B49] mb-4" />
               <button onClick={() => void saveTrackingAndDeliver()} disabled={!trackingInput.trim() || processing}
                 className="w-full bg-[#004B49] text-white font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
