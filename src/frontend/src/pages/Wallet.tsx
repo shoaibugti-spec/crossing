@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock, CheckCircle, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Camera } from "lucide-react";
+import { ArrowLeft, Lock, CheckCircle, AlertTriangle, Shield, ArrowDownLeft, ArrowUpRight, X, Copy, Loader2, Camera, History } from "lucide-react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -30,7 +30,8 @@ export function Wallet() {
 
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
-  const [showCloseAccount, setShowCloseAccount] = useState(false);
+const [showHistory, setShowHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "in" | "out">("all");
   const [amount, setAmount] = useState("");
   const [depositStep, setDepositStep] = useState(0);
   const [txHash, setTxHash] = useState("");
@@ -88,7 +89,7 @@ export function Wallet() {
       .select("id, type, amount, status, notes, receipt_url, created_at")
       .eq("user_id", uid)
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(100);
     setTransactions(txs ?? []);
 
     setReferenceCode(`CRX-${uid.slice(0, 8).toUpperCase()}`);
@@ -206,13 +207,17 @@ export function Wallet() {
           <ArrowLeft size={20} className="text-gray-600" />
         </button>
         <span className="font-bold text-gray-800 text-sm">Wallet</span>
-        {role === "provider" && (
-          <span className="ml-auto text-[10px] font-bold text-[#9c7a1f] bg-[#FBF3E1] border border-[#D4AF37]/30 px-2 py-0.5 rounded-full">
-            Provider Account
-          </span>
-        )}
-      </div>
-
+        <div className="ml-auto flex items-center gap-2">
+          {role === "provider" && (
+            <span className="text-[10px] font-bold text-[#9c7a1f] bg-[#FBF3E1] border border-[#D4AF37]/30 px-2 py-0.5 rounded-full">
+              Provider Account
+            </span>
+          )}
+          <button onClick={() => setShowHistory(true)}
+            className="w-9 h-9 rounded-full bg-[#E8F0EF] flex items-center justify-center">
+            <History size={17} className="text-[#004B49]" />
+          </button>
+        </div>
       {/* MAIN BALANCE CARD */}
       <div className="mx-4 mt-4">
         <div className="bg-gradient-to-br from-[#00302e] to-[#004B49] rounded-3xl p-5 shadow-lg">
