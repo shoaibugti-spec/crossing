@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 const FEEDBACK_TAGS = ["Fast Service", "Trusted", "Safe", "Responsive", "Professional", "Great Communication", "Affordable", "Reliable"];
 
 interface OrderMsg {
-  id: string; text: string; sender_id: string; created_at: string;
+  id: string; text: string; sender_id: string; is_system: boolean; created_at: string;
 }
 interface OrderDoc {
   id: string; doc_name: string; doc_url: string; uploaded_by: string; status: string; reject_reason: string | null; created_at: string;
@@ -33,19 +33,12 @@ export function Transactions() {
   const [showDocs, setShowDocs] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Reject doc modal
   const [rejectingDoc, setRejectingDoc] = useState<OrderDoc | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-
-  // Extra doc request modal
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDocName, setNewDocName] = useState("");
-
-  // Tracking modal
   const [showTracking, setShowTracking] = useState(false);
   const [trackingInput, setTrackingInput] = useState("");
-
-  // Feedback
   const [showFeedback, setShowFeedback] = useState(false);
   const [fbRating, setFbRating] = useState<"positive" | "negative">("positive");
   const [fbTags, setFbTags] = useState<string[]>([]);
@@ -55,6 +48,14 @@ export function Transactions() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 2500); }
+
+  // System message helper — chat mein event dikhaye
+  async function sendSystemMsg(txId: string, text: string) {
+    if (!userId) return;
+    await supabase.from("order_messages").insert({
+      transaction_id: txId, sender_id: userId, text, is_system: true,
+    });
+  }
 
   async function loadOrders() {
     setLoading(true);
@@ -106,10 +107,19 @@ export function Transactions() {
 
     const { data } = await supabase
       .from("order_messages")
-      .select("id, text, sender_id, created_at")
+      .select("id, text, sender_id, is_system, created_at")
       .eq("transaction_id", order.id)
       .order("created_at", { ascending: true });
     setMessages((data ?? []) as OrderMsg[]);
+
+    // Doosre ke messages ko read mark karein (badge khatam ho)
+    if (userId) {
+      await supabase.from("order_messages")
+        .update({ is_read: true })
+        .eq("transaction_id", order.id)
+        .neq("sender_id", userId)
+        .eq("is_read", false);
+    }
 
     const { data: docs } = await supabase
       .from("order_documents")
@@ -129,6 +139,10 @@ export function Transactions() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_messages", filter: `transaction_id=eq.${order.id}` }, (payload) => {
         const m = payload.new as OrderMsg;
         setMessages((prev) => prev.find((x) => x.id === m.id) ? prev : [...prev, m]);
+        // Chat khula hai to foran read mark karein
+        if (userId && m.sender_id !== userId) {
+          void supabase.from("order_messages").update({ is_read: true }).eq("id", m.id);
+        }
       })
       .subscribe();
   }
@@ -154,11 +168,11 @@ export function Transactions() {
     setSending(true);
     const text = msgText.trim();
     setMsgText("");
-    await supabase.from("order_messages").insert({ transaction_id: selected.id, sender_id: userId, text });
+    await supabase.from("order_messages").insert({ transaction_id: selected.id, sender_id: userId, text, is_system: false });
     const otherId = userId === selected.buyer_id ? selected.seller_id : selected.buyer_id;
     await supabase.from("notifications").insert({
       user_id: otherId, type: "message", title: "💬 New Message",
-      body: `About "${(selected.ads as any)?.title ?? "your order"}"`, link: "/orders", is_read: false,
+      body: `About "${(selected.ads as any)?.title ?? "your order"}"`, link: "/messages", is_read: false,
     });
     setSending(false);
   }
@@ -173,7 +187,6 @@ export function Transactions() {
       if (upErr) throw upErr;
       const url = supabase.storage.from("order-docs").getPublicUrl(path).data.publicUrl;
 
-      // Agar pehle rejected tha to purana record update karein warna naya
       const existing = orderDocs.find((d) => d.doc_name === docName);
       if (existing) {
         await supabase.from("order_documents").update({ doc_url: url, status: "pending", reject_reason: null }).eq("id", existing.id);
@@ -183,10 +196,12 @@ export function Transactions() {
         });
       }
 
+      await sendSystemMsg(selected.id, `📄 "${docName}" uploaded — under review`);
+
       const otherId = userId === selected.buyer_id ? selected.seller_id : selected.buyer_id;
       await supabase.from("notifications").insert({
         user_id: otherId, type: "message", title: "📄 Document Uploaded",
-        body: `"${docName}" uploaded — review karein.`, link: "/orders", is_read: false,
+        body: `"${docName}" uploaded — review karein.`, link: "/messages", is_read: false,
       });
       await refreshDocs();
       showToast(`✅ ${docName} uploaded`);
@@ -197,24 +212,24 @@ export function Transactions() {
     }
   }
 
-  // Provider accepts a document
   async function acceptDoc(doc: OrderDoc) {
     await supabase.from("order_documents").update({ status: "accepted", reject_reason: null }).eq("id", doc.id);
+    await sendSystemMsg(selected.id, `✅ "${doc.doc_name}" — File Accepted`);
     await supabase.from("notifications").insert({
       user_id: selected.buyer_id, type: "success", title: "✅ File Accepted",
-      body: `"${doc.doc_name}" accepted by provider.`, link: "/orders", is_read: false,
+      body: `"${doc.doc_name}" accepted by provider.`, link: "/messages", is_read: false,
     });
     await refreshDocs();
     showToast(`✅ ${doc.doc_name} accepted`);
   }
 
-  // Provider rejects a document with reason
   async function rejectDoc() {
     if (!rejectingDoc || !rejectReason.trim()) return;
     await supabase.from("order_documents").update({ status: "rejected", reject_reason: rejectReason.trim() }).eq("id", rejectingDoc.id);
+    await sendSystemMsg(selected.id, `❌ "${rejectingDoc.doc_name}" rejected — ${rejectReason.trim()}`);
     await supabase.from("notifications").insert({
       user_id: selected.buyer_id, type: "dispute", title: "❌ File Rejected",
-      body: `"${rejectingDoc.doc_name}" — ${rejectReason.trim()}. Dobara upload karein.`, link: "/orders", is_read: false,
+      body: `"${rejectingDoc.doc_name}" — ${rejectReason.trim()}. Dobara upload karein.`, link: "/messages", is_read: false,
     });
     setRejectingDoc(null);
     setRejectReason("");
@@ -222,15 +237,15 @@ export function Transactions() {
     showToast("❌ Document rejected — buyer notified");
   }
 
-  // Provider requests an extra document
   async function requestExtraDoc() {
     if (!newDocName.trim() || !selected || !userId) return;
     await supabase.from("order_doc_requests").insert({
       transaction_id: selected.id, requested_by: userId, doc_name: newDocName.trim(),
     });
+    await sendSystemMsg(selected.id, `📎 Extra document requested: "${newDocName.trim()}"`);
     await supabase.from("notifications").insert({
       user_id: selected.buyer_id, type: "message", title: "📎 Extra Document Needed",
-      body: `Provider needs: "${newDocName.trim()}". Upload it in your order.`, link: "/orders", is_read: false,
+      body: `Provider needs: "${newDocName.trim()}". Upload it in your order.`, link: "/messages", is_read: false,
     });
     setNewDocName("");
     setShowAddDoc(false);
@@ -244,17 +259,18 @@ export function Transactions() {
     setProcessing(true);
     const { error: updErr, data: updData } = await supabase
       .from("transactions")
-      .update({ status: "delivered", tracking_number: trackingInput.trim() })
+      .update({ status: "delivered", tracking_number: trackingInput.trim(), delivered_at: new Date().toISOString() })
       .eq("id", selected.id)
       .select("id, status");
     if (updErr || !updData || updData.length === 0) {
-      alert("Update failed: " + (updErr?.message ?? "no rows updated (permission issue)"));
+      alert("Update failed: " + (updErr?.message ?? "no rows updated"));
       setProcessing(false);
       return;
     }
+    await sendSystemMsg(selected.id, `📦 Visa sent! Tracking: ${trackingInput.trim()}`);
     await supabase.from("notifications").insert({
       user_id: selected.buyer_id, type: "success", title: "📬 Visa Sent!",
-      body: `Tracking: ${trackingInput.trim()}. Confirm once you receive your visa.`, link: "/orders", is_read: false,
+      body: `Tracking: ${trackingInput.trim()}. Confirm once you receive your visa.`, link: "/messages", is_read: false,
     });
     setSelected({ ...selected, status: "delivered", tracking_number: trackingInput.trim() });
     setOrders((p) => p.map((o) => o.id === selected.id ? { ...o, status: "delivered", tracking_number: trackingInput.trim() } : o));
@@ -269,7 +285,15 @@ export function Transactions() {
     setProcessing(true);
     const providerAmount = Number(selected.amount);
 
-    await supabase.from("transactions").update({ status: "completed" }).eq("id", selected.id);
+    const { error: updErr } = await supabase
+      .from("transactions")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", selected.id);
+    if (updErr) {
+      alert("Failed: " + updErr.message);
+      setProcessing(false);
+      return;
+    }
 
     const { data: prof } = await supabase.from("profiles")
       .select("wallet_balance, total_visas_delivered, total_valuation")
@@ -296,6 +320,7 @@ export function Transactions() {
       }
     }
 
+    await sendSystemMsg(selected.id, `💰 Payment released — order is now complete. Thank you! 🎉`);
     await supabase.from("notifications").insert({
       user_id: selected.seller_id, type: "wallet", title: "💰 Payment Released!",
       body: `$${providerAmount.toFixed(2)} released to your wallet. Congratulations! 🎉`, link: "/wallet", is_read: false,
@@ -380,7 +405,6 @@ export function Transactions() {
           <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl">{toast}</div>
         )}
 
-        {/* Header — tap = other party profile */}
         <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100 flex-shrink-0">
           <button onClick={() => setSelected(null)} className="text-gray-400 text-xl">‹</button>
           <Link to="/profile/$id" params={{ id: otherId }} className="flex items-center gap-3 flex-1 min-w-0">
@@ -413,7 +437,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ DOCUMENTS ══ */}
         {allReqs.length > 0 && selected.status !== "completed" && (
           <div className="bg-white border-b border-gray-100 flex-shrink-0 max-h-[38vh] overflow-y-auto">
             <button onClick={() => setShowDocs(!showDocs)}
@@ -457,7 +480,6 @@ export function Transactions() {
                               View
                             </a>
                           )}
-                          {/* Buyer: upload / re-upload */}
                           {isBuyer && (!doc || doc.status === "rejected") && (
                             <label className="text-[10px] font-bold text-white bg-[#004B49] px-2 py-1 rounded-lg cursor-pointer flex items-center gap-1">
                               {uploadingDoc === docName ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
@@ -466,7 +488,6 @@ export function Transactions() {
                                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadDoc(docName, f); }} />
                             </label>
                           )}
-                          {/* Provider: accept/reject pending docs */}
                           {!isBuyer && doc && doc.status === "pending" && (
                             <>
                               <button onClick={() => void acceptDoc(doc)}
@@ -480,7 +501,6 @@ export function Transactions() {
                     </div>
                   );
                 })}
-                {/* Provider: request extra doc */}
                 {!isBuyer && (
                   <button onClick={() => setShowAddDoc(true)}
                     className="w-full border-2 border-dashed border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-400 flex items-center justify-center gap-1.5 hover:border-[#004B49]/40">
@@ -492,7 +512,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2 bg-gray-50/60">
           <div className="bg-white border border-gray-100 rounded-xl p-3 text-center mb-1">
             <Shield size={16} className="text-[#004B49] mx-auto mb-1" />
@@ -502,19 +521,26 @@ export function Transactions() {
             </div>
           </div>
           {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm ${m.sender_id === userId ? "bg-[#004B49] text-white rounded-br-sm" : "bg-white text-gray-800 border border-gray-100 rounded-bl-sm"}`}>
-                {m.text}
-                <div className={`text-[8px] mt-1 ${m.sender_id === userId ? "text-white/50" : "text-gray-400"}`}>
-                  {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            m.is_system ? (
+              <div key={m.id} className="flex justify-center my-1">
+                <div className="bg-[#E8F0EF] border border-[#004B49]/10 rounded-full px-3.5 py-1.5 text-[10px] font-semibold text-[#004B49] text-center max-w-[90%]">
+                  {m.text}
                 </div>
               </div>
-            </div>
+            ) : (
+              <div key={m.id} className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm ${m.sender_id === userId ? "bg-[#004B49] text-white rounded-br-sm" : "bg-white text-gray-800 border border-gray-100 rounded-bl-sm"}`}>
+                  {m.text}
+                  <div className={`text-[8px] mt-1 ${m.sender_id === userId ? "text-white/50" : "text-gray-400"}`}>
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              </div>
+            )
           ))}
           <div ref={chatEndRef} />
         </div>
 
-        {/* Action bar */}
         {selected.status !== "completed" && selected.status !== "disputed" && (
           <div className="px-4 py-2 bg-white border-t border-gray-100 flex-shrink-0">
             {!isBuyer && (selected.status === "escrow_active" || selected.status === "in_progress") && (
@@ -566,7 +592,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ REJECT DOC MODAL ══ */}
         {rejectingDoc && (
           <div className="fixed inset-0 z-[90] flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/50" onClick={() => setRejectingDoc(null)} />
@@ -585,7 +610,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ ADD EXTRA DOC MODAL ══ */}
         {showAddDoc && (
           <div className="fixed inset-0 z-[90] flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddDoc(false)} />
@@ -604,7 +628,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ TRACKING MODAL ══ */}
         {showTracking && (
           <div className="fixed inset-0 z-[90] flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowTracking(false)} />
@@ -628,7 +651,6 @@ export function Transactions() {
           </div>
         )}
 
-        {/* ══ FEEDBACK MODAL ══ */}
         {showFeedback && (
           <div className="fixed inset-0 z-[90] flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowFeedback(false)} />
