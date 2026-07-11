@@ -242,7 +242,16 @@ export function Transactions() {
     if (!selected) return;
     if (!trackingInput.trim()) { showToast("⚠️ Tracking number likhen"); return; }
     setProcessing(true);
-    await supabase.from("transactions").update({ status: "delivered", tracking_number: trackingInput.trim() }).eq("id", selected.id);
+    const { error: updErr, data: updData } = await supabase
+      .from("transactions")
+      .update({ status: "delivered", tracking_number: trackingInput.trim() })
+      .eq("id", selected.id)
+      .select("id, status");
+    if (updErr || !updData || updData.length === 0) {
+      alert("Update failed: " + (updErr?.message ?? "no rows updated (permission issue)"));
+      setProcessing(false);
+      return;
+    }
     await supabase.from("notifications").insert({
       user_id: selected.buyer_id, type: "success", title: "📬 Visa Sent!",
       body: `Tracking: ${trackingInput.trim()}. Confirm once you receive your visa.`, link: "/orders", is_read: false,
