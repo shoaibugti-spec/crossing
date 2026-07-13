@@ -124,8 +124,6 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
     </div>
   );
 }
-
-function SocialFooter() {
 function SocialFooter() {
   return (
     <div className="mx-4 mt-4 mb-2 flex flex-col gap-3">
