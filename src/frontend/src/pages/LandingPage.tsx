@@ -191,7 +191,7 @@ function SocialFooter() {
   );
 }
 
-export function LandingPage() {
+export default function LandingPage() {
   const navigate = useNavigate();
   const [destCountry, setDestCountry] = useState("");
   const [visaType, setVisaType] = useState("");
