@@ -126,8 +126,9 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
 }
 
 function SocialFooter() {
+function SocialFooter() {
   return (
-    <div className="mx-4 mt-4 mb-2">
+    <div className="mx-4 mt-4 mb-2 flex flex-col gap-3">
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center mb-3">Contact & Follow Us</div>
         <div className="flex flex-col gap-1">
@@ -160,7 +161,30 @@ function SocialFooter() {
               <div className="text-[11px] text-gray-400">facebook.com/crossingate</div>
             </div>
           </a>
+          <a href="https://www.linkedin.com/company/crossingate/" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-all">
+            <div className="w-9 h-9 rounded-xl bg-[#0A66C2] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-base font-black">in</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-gray-700">LinkedIn</div>
+              <div className="text-[11px] text-gray-400">linkedin.com/company/crossingate</div>
+            </div>
+          </a>
         </div>
+      </div>
+
+      <div className="text-center py-2">
+        <div className="text-xs text-gray-500 mb-3">Follow us and reach out — we're here to help.</div>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mb-3">
+          <a href="#" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">About</a>
+          <a href="#" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">FAQ</a>
+          <a href="#" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">Privacy Policy</a>
+          <a href="#" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">Terms</a>
+          <a href="#" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">Community Guidelines</a>
+          <a href="mailto:info@crossingate.com" className="text-[11px] font-semibold text-gray-400 hover:text-[#004B49]">Contact Us</a>
+        </div>
+        <div className="text-[10px] text-gray-300">© 2026 Crossingate. All rights reserved.</div>
       </div>
     </div>
   );
