@@ -126,7 +126,6 @@ function HowItWorks({ role }: { role: "buyer" | "provider" }) {
 }
 
 function SocialFooter() {
-function SocialFooter() {
   return (
     <div className="mx-4 mt-4 mb-2 flex flex-col gap-3">
       <div className="bg-white rounded-2xl p-4 shadow-sm">
@@ -173,7 +172,8 @@ function SocialFooter() {
           </a>
         </div>
       </div>
-
+);
+      }
       <div className="text-center py-2">
         <div className="text-xs text-gray-500 mb-3">Follow us and reach out — we're here to help.</div>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mb-3">
