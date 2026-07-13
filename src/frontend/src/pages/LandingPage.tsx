@@ -187,7 +187,6 @@ function SocialFooter() {
     </div>
   );
 }
-
 export function LandingPage() {
   const navigate = useNavigate();
   const [destCountry, setDestCountry] = useState("");
